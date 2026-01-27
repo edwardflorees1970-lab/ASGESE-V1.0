@@ -1,4 +1,3 @@
-
 import { Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/LoginPage";
 import { AppShell } from "./layout/AppShell";
@@ -6,6 +5,8 @@ import { ProtectedRoute } from "./app/ProtectedRoute";
 import { UsersPage } from "./pages/UsersPage";
 import { MonitoreoPage } from "./pages/MonitoreoPage";
 import { FichaPage } from "./pages/FichaPage";
+import { MonitoreoDetailPage } from "./pages/MonitoreoDetailPage";
+
 
 function Home() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
 
           {/* ✅ Monitoreo real */}
           <Route path="monitoreo" element={<MonitoreoPage />} />
+          <Route path="monitoreo/:monitoreoId" element={<MonitoreoDetailPage />} />
           <Route path="monitoreo/:monitoreoId/ficha/:fichaId" element={<FichaPage />} />
 
           <Route path="reportes" element={<Placeholder title="Reportes y resultados" />} />

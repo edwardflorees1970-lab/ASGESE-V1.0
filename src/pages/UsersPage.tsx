@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AdminCreateUserInput,
-  ProfileRow,
-  UsersListQuery,
+  type AdminCreateUserInput,
+  type ProfileRow,
+  type UsersListQuery,
   adminCreateUser,
   adminResetPassword,
   adminUsersDelete,
@@ -149,6 +149,7 @@ export function UsersPage() {
 
   const [page, setPage] = useState(1);
   const pageSize = 12;
+  const [searchTick, setSearchTick] = useState(0);
 
   const query: UsersListQuery = useMemo(
     () => ({
@@ -185,16 +186,21 @@ export function UsersPage() {
   const [resetBusy, setResetBusy] = useState(false);
 
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const load = async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const res = await adminUsersList(query);
+      if (requestId !== requestIdRef.current) return;
       setItems(res.items);
       setTotal(res.total);
     } catch (e: any) {
+      if (requestId !== requestIdRef.current) return;
       setToast({ type: "err", msg: e?.message || "No se pudo cargar usuarios" });
     } finally {
+      if (requestId !== requestIdRef.current) return;
       setLoading(false);
     }
   };
@@ -202,7 +208,7 @@ export function UsersPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.q, query.rol, query.area, query.ugel, query.page, query.pageSize]);
+  }, [query.q, query.rol, query.area, query.ugel, query.page, query.pageSize, searchTick]);
 
   useEffect(() => {
     if (!toast) return;
@@ -212,7 +218,7 @@ export function UsersPage() {
 
   const onSearch = () => {
     setPage(1);
-    load();
+    setSearchTick((s) => s + 1);
   };
 
   const openEditModal = (u: ProfileRow) => {
@@ -227,6 +233,21 @@ export function UsersPage() {
   };
 
   const submitCreate = async () => {
+    if (!createForm.password || createForm.password.trim().length < 8) {
+      setToast({ type: "err", msg: "La contraseña debe tener mínimo 8 caracteres." });
+      return;
+    }
+    if (
+      !createForm.correo.trim() ||
+      !createForm.numero_documento.trim() ||
+      !createForm.apellido_paterno.trim() ||
+      !createForm.apellido_materno.trim() ||
+      !createForm.nombres.trim()
+    ) {
+      setToast({ type: "err", msg: "Completa los campos obligatorios antes de crear." });
+      return;
+    }
+
     setCreateBusy(true);
     try {
       // Normalizar correo
@@ -697,7 +718,19 @@ export function UsersPage() {
             <Button variant="ghost" onClick={() => setOpenCreate(false)} disabled={createBusy}>
               Cancelar
             </Button>
-            <Button onClick={submitCreate} disabled={createBusy}>
+            <Button
+              onClick={submitCreate}
+              disabled={
+                createBusy ||
+                !createForm.password ||
+                createForm.password.trim().length < 8 ||
+                !createForm.correo.trim() ||
+                !createForm.numero_documento.trim() ||
+                !createForm.apellido_paterno.trim() ||
+                !createForm.apellido_materno.trim() ||
+                !createForm.nombres.trim()
+              }
+            >
               {createBusy ? "Creando..." : "Crear"}
             </Button>
           </div>
