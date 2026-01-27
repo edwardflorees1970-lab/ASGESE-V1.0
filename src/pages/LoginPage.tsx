@@ -145,7 +145,7 @@ export function LoginPage() {
                   <input
                     value={numeroDoc}
                     onChange={(e) => setNumeroDoc(e.target.value)}
-                    placeholder="75310856"
+                    placeholder="11111111"
                     className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-4 py-3 text-sm outline-none placeholder:text-white/30 focus:ring-2 focus:ring-white/10"
                   />
                 </label>

@@ -27,13 +27,11 @@ export function AppShell() {
       .join(" ")
       .trim() || profile?.correo || "Usuario";
 
-  // ✅ FIX: en tu AuthProvider el campo es profile.rol (no profile.role)
   const isAdmin = profile?.role === "admin";
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="flex">
-        {/* Sidebar */}
         <aside className="w-[280px] min-h-screen border-r border-white/10 bg-black/30 p-4">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-xs text-white/50">Sistema</div>
@@ -63,7 +61,6 @@ export function AppShell() {
           </div>
         </aside>
 
-        {/* Content */}
         <main className="flex-1 p-6">
           <div className="mx-auto max-w-5xl">
             <Outlet />
@@ -73,4 +70,3 @@ export function AppShell() {
     </div>
   );
 }
-
