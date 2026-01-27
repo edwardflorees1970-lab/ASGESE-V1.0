@@ -25,9 +25,9 @@ export function AppShell() {
     [profile?.nombres, profile?.apellido_paterno, profile?.apellido_materno]
       .filter(Boolean)
       .join(" ")
-      .trim() || profile?.correo || "Usuario";
+      .trim() || profile?.correo || profile?.email || "Usuario";
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = profile?.role === "admin"; // ✅ FIX real
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -41,7 +41,7 @@ export function AppShell() {
 
           <nav className="mt-4 space-y-1">
             <Item to="/app" label="Inicio" />
-            <Item to="/app/monitoreo" label="Elegir monitoreo" />
+            <Item to="/app/monitoreo" label="Monitoreo" />
             <Item to="/app/reportes" label="Reportes y resultados" />
             {isAdmin && <Item to="/app/usuarios" label="Usuarios" />}
           </nav>

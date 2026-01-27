@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 type MonitoreoCard = {
-  id: string;
-  title: string;
+  key: string;          // ej: "LM"
+  title: string;        // "Lengua Materna"
   subtitle: string;
+  to: string;           // "/app/monitoreo/LM"
 };
 
 function cls(...xs: Array<string | false | null | undefined>) {
@@ -17,10 +18,12 @@ export function MonitoreoPage() {
   const monitoreos: MonitoreoCard[] = useMemo(
     () => [
       {
-        id: "lengua-materna",
+        key: "LM",
         title: "Lengua Materna",
-        subtitle: "Fichas: Escribe / Lee / Comunicación oral",
+        subtitle: "2026 • Comunicación / Quechua / Inglés",
+        to: "/app/monitoreo/LM",
       },
+      // más adelante agregas más monitoreos aquí
     ],
     []
   );
@@ -39,8 +42,9 @@ export function MonitoreoPage() {
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         {monitoreos.map((m) => (
           <button
-            key={m.id}
-            onClick={() => nav(`/app/monitoreo/${m.id}`)}
+            key={m.key}
+            type="button"
+            onClick={() => nav(m.to)}
             className={cls(
               "text-left rounded-2xl border border-white/10 bg-white/5 p-5",
               "hover:bg-white/10 transition"

@@ -1,64 +1,69 @@
-import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { FICHA_ESCRIBE_LM } from "../forms/ficha_escribe_lm";
+import { useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+
+type FichaCard = {
+  key: string;     // "ESCRIBE" | "LEE" | "ORAL"
+  title: string;
+  subtitle: string;
+};
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-type FichaCard = {
-  id: string;
-  title: string;
-  subtitle: string;
-  enabled?: boolean;
-};
-
 export function MonitoreoDetailPage() {
-  const { monitoreoId } = useParams();
   const nav = useNavigate();
+  const { monitoreoCodigo } = useParams();
 
-  if (!monitoreoId) return <Navigate to="/app/monitoreo" replace />;
+  // Si entras a /app/monitoreo sin código por error
+  if (!monitoreoCodigo) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
+        Falta el código del monitoreo.
+      </div>
+    );
+  }
 
-  // Solo tenemos implementada "escribe-lm" por ahora.
-  // Las otras quedan listas pero deshabilitadas hasta que creemos sus páginas/forms.
-  const fichas: FichaCard[] =
-    monitoreoId === "lengua-materna"
-      ? [
-          {
-            id: FICHA_ESCRIBE_LM.key, // "escribe-lm"
-            title: "Ficha 1: Escribe",
-            subtitle: "Escribe diversos tipos de textos en su lengua materna",
-            enabled: true,
-          },
-          {
-            id: "lee-lm",
-            title: "Ficha 2: Lee",
-            subtitle: "Lee diversos tipos de textos escritos",
-            enabled: false,
-          },
-          {
-            id: "comunica-oral-lm",
-            title: "Ficha 3: Comunicación oral",
-            subtitle: "Se comunica oralmente en su lengua materna",
-            enabled: false,
-          },
-        ]
-      : [];
+  const fichas: FichaCard[] = useMemo(() => {
+    // Por ahora solo LM 2026
+    if (monitoreoCodigo === "LM") {
+      return [
+        {
+          key: "ESCRIBE",
+          title: "Ficha 1: Escribe",
+          subtitle: "Escribe diversos tipos de textos en su lengua materna",
+        },
+        {
+          key: "LEE",
+          title: "Ficha 2: Lee",
+          subtitle: "Lee diversos tipos de textos escritos",
+        },
+        {
+          key: "ORAL",
+          title: "Ficha 3: Oralidad",
+          subtitle: "Se comunica oralmente en su lengua materna",
+        },
+      ];
+    }
 
-  if (!fichas.length) return <Navigate to="/app/monitoreo" replace />;
+    // Monitoreos futuros: devuelve vacío o un placeholder
+    return [];
+  }, [monitoreoCodigo]);
 
   return (
     <div className="text-white">
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Monitoreo: Lengua Materna
+            Monitoreo: {monitoreoCodigo}
           </h1>
           <p className="mt-1 text-sm text-white/60">
-            Elige la ficha que vas a aplicar.
+            Elige la ficha/formulario a registrar.
           </p>
         </div>
 
         <button
+          type="button"
           onClick={() => nav("/app/monitoreo")}
           className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
         >
@@ -66,19 +71,20 @@ export function MonitoreoDetailPage() {
         </button>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {fichas.map((f) => {
-          const disabled = !f.enabled;
-          return (
+      {fichas.length === 0 ? (
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
+          No hay fichas configuradas para este monitoreo.
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {fichas.map((f) => (
             <button
-              key={f.id}
-              disabled={disabled}
-              onClick={() => nav(`/app/monitoreo/${monitoreoId}/ficha/${f.id}`)}
+              key={f.key}
+              type="button"
+              onClick={() => nav(`/app/monitoreo/${monitoreoCodigo}/ficha/${f.key}`)}
               className={cls(
-                "text-left rounded-2xl border border-white/10 bg-white/5 p-5 transition",
-                disabled
-                  ? "opacity-50 cursor-not-allowed"
-                  : "hover:bg-white/10"
+                "text-left rounded-2xl border border-white/10 bg-white/5 p-5",
+                "hover:bg-white/10 transition"
               )}
             >
               <div className="text-xs text-white/50">Ficha</div>
@@ -86,12 +92,12 @@ export function MonitoreoDetailPage() {
               <div className="mt-2 text-sm text-white/70">{f.subtitle}</div>
 
               <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
-                {disabled ? "Próximamente" : "Abrir ficha →"}
+                Abrir ficha →
               </div>
             </button>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
