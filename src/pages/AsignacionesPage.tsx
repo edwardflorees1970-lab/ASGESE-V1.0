@@ -20,12 +20,6 @@ type ProfileRow = {
   email: string | null;
 };
 
-type AsigRow = {
-  id: string;
-  monitoreo_id: string;
-  user_id: string;
-};
-
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
