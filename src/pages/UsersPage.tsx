@@ -460,8 +460,97 @@ export function UsersPage() {
           </div>
         </div>
 
-        {/* Tabla */}
-        <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+        {/* Lista mobile */}
+        <div className="mt-5 space-y-3 md:hidden">
+          {loading ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
+              Cargando usuarios...
+            </div>
+          ) : items.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
+              No hay resultados.
+            </div>
+          ) : (
+            items.map((u) => (
+              <div key={u.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{formatName(u)}</div>
+                    <div className="text-xs text-white/50">{u.correo}</div>
+                  </div>
+                  <span
+                    className={cls(
+                      "rounded-lg border px-2 py-1 text-xs",
+                      u.rol === "admin"
+                        ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                        : "border-white/10 bg-white/5 text-white/70"
+                    )}
+                  >
+                    {u.rol}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
+                  <div>Documento: {maskDoc(u.tipo_documento, u.numero_documento)}</div>
+                  <div>Área: {u.area || "-"}</div>
+                  <div>UGEL: {u.ugel || "-"}</div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="ghost"
+                    className="px-3 py-2 text-xs"
+                    onClick={() => openEditModal(u)}
+                  >
+                    Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="px-3 py-2 text-xs"
+                    onClick={() => openResetModal(u)}
+                  >
+                    Reset pass
+                  </Button>
+                  <Button
+                    variant="danger"
+                    className="px-3 py-2 text-xs"
+                    disabled={deleteBusyId === u.id}
+                    onClick={() => submitDelete(u)}
+                  >
+                    {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 md:hidden">
+          <div>
+            Mostrando {items.length} de {total} · Página {page}/{totalPages}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              className="px-3 py-2 text-xs"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Anterior
+            </Button>
+            <Button
+              variant="ghost"
+              className="px-3 py-2 text-xs"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Siguiente →
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabla desktop */}
+        <div className="mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:block">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
             <div className="text-sm text-white/70">
               Total: <span className="text-white">{total}</span>
@@ -548,7 +637,7 @@ export function UsersPage() {
           </div>
 
           {/* Paginación */}
-          <div className="flex items-center justify-between border-t border-white/10 px-4 py-3">
+          <div className="flex flex-col gap-2 border-t border-white/10 px-4 py-3 md:flex-row md:items-center md:justify-between">
             <div className="text-xs text-white/50">
               Mostrando {items.length} de {total}
             </div>
