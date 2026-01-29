@@ -910,7 +910,7 @@ export function FichaEscribeLMPage() {
                 type="button"
                 onClick={() => toggleSection(g)}
                 className="flex w-full items-center justify-between text-left"
-                aria-expanded={openSections[g]}
+                aria-expanded={!!openSections[g]}
               >
                 <div className="text-lg font-semibold">{GROUP_LABEL[g]}</div>
                 <div className="flex items-center gap-2">
@@ -1133,7 +1133,7 @@ export function FichaEscribeLMPage() {
 
           <button
             onClick={saveToDatabase}
-            disabled={saving || loadingRun || (runId && runStatus === "final" && !isAdmin)}
+            disabled={saving || loadingRun || (!!runId && runStatus === "final" && !isAdmin)}
             className={cls(
               "rounded-xl px-4 py-2 text-sm font-semibold",
               saving || loadingRun || (runId && runStatus === "final" && !isAdmin)
