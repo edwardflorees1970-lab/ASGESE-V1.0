@@ -4,12 +4,12 @@ import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import logoAgebreUrl from "../assets/logoagebresf.png";
 import {
-  FICHA_ESCRIBE_LM,
+  FICHA_ORAL_LM,
   GROUP_LABEL,
   type NivelAvance,
   type QuestionItem,
   type QuestionGroup,
-} from "../forms/ficha_escribe_lm";
+} from "../forms/ficha_oral_lm";
 
 type HeaderState = {
   institucion_educativa: string;
@@ -264,7 +264,7 @@ const QuestionRow = memo(function QuestionRow({
           <TextArea
             value={st.obs}
             onChange={(e) => onObsChange(q.id, e.currentTarget.value)}
-            placeholder="Escribe una observación breve y concreta..."
+              placeholder="Escribe una observación breve y concreta..."
           />
         </Field>
       </div>
@@ -288,7 +288,7 @@ function normalizeStatus(s: string) {
   return s === "submitted" ? "draft" : s;
 }
 
-export function FichaEscribeLMPage() {
+export function FichaOralLMPage() {
   const { user, profile } = useAuth();
   const nav = useNavigate();
   const [atTop, setAtTop] = useState(true);
@@ -301,7 +301,7 @@ export function FichaEscribeLMPage() {
 
   const draftKey = useMemo(() => {
     const uid = user?.id ?? "anon";
-    return `${STORAGE_PREFIX}${FICHA_ESCRIBE_LM.key}:${uid}`;
+    return `${STORAGE_PREFIX}${FICHA_ORAL_LM.key}:${uid}`;
   }, [user?.id]);
 
   const [header, setHeader] = useState<HeaderState>({
@@ -336,7 +336,7 @@ export function FichaEscribeLMPage() {
     null
   );
 
-  const grouped = useMemo(() => groupBy(FICHA_ESCRIBE_LM.preguntas), []);
+  const grouped = useMemo(() => groupBy(FICHA_ORAL_LM.preguntas), []);
 
   // Cargar borrador
   useEffect(() => {
@@ -551,7 +551,7 @@ export function FichaEscribeLMPage() {
     if (!header.area_monitoreo) return "Falta seleccionar el área que monitorea.";
 
     // preguntas
-    for (const q of FICHA_ESCRIBE_LM.preguntas) {
+    for (const q of FICHA_ORAL_LM.preguntas) {
       const st = getQ(q.id);
 
       if (!st.yn) {
@@ -590,7 +590,7 @@ export function FichaEscribeLMPage() {
 
     setSaving(true);
     try {
-      // 1) obtener ficha_id: LM 2026 + ESCRIBE v1
+      // 1) obtener ficha_id: LM 2026 + ORAL v1
       const { data: mon, error: monErr } = await supabase
         .from("monitoreo_catalog")
         .select("id")
@@ -605,12 +605,12 @@ export function FichaEscribeLMPage() {
         .from("ficha_catalog")
         .select("id")
         .eq("monitoreo_id", mon.id)
-        .eq("codigo", "ESCRIBE")
+        .eq("codigo", "ORAL")
         .eq("version", 1)
         .maybeSingle();
 
       if (fichaErr) throw new Error(`ficha_catalog: ${fichaErr.message}`);
-      if (!ficha?.id) throw new Error("No existe ficha ESCRIBE v1 para LM 2026 (seed).");
+      if (!ficha?.id) throw new Error("No existe ficha ORAL v1 para LM 2026 (seed).");
 
       const fichaId = ficha.id as string;
 
@@ -627,7 +627,7 @@ export function FichaEscribeLMPage() {
       (qs ?? []).forEach((r: any) => qMap.set(String(r.qkey), String(r.id)));
 
       // Validación extra: que existan todas
-      for (const q of FICHA_ESCRIBE_LM.preguntas) {
+      for (const q of FICHA_ORAL_LM.preguntas) {
         const qkey = toQKeyFromNumero(q.numero);
         if (!qMap.get(qkey)) {
           throw new Error(`Catálogo incompleto: falta ${qkey} en ficha_question (seed).`);
@@ -679,7 +679,7 @@ export function FichaEscribeLMPage() {
       if (!runIdFinal) throw new Error("No se pudo obtener el ID del registro.");
 
       // 4) insertar respuestas
-      const answerRows = FICHA_ESCRIBE_LM.preguntas.map((q) => {
+      const answerRows = FICHA_ORAL_LM.preguntas.map((q) => {
         const st = getQ(q.id);
         const qkey = toQKeyFromNumero(q.numero);
         const questionId = qMap.get(qkey)!;
@@ -703,10 +703,10 @@ export function FichaEscribeLMPage() {
         const { exportFichaEscribeLmPdf } = await import("../lib/pdf/fichaEscribeLmPdf");
         const logoDataUrl = await loadImageAsDataUrl(logoAgebreUrl);
         exportFichaEscribeLmPdf({
-          titulo: FICHA_ESCRIBE_LM.titulo,
-          area: FICHA_ESCRIBE_LM.area,
+          titulo: FICHA_ORAL_LM.titulo,
+          area: FICHA_ORAL_LM.area,
           header,
-          preguntas: FICHA_ESCRIBE_LM.preguntas,
+          preguntas: FICHA_ORAL_LM.preguntas,
           answers,
           footer,
           logoDataUrl,
@@ -715,10 +715,10 @@ export function FichaEscribeLMPage() {
       } catch (pdfErr: any) {
         const { exportFichaEscribeLmPdf } = await import("../lib/pdf/fichaEscribeLmPdf");
         exportFichaEscribeLmPdf({
-          titulo: FICHA_ESCRIBE_LM.titulo,
-          area: FICHA_ESCRIBE_LM.area,
+          titulo: FICHA_ORAL_LM.titulo,
+          area: FICHA_ORAL_LM.area,
           header,
-          preguntas: FICHA_ESCRIBE_LM.preguntas,
+          preguntas: FICHA_ORAL_LM.preguntas,
           answers,
           footer,
         });
@@ -740,7 +740,7 @@ export function FichaEscribeLMPage() {
     <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="text-sm font-semibold">Nivel de avance</div>
       <div className="mt-3 grid gap-2 md:grid-cols-3">
-        {FICHA_ESCRIBE_LM.encabezado.nivel_avance_info.map((x) => (
+        {FICHA_ORAL_LM.encabezado.nivel_avance_info.map((x) => (
           <div key={x.nivel} className="rounded-xl border border-white/10 bg-black/20 p-3">
             <div className="text-xs text-white/60">Nivel</div>
             <div className="mt-1 text-lg font-semibold">{x.nivel}</div>
@@ -752,11 +752,16 @@ export function FichaEscribeLMPage() {
   );
 
   // Render dinámico de grupos en orden fijo
-  const GROUP_ORDER: QuestionGroup[] = ["PLANIFICACION", "TEXTUALIZACION", "REVISION", "EVALUACION"];
+  const GROUP_ORDER: QuestionGroup[] = [
+    "ANTES_ORALIDAD",
+    "DURANTE_ORALIDAD",
+    "DESPUES_ORALIDAD",
+    "EVALUACION",
+  ];
   const [openSections, setOpenSections] = useState<Record<QuestionGroup, boolean>>({
-    PLANIFICACION: true,
-    TEXTUALIZACION: true,
-    REVISION: true,
+    ANTES_ORALIDAD: true,
+    DURANTE_ORALIDAD: true,
+    DESPUES_ORALIDAD: true,
     EVALUACION: true,
   });
 
@@ -790,7 +795,7 @@ export function FichaEscribeLMPage() {
         </button>
         <div>
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
-            {FICHA_ESCRIBE_LM.titulo}
+            {FICHA_ORAL_LM.titulo}
           </h1>
           <p className="mt-2 text-sm text-white/60">
             Marca Sí/No. Si marcas <b>Sí</b>, selecciona nivel (1/2/3). Observaciones opcionales.
