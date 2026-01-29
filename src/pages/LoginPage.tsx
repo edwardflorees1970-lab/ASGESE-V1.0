@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, clearLegacyAuthStorage } from "../lib/supabaseClient";
+import logoAgebreUrl from "../assets/logoagebresf.png";
 
 type LoginMode = "usuario" | "admin";
 
@@ -74,9 +75,19 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-7 shadow-xl backdrop-blur">
-          <div className="flex items-start justify-between gap-4">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-7 shadow-xl backdrop-blur">
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-start">
             <div>
+              <div className="mb-3 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center">
+                  <img
+                    src={logoAgebreUrl}
+                    alt="AGEBRE"
+                    className="h-[38px] w-[38px] object-contain"
+                  />
+                </div>
+                <div className="text-xs text-white/50">UGEL 06</div>
+              </div>
               <h1 className="text-2xl font-semibold tracking-tight">AGEBRE Monitoreo</h1>
               <p className="mt-1 text-sm text-white/70">
                 {mode === "usuario" ? "Ingreso de Usuario" : "Ingreso de Administrador"}
@@ -125,8 +136,8 @@ export function LoginPage() {
                 />
               </label>
             ) : (
-              <div className="grid grid-cols-3 gap-3">
-                <label className="block col-span-1">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <label className="block sm:col-span-1">
                   <span className="mb-2 block text-xs font-medium text-white/80">Tipo</span>
                   <select
                     value={tipoDoc}
@@ -138,7 +149,7 @@ export function LoginPage() {
                   </select>
                 </label>
 
-                <label className="block col-span-2">
+                <label className="block sm:col-span-2">
                   <span className="mb-2 block text-xs font-medium text-white/80">
                     Número de documento
                   </span>
