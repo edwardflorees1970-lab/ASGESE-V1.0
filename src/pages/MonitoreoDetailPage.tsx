@@ -52,9 +52,9 @@ export function MonitoreoDetailPage() {
 
   return (
     <div className="text-white">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-start">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
             Monitoreo: {monitoreoCodigo}
           </h1>
           <p className="mt-1 text-sm text-white/60">
@@ -83,7 +83,7 @@ export function MonitoreoDetailPage() {
               type="button"
               onClick={() => nav(`/app/monitoreo/${monitoreoCodigo}/ficha/${f.key}`)}
               className={cls(
-                "text-left rounded-2xl border border-white/10 bg-white/5 p-5",
+                "text-left rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5",
                 "hover:bg-white/10 transition"
               )}
             >

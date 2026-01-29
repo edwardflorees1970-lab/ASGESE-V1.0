@@ -1,6 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
+import { exportFichaEscribeLmPdf } from "../lib/pdf/fichaEscribeLmPdf";
+import logoAgebreUrl from "../assets/logoagebresf.png";
 import {
   FICHA_ESCRIBE_LM,
   GROUP_LABEL,
@@ -32,8 +35,10 @@ type FooterState = {
   compromiso: string; // opcional
   lugar: string;
   fecha: string; // yyyy-mm-dd
+  docente_doc_tipo: "DNI" | "CE";
   docente_firma_nombre: string;
   docente_firma_dni: string;
+  monitor_doc_tipo: "DNI" | "CE";
   monitor_firma_nombre: string;
   monitor_firma_dni: string;
 };
@@ -48,6 +53,32 @@ function todayISO() {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function toUpper(value: string) {
+  return value.toUpperCase();
+}
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function limitDigits(value: string, max: number) {
+  return onlyDigits(value).slice(0, max);
+}
+
+function loadImageAsDataUrl(url: string): Promise<string> {
+  return fetch(url)
+    .then((res) => res.blob())
+    .then(
+      (blob) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error("No se pudo leer el logo"));
+          reader.readAsDataURL(blob);
+        })
+    );
 }
 
 function groupBy<T extends { group: string }>(items: T[]) {
@@ -249,8 +280,22 @@ function toQKeyFromNumero(numero: string) {
   return `P${numero.padStart(2, "0")}`;
 }
 
+function qidFromQKey(qkey: string) {
+  const raw = String(qkey || "").replace(/^P/i, "");
+  return `p${raw.padStart(2, "0")}`; // "P01" -> "p01"
+}
+
+function normalizeStatus(s: string) {
+  return s === "submitted" ? "draft" : s;
+}
+
 export function FichaEscribeLMPage() {
   const { user, profile } = useAuth();
+  const location = useLocation();
+  const runId = useMemo(() => new URLSearchParams(location.search).get("runId"), [location.search]);
+  const [runStatus, setRunStatus] = useState<string>("draft");
+  const [loadingRun, setLoadingRun] = useState(false);
+  const isAdmin = profile?.role === "admin";
 
   const draftKey = useMemo(() => {
     const uid = user?.id ?? "anon";
@@ -276,8 +321,10 @@ export function FichaEscribeLMPage() {
     compromiso: "",
     lugar: "",
     fecha: todayISO(),
+    docente_doc_tipo: "DNI",
     docente_firma_nombre: "",
     docente_firma_dni: "",
+    monitor_doc_tipo: "DNI",
     monitor_firma_nombre: "",
     monitor_firma_dni: "",
   });
@@ -304,6 +351,86 @@ export function FichaEscribeLMPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey]);
+
+  // Cargar ficha existente (modo edición)
+  useEffect(() => {
+    if (!runId) return;
+    let alive = true;
+    (async () => {
+      try {
+        setLoadingRun(true);
+        const { data: run, error: runErr } = await supabase
+          .from("ficha_run")
+          .select(
+            "id, ficha_id, status, institucion_educativa, codigo_modular, codigo_local, lugar_ie, director_monitor, docente, condicion_docente, area_monitoreo, observacion_general, compromiso, lugar, fecha, docente_firma_nombre, docente_firma_dni, monitor_firma_nombre, monitor_firma_dni"
+          )
+          .eq("id", runId)
+          .single();
+        if (runErr) throw new Error(runErr.message);
+        if (!alive) return;
+
+        setRunStatus(normalizeStatus(String(run.status || "draft")));
+        setHeader({
+          institucion_educativa: run.institucion_educativa ?? "",
+          codigo_modular: run.codigo_modular ?? "",
+          codigo_local: run.codigo_local ?? "",
+          lugar_ie: run.lugar_ie ?? "",
+          director_monitor: run.director_monitor ?? "",
+          docente: run.docente ?? "",
+          condicion_docente: (run.condicion_docente ?? "") as any,
+          area_monitoreo: (run.area_monitoreo ?? "") as any,
+        });
+        setFooter((s) => ({
+          ...s,
+          observacion_general: run.observacion_general ?? "",
+          compromiso: run.compromiso ?? "",
+          lugar: run.lugar ?? "",
+          fecha: run.fecha ?? todayISO(),
+          docente_firma_nombre: run.docente_firma_nombre ?? "",
+          docente_firma_dni: run.docente_firma_dni ?? "",
+          monitor_firma_nombre: run.monitor_firma_nombre ?? "",
+          monitor_firma_dni: run.monitor_firma_dni ?? "",
+        }));
+
+        const { data: qs, error: qsErr } = await supabase
+          .from("ficha_question")
+          .select("id, qkey")
+          .eq("ficha_id", run.ficha_id)
+          .eq("is_active", true);
+        if (qsErr) throw new Error(qsErr.message);
+        const qIdToQid = new Map<string, string>();
+        (qs ?? []).forEach((r: any) => qIdToQid.set(String(r.id), qidFromQKey(String(r.qkey))));
+
+        const { data: ans, error: ansErr } = await supabase
+          .from("ficha_answer")
+          .select("question_id, yn, nivel, obs")
+          .eq("run_id", runId);
+        if (ansErr) throw new Error(ansErr.message);
+
+        const nextAnswers: Record<string, QuestionState> = {};
+        (ans ?? []).forEach((a: any) => {
+          const qid = qIdToQid.get(String(a.question_id));
+          if (!qid) return;
+          nextAnswers[qid] = {
+            yn: (a.yn ?? "") as any,
+            nivel: a.nivel ?? null,
+            obs: a.obs ?? "",
+          };
+        });
+        if (!alive) return;
+        setAnswers(nextAnswers);
+      } catch (e: any) {
+        if (!alive) return;
+        setToast({ type: "err", msg: e?.message || "No se pudo cargar la ficha." });
+      } finally {
+        if (!alive) return;
+        setLoadingRun(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [runId]);
 
   // Auto-relleno del monitor
   useEffect(() => {
@@ -357,7 +484,7 @@ export function FichaEscribeLMPage() {
   const setObs = useCallback((qid: string, obs: string) => {
     setAnswers((prev) => {
       const cur = prev[qid] ?? EMPTY_Q;
-      return { ...prev, [qid]: { ...cur, obs } };
+      return { ...prev, [qid]: { ...cur, obs: toUpper(obs) } };
     });
   }, []);
 
@@ -419,6 +546,10 @@ export function FichaEscribeLMPage() {
       setToast({ type: "err", msg: "No hay sesión activa. Vuelve a iniciar sesión." });
       return;
     }
+    if (runId && runStatus === "final" && !isAdmin) {
+      setToast({ type: "err", msg: "Solo un admin puede editar fichas en estado final." });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -466,7 +597,7 @@ export function FichaEscribeLMPage() {
         }
       }
 
-      // 3) insertar ficha_run
+      // 3) insertar/actualizar ficha_run
       const runPayload = {
         ficha_id: fichaId,
         created_by: user.id,
@@ -491,17 +622,24 @@ export function FichaEscribeLMPage() {
         monitor_firma_nombre: footer.monitor_firma_nombre.trim(),
         monitor_firma_dni: footer.monitor_firma_dni.trim(),
 
-        status: "submitted",
+        status: runId ? normalizeStatus(runStatus) : "draft",
       };
 
-      const { data: run, error: runErr } = await supabase
-        .from("ficha_run")
-        .insert(runPayload)
-        .select("id")
-        .single();
+      let runIdFinal = runId;
+      if (runId) {
+        const { error: runErr } = await supabase.from("ficha_run").update(runPayload).eq("id", runId);
+        if (runErr) throw new Error(`ficha_run: ${runErr.message}`);
+      } else {
+        const { data: run, error: runErr } = await supabase
+          .from("ficha_run")
+          .insert(runPayload)
+          .select("id")
+          .single();
+        if (runErr) throw new Error(`ficha_run: ${runErr.message}`);
+        runIdFinal = run.id as string;
+      }
 
-      if (runErr) throw new Error(`ficha_run: ${runErr.message}`);
-      const runId = run.id as string;
+      if (!runIdFinal) throw new Error("No se pudo obtener el ID del registro.");
 
       // 4) insertar respuestas
       const answerRows = FICHA_ESCRIBE_LM.preguntas.map((q) => {
@@ -510,7 +648,7 @@ export function FichaEscribeLMPage() {
         const questionId = qMap.get(qkey)!;
 
         return {
-          run_id: runId,
+          run_id: runIdFinal,
           question_id: questionId,
           yn: st.yn,
           nivel: st.yn === "SI" ? st.nivel : null,
@@ -518,11 +656,39 @@ export function FichaEscribeLMPage() {
         };
       });
 
-      const { error: ansErr } = await supabase.from("ficha_answer").insert(answerRows);
+      const { error: ansErr } = await supabase
+        .from("ficha_answer")
+        .upsert(answerRows, { onConflict: "run_id,question_id" });
       if (ansErr) throw new Error(`ficha_answer: ${ansErr.message}`);
 
-      // 5) listo
-      setToast({ type: "ok", msg: "Guardado en base de datos ✅" });
+      // 5) PDF + listo
+      try {
+        const logoDataUrl = await loadImageAsDataUrl(logoAgebreUrl);
+        exportFichaEscribeLmPdf({
+          titulo: FICHA_ESCRIBE_LM.titulo,
+          area: FICHA_ESCRIBE_LM.area,
+          header,
+          preguntas: FICHA_ESCRIBE_LM.preguntas,
+          answers,
+          footer,
+          logoDataUrl,
+        });
+        setToast({ type: "ok", msg: "Guardado en base de datos y PDF generado ✅" });
+      } catch (pdfErr: any) {
+        exportFichaEscribeLmPdf({
+          titulo: FICHA_ESCRIBE_LM.titulo,
+          area: FICHA_ESCRIBE_LM.area,
+          header,
+          preguntas: FICHA_ESCRIBE_LM.preguntas,
+          answers,
+          footer,
+        });
+        setToast({
+          type: "err",
+          msg: "Guardado en BD, pero no se pudo cargar el logo para el PDF.",
+        });
+      }
+
       localStorage.removeItem(draftKey);
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message || "No se pudo guardar" });
@@ -548,6 +714,16 @@ export function FichaEscribeLMPage() {
 
   // Render dinámico de grupos en orden fijo
   const GROUP_ORDER: QuestionGroup[] = ["PLANIFICACION", "TEXTUALIZACION", "REVISION", "EVALUACION"];
+  const [openSections, setOpenSections] = useState<Record<QuestionGroup, boolean>>({
+    PLANIFICACION: true,
+    TEXTUALIZACION: true,
+    REVISION: true,
+    EVALUACION: true,
+  });
+
+  const toggleSection = (g: QuestionGroup) => {
+    setOpenSections((s) => ({ ...s, [g]: !s[g] }));
+  };
 
   return (
     <div className="text-white">
@@ -566,7 +742,7 @@ export function FichaEscribeLMPage() {
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-start">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
             {FICHA_ESCRIBE_LM.titulo}
@@ -576,7 +752,7 @@ export function FichaEscribeLMPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <button
             onClick={saveDraft}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
@@ -593,7 +769,7 @@ export function FichaEscribeLMPage() {
       </div>
 
       {/* Encabezado */}
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
         <div className="text-sm font-semibold">Encabezado</div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-12">
@@ -602,7 +778,10 @@ export function FichaEscribeLMPage() {
               <Input
                 value={header.institucion_educativa}
                 onChange={(e) =>
-                  setHeader((s) => ({ ...s, institucion_educativa: e.target.value }))
+                  setHeader((s) => ({
+                    ...s,
+                    institucion_educativa: toUpper(e.target.value),
+                  }))
                 }
                 placeholder="Ej: I.E. 7259 Víctor Raúl Haya de la Torre"
               />
@@ -613,7 +792,15 @@ export function FichaEscribeLMPage() {
             <Field label="Código modular">
               <Input
                 value={header.codigo_modular}
-                onChange={(e) => setHeader((s) => ({ ...s, codigo_modular: e.target.value }))}
+                onChange={(e) =>
+                  setHeader((s) => ({
+                    ...s,
+                    codigo_modular: limitDigits(e.target.value, 7),
+                  }))
+                }
+                inputMode="numeric"
+                pattern="\\d*"
+                maxLength={7}
                 placeholder="########"
               />
             </Field>
@@ -623,7 +810,15 @@ export function FichaEscribeLMPage() {
             <Field label="Código local">
               <Input
                 value={header.codigo_local}
-                onChange={(e) => setHeader((s) => ({ ...s, codigo_local: e.target.value }))}
+                onChange={(e) =>
+                  setHeader((s) => ({
+                    ...s,
+                    codigo_local: limitDigits(e.target.value, 6),
+                  }))
+                }
+                inputMode="numeric"
+                pattern="\\d*"
+                maxLength={6}
                 placeholder="########"
               />
             </Field>
@@ -633,7 +828,9 @@ export function FichaEscribeLMPage() {
             <Field label="Lugar donde se encuentra la IE">
               <Input
                 value={header.lugar_ie}
-                onChange={(e) => setHeader((s) => ({ ...s, lugar_ie: e.target.value }))}
+                onChange={(e) =>
+                  setHeader((s) => ({ ...s, lugar_ie: toUpper(e.target.value) }))
+                }
                 placeholder="Ej: Villa El Salvador"
               />
             </Field>
@@ -643,7 +840,12 @@ export function FichaEscribeLMPage() {
             <Field label="Director(a) o Monitor(a)">
               <Input
                 value={header.director_monitor}
-                onChange={(e) => setHeader((s) => ({ ...s, director_monitor: e.target.value }))}
+                onChange={(e) =>
+                  setHeader((s) => ({
+                    ...s,
+                    director_monitor: toUpper(e.target.value),
+                  }))
+                }
                 placeholder="Nombre completo"
               />
             </Field>
@@ -653,7 +855,9 @@ export function FichaEscribeLMPage() {
             <Field label="Apellidos y nombres del(a) docente">
               <Input
                 value={header.docente}
-                onChange={(e) => setHeader((s) => ({ ...s, docente: e.target.value }))}
+                onChange={(e) =>
+                  setHeader((s) => ({ ...s, docente: toUpper(e.target.value) }))
+                }
                 placeholder="Nombre completo"
               />
             </Field>
@@ -701,34 +905,46 @@ export function FichaEscribeLMPage() {
           if (!list.length) return null;
 
           return (
-            <section key={g} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-center justify-between">
+            <section key={g} className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
+              <button
+                type="button"
+                onClick={() => toggleSection(g)}
+                className="flex w-full items-center justify-between text-left"
+                aria-expanded={openSections[g]}
+              >
                 <div className="text-lg font-semibold">{GROUP_LABEL[g]}</div>
-                <Pill>{list.length} ítems</Pill>
-              </div>
+                <div className="flex items-center gap-2">
+                  <Pill>{list.length} ítems</Pill>
+                  <span className="text-xs text-white/60">
+                    {openSections[g] ? "Ocultar" : "Mostrar"}
+                  </span>
+                </div>
+              </button>
 
-              <div className="mt-4 space-y-4">
-                {list.map((q) => {
-                  const st = getQ(q.id);
-                  return (
-                    <QuestionRow
-                      key={q.id}
-                      q={q}
-                      st={st}
-                      onYnChange={setYn}
-                      onNivelChange={setNivel}
-                      onObsChange={setObs}
-                    />
-                  );
-                })}
-              </div>
+              {openSections[g] && (
+                <div className="mt-4 space-y-4">
+                  {list.map((q) => {
+                    const st = getQ(q.id);
+                    return (
+                      <QuestionRow
+                        key={q.id}
+                        q={q}
+                        st={st}
+                        onYnChange={setYn}
+                        onNivelChange={setNivel}
+                        onObsChange={setObs}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </section>
           );
         })}
       </div>
 
       {/* Cierre */}
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
         <div className="text-lg font-semibold">Cierre</div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-12">
@@ -737,7 +953,10 @@ export function FichaEscribeLMPage() {
               <TextArea
                 value={footer.observacion_general}
                 onChange={(e) =>
-                  setFooter((s) => ({ ...s, observacion_general: e.target.value }))
+                  setFooter((s) => ({
+                    ...s,
+                    observacion_general: toUpper(e.target.value),
+                  }))
                 }
                 placeholder="Observación general del monitoreo..."
               />
@@ -748,7 +967,9 @@ export function FichaEscribeLMPage() {
             <Field label="Compromiso (opcional)">
               <TextArea
                 value={footer.compromiso}
-                onChange={(e) => setFooter((s) => ({ ...s, compromiso: e.target.value }))}
+                onChange={(e) =>
+                  setFooter((s) => ({ ...s, compromiso: toUpper(e.target.value) }))
+                }
                 placeholder="Compromiso acordado..."
               />
             </Field>
@@ -758,7 +979,9 @@ export function FichaEscribeLMPage() {
             <Field label="Lugar (distrito)">
               <Input
                 value={footer.lugar}
-                onChange={(e) => setFooter((s) => ({ ...s, lugar: e.target.value }))}
+                onChange={(e) =>
+                  setFooter((s) => ({ ...s, lugar: toUpper(e.target.value) }))
+                }
                 placeholder="Ej: Villa El Salvador"
               />
             </Field>
@@ -783,17 +1006,47 @@ export function FichaEscribeLMPage() {
                   <Input
                     value={footer.docente_firma_nombre}
                     onChange={(e) =>
-                      setFooter((s) => ({ ...s, docente_firma_nombre: e.target.value }))
+                      setFooter((s) => ({
+                        ...s,
+                        docente_firma_nombre: toUpper(e.target.value),
+                      }))
                     }
                     placeholder="Nombre completo"
                   />
                 </Field>
-                <Field label="DNI">
+                <Field label="Documento">
+                  <Select
+                    value={footer.docente_doc_tipo}
+                    onChange={(e) =>
+                      setFooter((s) => ({
+                        ...s,
+                        docente_doc_tipo: e.target.value as "DNI" | "CE",
+                        docente_firma_dni: limitDigits(
+                          s.docente_firma_dni,
+                          e.target.value === "DNI" ? 8 : 9
+                        ),
+                      }))
+                    }
+                  >
+                    <option value="DNI">DNI (8)</option>
+                    <option value="CE">CE (9)</option>
+                  </Select>
+                </Field>
+                <Field label={`Número (${footer.docente_doc_tipo})`}>
                   <Input
                     value={footer.docente_firma_dni}
                     onChange={(e) =>
-                      setFooter((s) => ({ ...s, docente_firma_dni: e.target.value }))
+                      setFooter((s) => ({
+                        ...s,
+                        docente_firma_dni: limitDigits(
+                          e.target.value,
+                          s.docente_doc_tipo === "DNI" ? 8 : 9
+                        ),
+                      }))
                     }
+                    inputMode="numeric"
+                    pattern="\\d*"
+                    maxLength={footer.docente_doc_tipo === "DNI" ? 8 : 9}
                     placeholder="########"
                   />
                 </Field>
@@ -809,17 +1062,47 @@ export function FichaEscribeLMPage() {
                   <Input
                     value={footer.monitor_firma_nombre}
                     onChange={(e) =>
-                      setFooter((s) => ({ ...s, monitor_firma_nombre: e.target.value }))
+                      setFooter((s) => ({
+                        ...s,
+                        monitor_firma_nombre: toUpper(e.target.value),
+                      }))
                     }
                     placeholder="Nombre completo"
                   />
                 </Field>
-                <Field label="DNI">
+                <Field label="Documento">
+                  <Select
+                    value={footer.monitor_doc_tipo}
+                    onChange={(e) =>
+                      setFooter((s) => ({
+                        ...s,
+                        monitor_doc_tipo: e.target.value as "DNI" | "CE",
+                        monitor_firma_dni: limitDigits(
+                          s.monitor_firma_dni,
+                          e.target.value === "DNI" ? 8 : 9
+                        ),
+                      }))
+                    }
+                  >
+                    <option value="DNI">DNI (8)</option>
+                    <option value="CE">CE (9)</option>
+                  </Select>
+                </Field>
+                <Field label={`Número (${footer.monitor_doc_tipo})`}>
                   <Input
                     value={footer.monitor_firma_dni}
                     onChange={(e) =>
-                      setFooter((s) => ({ ...s, monitor_firma_dni: e.target.value }))
+                      setFooter((s) => ({
+                        ...s,
+                        monitor_firma_dni: limitDigits(
+                          e.target.value,
+                          s.monitor_doc_tipo === "DNI" ? 8 : 9
+                        ),
+                      }))
                     }
+                    inputMode="numeric"
+                    pattern="\\d*"
+                    maxLength={footer.monitor_doc_tipo === "DNI" ? 8 : 9}
                     placeholder="########"
                   />
                 </Field>
@@ -828,7 +1111,19 @@ export function FichaEscribeLMPage() {
           </div>
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-white/60">
+            {runId ? `Estado actual: ${runStatus}` : "Nuevo registro"}
+            {loadingRun && " · Cargando..."}
+          </div>
+          {runId && runStatus === "final" && !isAdmin && (
+            <div className="text-xs text-red-200/80">
+              Solo un admin puede editar o eliminar fichas en estado final.
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 flex justify-end gap-2">
           <button
             onClick={saveDraft}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
@@ -838,15 +1133,15 @@ export function FichaEscribeLMPage() {
 
           <button
             onClick={saveToDatabase}
-            disabled={saving}
+            disabled={saving || loadingRun || (runId && runStatus === "final" && !isAdmin)}
             className={cls(
               "rounded-xl px-4 py-2 text-sm font-semibold",
-              saving
+              saving || loadingRun || (runId && runStatus === "final" && !isAdmin)
                 ? "bg-white/40 text-zinc-950 cursor-not-allowed"
                 : "bg-white text-zinc-950 hover:bg-white/90"
             )}
           >
-            {saving ? "Guardando..." : "Guardar en BD"}
+            {saving ? "Guardando..." : runId ? "Actualizar en BD" : "Guardar en BD"}
           </button>
         </div>
 
