@@ -175,7 +175,7 @@ export function exportFichaEscribeLmPdf(args: {
       7: { cellWidth: 7, halign: "center" },
       8: { cellWidth: 45 },
     },
-    didDrawPage: (data) => {
+    didDrawPage: () => {
       // Footer por página
       const pageCount = doc.getNumberOfPages();
       const pageNo = doc.getCurrentPageInfo().pageNumber;
