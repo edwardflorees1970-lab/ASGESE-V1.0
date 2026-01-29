@@ -2,6 +2,10 @@ import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 
+function cls(...xs: Array<string | false | null | undefined>) {
+  return xs.filter(Boolean).join(" ");
+}
+
 const Item = ({
   to,
   label,
@@ -40,10 +44,27 @@ export function AppShell() {
 
   const isAdmin = profile?.role === "admin"; // ✅ FIX real
 
-  const SidebarContent = ({ onItemClick }: { onItemClick?: () => void }) => (
+  const SidebarContent = ({
+    onItemClick,
+    onToggle,
+  }: {
+    onItemClick?: () => void;
+    onToggle?: () => void;
+  }) => (
     <>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="text-xs text-white/50">Sistema</div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-white/50">Sistema</div>
+          {onToggle && (
+            <button
+              type="button"
+              onClick={onToggle}
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10"
+            >
+              Ocultar
+            </button>
+          )}
+        </div>
         <div className="mt-1 text-lg font-semibold tracking-tight">AGEBRE</div>
         <div className="mt-2 text-xs text-white/60">{isAdmin ? "Administrador" : "Monitor"}</div>
       </div>
@@ -53,6 +74,7 @@ export function AppShell() {
         <Item to="/app/monitoreo" label="Monitoreo" onClick={onItemClick} />
         <Item to="/app/reportes" label="Reportes y resultados" onClick={onItemClick} />
         {isAdmin && <Item to="/app/usuarios" label="Usuarios" onClick={onItemClick} />}
+        {isAdmin && <Item to="/app/asignaciones" label="Asignaciones" onClick={onItemClick} />}
       </nav>
 
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -70,6 +92,8 @@ export function AppShell() {
       </div>
     </>
   );
+
+  const [sidebarHidden, setSidebarHidden] = useState(false);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -89,8 +113,15 @@ export function AppShell() {
 
       <div className="flex">
         {/* Desktop sidebar */}
-        <aside className="hidden md:block w-[280px] min-h-screen border-r border-white/10 bg-black/30 p-4">
-          <SidebarContent />
+        <aside
+          className={cls(
+            "hidden md:block border-r border-white/10 bg-black/30",
+            sidebarHidden ? "w-0 overflow-hidden p-0" : "w-[280px]"
+          )}
+        >
+          <div className="sticky top-0 max-h-screen overflow-y-auto p-4">
+            <SidebarContent onToggle={() => setSidebarHidden(true)} />
+          </div>
         </aside>
 
         {/* Mobile drawer */}
@@ -118,7 +149,18 @@ export function AppShell() {
         )}
 
         <main className="flex-1 p-4 md:p-6">
-          <div className="mx-auto max-w-5xl">
+          {sidebarHidden && (
+            <div className="mb-3 hidden md:flex items-center">
+              <button
+                type="button"
+                onClick={() => setSidebarHidden(false)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+              >
+                Mostrar menú
+              </button>
+            </div>
+          )}
+          <div className="mx-auto max-w-5xl fade-in-up">
             <Outlet />
           </div>
         </main>

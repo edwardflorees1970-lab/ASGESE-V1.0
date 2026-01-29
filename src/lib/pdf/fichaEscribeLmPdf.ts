@@ -188,7 +188,12 @@ export function exportFichaEscribeLmPdf(args: {
   });
 
   // ===== Cierre / Observación general / Compromiso
-  const yAfterQ = (doc as any).lastAutoTable.finalY + 6;
+  const pageH = doc.internal.pageSize.getHeight();
+  let yAfterQ = (doc as any).lastAutoTable.finalY + 6;
+  if (yAfterQ > pageH - 60) {
+    doc.addPage();
+    yAfterQ = 18;
+  }
 
   autoTable(doc, {
     startY: yAfterQ,
@@ -209,7 +214,11 @@ export function exportFichaEscribeLmPdf(args: {
   });
 
   // ===== Firmas
-  const yAfterClose = (doc as any).lastAutoTable.finalY + 8;
+  let yAfterClose = (doc as any).lastAutoTable.finalY + 8;
+  if (yAfterClose > pageH - 40) {
+    doc.addPage();
+    yAfterClose = 18;
+  }
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);

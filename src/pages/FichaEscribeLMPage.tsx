@@ -1,8 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
-import { exportFichaEscribeLmPdf } from "../lib/pdf/fichaEscribeLmPdf";
 import logoAgebreUrl from "../assets/logoagebresf.png";
 import {
   FICHA_ESCRIBE_LM,
@@ -291,6 +290,9 @@ function normalizeStatus(s: string) {
 
 export function FichaEscribeLMPage() {
   const { user, profile } = useAuth();
+  const nav = useNavigate();
+  const [atTop, setAtTop] = useState(true);
+  const [atBottom, setAtBottom] = useState(false);
   const location = useLocation();
   const runId = useMemo(() => new URLSearchParams(location.search).get("runId"), [location.search]);
   const [runStatus, setRunStatus] = useState<string>("draft");
@@ -460,6 +462,18 @@ export function FichaEscribeLMPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY || 0;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setAtTop(y <= 10);
+      setAtBottom(y >= max - 10);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const getQ = (qid: string): QuestionState => answers[qid] ?? EMPTY_Q;
 
   const setYn = useCallback((qid: string, yn: "SI" | "NO") => {
@@ -499,6 +513,29 @@ export function FichaEscribeLMPage() {
 
   const clearDraft = () => {
     localStorage.removeItem(draftKey);
+    setHeader({
+      institucion_educativa: "",
+      codigo_modular: "",
+      codigo_local: "",
+      lugar_ie: "",
+      director_monitor: "",
+      docente: "",
+      condicion_docente: "",
+      area_monitoreo: "",
+    });
+    setAnswers({});
+    setFooter({
+      observacion_general: "",
+      compromiso: "",
+      lugar: "",
+      fecha: todayISO(),
+      docente_doc_tipo: "DNI",
+      docente_firma_nombre: "",
+      docente_firma_dni: "",
+      monitor_doc_tipo: "DNI",
+      monitor_firma_nombre: "",
+      monitor_firma_dni: "",
+    });
     setToast({ type: "ok", msg: "Borrador eliminado ✅" });
   };
 
@@ -663,6 +700,7 @@ export function FichaEscribeLMPage() {
 
       // 5) PDF + listo
       try {
+        const { exportFichaEscribeLmPdf } = await import("../lib/pdf/fichaEscribeLmPdf");
         const logoDataUrl = await loadImageAsDataUrl(logoAgebreUrl);
         exportFichaEscribeLmPdf({
           titulo: FICHA_ESCRIBE_LM.titulo,
@@ -675,6 +713,7 @@ export function FichaEscribeLMPage() {
         });
         setToast({ type: "ok", msg: "Guardado en base de datos y PDF generado ✅" });
       } catch (pdfErr: any) {
+        const { exportFichaEscribeLmPdf } = await import("../lib/pdf/fichaEscribeLmPdf");
         exportFichaEscribeLmPdf({
           titulo: FICHA_ESCRIBE_LM.titulo,
           area: FICHA_ESCRIBE_LM.area,
@@ -742,7 +781,13 @@ export function FichaEscribeLMPage() {
         </div>
       )}
 
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-start">
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={() => nav(-1)}
+          className="self-start rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
+        >
+          ← Volver
+        </button>
         <div>
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
             {FICHA_ESCRIBE_LM.titulo}
@@ -766,6 +811,28 @@ export function FichaEscribeLMPage() {
             Limpiar
           </button>
         </div>
+      </div>
+
+      {/* Navegación rápida */}
+      <div className="fixed bottom-5 right-5 z-40 flex flex-col gap-2">
+        {!atTop && (
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/80 backdrop-blur hover:bg-white/20"
+          >
+            ↑ Arriba
+          </button>
+        )}
+        {!atBottom && (
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
+            className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/80 backdrop-blur hover:bg-white/20"
+          >
+            ↓ Abajo
+          </button>
+        )}
       </div>
 
       {/* Encabezado */}
@@ -898,6 +965,22 @@ export function FichaEscribeLMPage() {
         <NivelInfo />
       </div>
 
+      {/* Navegación por secciones */}
+      <div className="sticky top-20 z-30 mt-4 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-zinc-950/80 p-2 backdrop-blur">
+        {GROUP_ORDER.map((g) => (
+          <button
+            key={g}
+            type="button"
+            onClick={() =>
+              document.getElementById(`sec-${g}`)?.scrollIntoView({ behavior: "smooth" })
+            }
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10"
+          >
+            {GROUP_LABEL[g]}
+          </button>
+        ))}
+      </div>
+
       {/* Preguntas por secciones */}
       <div className="mt-6 space-y-6">
         {GROUP_ORDER.map((g) => {
@@ -905,7 +988,11 @@ export function FichaEscribeLMPage() {
           if (!list.length) return null;
 
           return (
-            <section key={g} className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
+            <section
+              key={g}
+              id={`sec-${g}`}
+              className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5"
+            >
               <button
                 type="button"
                 onClick={() => toggleSection(g)}
@@ -921,23 +1008,30 @@ export function FichaEscribeLMPage() {
                 </div>
               </button>
 
-              {openSections[g] && (
-                <div className="mt-4 space-y-4">
-                  {list.map((q) => {
-                    const st = getQ(q.id);
-                    return (
-                      <QuestionRow
-                        key={q.id}
-                        q={q}
-                        st={st}
-                        onYnChange={setYn}
-                        onNivelChange={setNivel}
-                        onObsChange={setObs}
-                      />
-                    );
-                  })}
+              <div
+                className={cls(
+                  "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+                  openSections[g] ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div className="mt-4 space-y-4">
+                    {list.map((q) => {
+                      const st = getQ(q.id);
+                      return (
+                        <QuestionRow
+                          key={q.id}
+                          q={q}
+                          st={st}
+                          onYnChange={setYn}
+                          onNivelChange={setNivel}
+                          onObsChange={setObs}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
+              </div>
             </section>
           );
         })}
