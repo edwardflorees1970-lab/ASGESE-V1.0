@@ -21,6 +21,9 @@ const ReportesPage = lazy(() =>
 const AsignacionesPage = lazy(() =>
   import("./pages/AsignacionesPage").then((m) => ({ default: m.AsignacionesPage }))
 );
+const InstitucionesPage = lazy(() =>
+  import("./pages/InstitucionesPage").then((m) => ({ default: m.InstitucionesPage }))
+);
 
 function PageLoader() {
   return (
@@ -49,6 +52,7 @@ export default function App() {
             />
 
             <Route path="reportes" element={<ReportesPage />} />
+            <Route path="instituciones" element={<InstitucionesPage />} />
 
             {/* Solo admin */}
             <Route element={<ProtectedRoute requireAdmin />}>
