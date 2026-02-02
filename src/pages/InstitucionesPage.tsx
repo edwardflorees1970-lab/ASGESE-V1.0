@@ -16,6 +16,33 @@ type InstitucionRow = {
   distrito: { nombre: string } | null;
 };
 
+type InstitucionDetail = {
+  id: string;
+  codigo_modular: string;
+  codigo_local: string | null;
+  nombre: string;
+  codigo_institucional: string | null;
+  nivel: { nombre: string } | null;
+  modalidad: { nombre: string } | null;
+  tipo_sexo: string | null;
+  gestion: string | null;
+  director: string | null;
+  direccion: string | null;
+  departamento: { nombre: string } | null;
+  provincia: { nombre: string } | null;
+  distrito: { nombre: string } | null;
+  dre: { nombre: string } | null;
+  ugel: { nombre: string } | null;
+  latitud: number | null;
+  longitud: number | null;
+  estado: string | null;
+  cant_alumnos_hombres: number | null;
+  cant_alumnos_mujeres: number | null;
+  cant_alumnos_total: number | null;
+  cant_docentes: number | null;
+  cant_secciones: number | null;
+};
+
 type FormState = {
   id: string | null;
   codigo_modular: string;
@@ -89,6 +116,10 @@ export function InstitucionesPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<InstitucionDetail | null>(null);
+  const [detailCache, setDetailCache] = useState<Record<string, InstitucionDetail>>({});
 
   const [q, setQ] = useState("");
   const [nivelId, setNivelId] = useState("");
@@ -243,6 +274,80 @@ export function InstitucionesPage() {
     setShowForm(true);
   };
 
+  const openDetail = async (row: InstitucionRow) => {
+    setDetailOpen(true);
+    const cached = detailCache[row.id];
+    if (cached) {
+      setDetail(cached);
+      return;
+    }
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("institucion_educativa")
+        .select(
+          [
+            "id",
+            "codigo_modular",
+            "codigo_local",
+            "nombre",
+            "codigo_institucional",
+            "tipo_sexo",
+            "gestion",
+            "director",
+            "direccion",
+            "latitud",
+            "longitud",
+            "estado",
+            "cant_alumnos_hombres",
+            "cant_alumnos_mujeres",
+            "cant_alumnos_total",
+            "cant_docentes",
+            "cant_secciones",
+            "nivel:cat_nivel(nombre)",
+            "modalidad:cat_modalidad(nombre)",
+            "departamento:cat_departamento(nombre)",
+            "provincia:cat_provincia(nombre)",
+            "distrito:cat_distrito(nombre)",
+            "dre:cat_dre(nombre)",
+            "ugel:cat_ugel(nombre)",
+          ].join(",")
+        )
+        .eq("id", row.id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) return;
+      const base = data as unknown as Record<string, any>;
+      const normalized = {
+        ...base,
+        nivel: Array.isArray((data as any).nivel) ? (data as any).nivel[0] ?? null : (data as any).nivel ?? null,
+        modalidad: Array.isArray((data as any).modalidad)
+          ? (data as any).modalidad[0] ?? null
+          : (data as any).modalidad ?? null,
+        departamento: Array.isArray((data as any).departamento)
+          ? (data as any).departamento[0] ?? null
+          : (data as any).departamento ?? null,
+        provincia: Array.isArray((data as any).provincia)
+          ? (data as any).provincia[0] ?? null
+          : (data as any).provincia ?? null,
+        distrito: Array.isArray((data as any).distrito)
+          ? (data as any).distrito[0] ?? null
+          : (data as any).distrito ?? null,
+        dre: Array.isArray((data as any).dre) ? (data as any).dre[0] ?? null : (data as any).dre ?? null,
+        ugel: Array.isArray((data as any).ugel)
+          ? (data as any).ugel[0] ?? null
+          : (data as any).ugel ?? null,
+      } as InstitucionDetail;
+      setDetail(normalized);
+      setDetailCache((prev) => ({ ...prev, [row.id]: normalized }));
+    } catch (e: any) {
+      setToast({ type: "err", msg: e?.message || "No se pudo cargar el detalle." });
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const save = async () => {
     if (!form.codigo_modular.trim() || !form.nombre.trim()) {
       setToast({ type: "err", msg: "codigo modular y nombre son obligatorios." });
@@ -306,7 +411,7 @@ export function InstitucionesPage() {
   };
 
   const remove = async (row: InstitucionRow) => {
-    if (!confirm(`Â¿Eliminar ${row.nombre}?`)) return;
+    if (!confirm(`¿Eliminar ${row.nombre}?`)) return;
     const { error } = await supabase.from("institucion_educativa").delete().eq("id", row.id);
     if (error) {
       setToast({ type: "err", msg: error.message });
@@ -660,7 +765,13 @@ export function InstitucionesPage() {
             {filtered.map((row) => (
               <div
                 key={row.id}
-                className="rounded-xl border border-white/10 bg-zinc-900/40 p-3"
+                role="button"
+                tabIndex={0}
+                onClick={() => openDetail(row)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") openDetail(row);
+                }}
+                className="rounded-xl border border-white/10 bg-zinc-900/40 p-3 transition hover:border-white/30 hover:bg-zinc-900/60"
               >
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
@@ -683,18 +794,29 @@ export function InstitucionesPage() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => startEdit(row)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEdit(row);
+                        }}
                         className="rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white/80 hover:bg-white/20"
                       >
                         Editar
                       </button>
                       <button
                         type="button"
-                        onClick={() => remove(row)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(row);
+                        }}
                         className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100 hover:bg-red-500/20"
                       >
                         Eliminar
                       </button>
+                    </div>
+                  )}
+                  {!isAdmin && (
+                    <div className="text-xs text-white/50">
+                      Toca para ver detalles
                     </div>
                   )}
                 </div>
@@ -739,6 +861,125 @@ export function InstitucionesPage() {
           </div>
         )}
       </div>
+
+      {detailOpen && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setDetailOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0 flex items-start justify-center p-4 md:items-center">
+            <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+                <div className="text-sm font-semibold">Detalle de institución</div>
+                <button
+                  onClick={() => setDetailOpen(false)}
+                  className="rounded-lg px-2 py-1 text-xs text-white/70 hover:bg-white/5"
+                >
+                  Cerrar
+                </button>
+              </div>
+              <div className="max-h-[calc(90vh-72px)] overflow-y-auto px-6 py-5 text-sm text-white/80">
+                {detailLoading ? (
+                  <div className="text-white/60">Cargando...</div>
+                ) : !detail ? (
+                  <div className="text-white/60">Sin datos.</div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <div className="text-xs text-white/50">Nombre</div>
+                      <div className="font-semibold">{detail.nombre}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Código modular</div>
+                      <div>{detail.codigo_modular}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Código local</div>
+                      <div>{detail.codigo_local || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Código institucional</div>
+                      <div>{detail.codigo_institucional || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Nivel</div>
+                      <div>{detail.nivel?.nombre || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Modalidad</div>
+                      <div>{detail.modalidad?.nombre || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Gestión</div>
+                      <div>{detail.gestion || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Tipo sexo</div>
+                      <div>{detail.tipo_sexo || "-"}</div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <div className="text-xs text-white/50">Dirección</div>
+                      <div>{detail.direccion || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Distrito</div>
+                      <div>{detail.distrito?.nombre || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Provincia</div>
+                      <div>{detail.provincia?.nombre || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Departamento</div>
+                      <div>{detail.departamento?.nombre || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">DRE</div>
+                      <div>{detail.dre?.nombre || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">UGEL</div>
+                      <div>{detail.ugel?.nombre || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Director</div>
+                      <div>{detail.director || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Estado</div>
+                      <div>{detail.estado || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Latitud</div>
+                      <div>{detail.latitud ?? "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Longitud</div>
+                      <div>{detail.longitud ?? "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Alumnos (H/M/T)</div>
+                      <div>
+                        {detail.cant_alumnos_hombres ?? "-"} /{" "}
+                        {detail.cant_alumnos_mujeres ?? "-"} /{" "}
+                        {detail.cant_alumnos_total ?? "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Docentes / Secciones</div>
+                      <div>
+                        {detail.cant_docentes ?? "-"} / {detail.cant_secciones ?? "-"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

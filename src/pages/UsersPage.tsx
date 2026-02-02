@@ -62,8 +62,8 @@ function Modal({
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl">
+      <div className="absolute inset-0 flex items-start justify-center p-4 md:items-center">
+        <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl">
           <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
             <div className="text-sm font-semibold">{title}</div>
             <button
@@ -73,7 +73,9 @@ function Modal({
               Cerrar
             </button>
           </div>
-          <div className="px-6 py-5">{children}</div>
+          <div className="max-h-[calc(90vh-72px)] overflow-y-auto px-6 py-5">
+            {children}
+          </div>
         </div>
       </div>
     </div>
