@@ -6,7 +6,7 @@ export type Profile = {
   id: string;
   email: string | null;
   correo: string | null;
-  role: "admin" | "user" | null;
+  role: "admin" | "user" | "jefe_area" | "director" | null;
 
   nombres: string | null;
   apellido_paterno: string | null;

@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
+import { canSeeAllRole } from "../lib/roles";
 
 export function ProtectedRoute({ requireAdmin = false }: { requireAdmin?: boolean }) {
   const { loading, user, profile, profileLoading, profileError, refreshProfile } =
@@ -54,7 +55,7 @@ export function ProtectedRoute({ requireAdmin = false }: { requireAdmin?: boolea
     }
 
     const role = profile?.role;
-    if (role !== "admin") {
+    if (!canSeeAllRole(role)) {
       return <Navigate to="/app" replace />;
     }
   }

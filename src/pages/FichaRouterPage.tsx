@@ -5,6 +5,7 @@ import { useAuth } from "../app/AuthProvider";
 import { FichaEscribeLMPage } from "./FichaEscribeLMPage";
 import { FichaLeeLMPage } from "./FichaLeeLMPage";
 import { FichaOralLMPage } from "./FichaOralLMPage";
+import { canSeeAllRole } from "../lib/roles";
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -38,7 +39,7 @@ export function FichaRouterPage() {
           return;
         }
 
-        if (profile.role === "admin") {
+        if (canSeeAllRole(profile.role)) {
           if (!alive) return;
           setAllowed(true);
           setLoading(false);

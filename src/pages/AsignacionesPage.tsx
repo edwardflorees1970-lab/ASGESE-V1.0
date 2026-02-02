@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../app/AuthProvider";
+import { isAdminRole } from "../lib/roles";
 
 type MonitoreoRow = {
   id: string;
@@ -33,6 +35,8 @@ function fmtDate(iso: string) {
 }
 
 export function AsignacionesPage() {
+  const { profile } = useAuth();
+  const canManageAssignments = isAdminRole(profile?.role);
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [years, setYears] = useState<string[]>([]);
@@ -161,6 +165,7 @@ export function AsignacionesPage() {
   }, [users, q]);
 
   const toggleAssign = async (u: ProfileRow) => {
+    if (!canManageAssignments) return;
     if (!monitoreoId) return;
     setSaving(u.id);
     try {
@@ -298,7 +303,7 @@ export function AsignacionesPage() {
                   <button
                     type="button"
                     onClick={() => toggleAssign(u)}
-                    disabled={saving === u.id}
+                    disabled={!canManageAssignments || saving === u.id}
                     className={cls(
                       "rounded-lg px-3 py-1.5 text-xs",
                       assigned
@@ -306,7 +311,7 @@ export function AsignacionesPage() {
                         : "border border-white/10 bg-white/5 text-white/70"
                     )}
                   >
-                    {saving === u.id ? "..." : assigned ? "Asignado" : "Asignar"}
+                    {saving === u.id ? "..." : assigned ? "Asignado" : canManageAssignments ? "Asignar" : "Solo lectura"}
                   </button>
                 </div>
               );

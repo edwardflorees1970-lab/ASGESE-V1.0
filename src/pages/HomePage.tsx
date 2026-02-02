@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { roleLabel } from "../lib/roles";
 
 type RunRow = {
   id: string;
@@ -407,7 +408,7 @@ export function HomePage() {
             ) : (
               Object.entries(stats.roleCounts).map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between">
-                  <div>{k}</div>
+                  <div>{roleLabel(k)}</div>
                   <div className="text-white">{v}</div>
                 </div>
               ))
