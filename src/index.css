@@ -1,5 +1,168 @@
 @import "tailwindcss";
 
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #0b1220;
+  --app-surface: #111827;
+  --app-surface-2: #0f172a;
+  --app-surface-3: #0b1220;
+  --app-border: rgba(148, 163, 184, 0.22);
+  --app-text: #e5e7eb;
+  --app-muted: rgba(226, 232, 240, 0.65);
+  --app-muted-2: rgba(148, 163, 184, 0.55);
+  --app-accent: #5b7c99;
+  --app-accent-strong: #3e5b73;
+  --app-on-accent: #0b1220;
+  --app-danger: #c0392b;
+  --app-success: #2a9d8f;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #f3f6f9;
+  --app-surface: #ffffff;
+  --app-surface-2: #eef2f6;
+  --app-surface-3: #e2e8f0;
+  --app-border: rgba(15, 23, 42, 0.12);
+  --app-text: #0f172a;
+  --app-muted: rgba(15, 23, 42, 0.65);
+  --app-muted-2: rgba(15, 23, 42, 0.5);
+  --app-accent: #4f6d88;
+  --app-accent-strong: #3a556d;
+  --app-on-accent: #ffffff;
+  --app-danger: #b02a2a;
+  --app-success: #1f8a70;
+}
+
+html,
+body {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+[data-theme="light"] .bg-zinc-950 {
+  background-color: var(--app-bg) !important;
+}
+
+[data-theme="light"] .bg-zinc-900\/60 {
+  background-color: var(--app-surface-2) !important;
+}
+
+[data-theme="light"] .bg-black\/20,
+[data-theme="light"] .bg-black\/30,
+[data-theme="light"] .bg-black\/40 {
+  background-color: var(--app-surface-2) !important;
+}
+
+[data-theme="light"] .bg-white\/5,
+[data-theme="light"] .bg-white\/10,
+[data-theme="light"] .bg-white\/15,
+[data-theme="light"] .bg-white\/20 {
+  background-color: var(--app-surface-2) !important;
+}
+
+[data-theme="light"] .border-white\/10,
+[data-theme="light"] .border-white\/20 {
+  border-color: var(--app-border) !important;
+}
+
+[data-theme="light"] .text-white {
+  color: var(--app-text) !important;
+}
+
+[data-theme="light"] .text-white\/90,
+[data-theme="light"] .text-white\/80 {
+  color: var(--app-text) !important;
+}
+
+[data-theme="light"] .text-white\/70,
+[data-theme="light"] .text-white\/60 {
+  color: var(--app-text) !important;
+}
+
+[data-theme="light"] .text-white\/50 {
+  color: var(--app-muted) !important;
+}
+
+[data-theme="light"] .text-red-100 {
+  color: var(--app-danger) !important;
+}
+
+[data-theme="light"] .border-red-500\/30 {
+  border-color: rgba(220, 38, 38, 0.35) !important;
+}
+
+[data-theme="light"] .bg-red-500\/10,
+[data-theme="light"] .bg-red-500\/20 {
+  background-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+[data-theme="light"] .border-emerald-500\/30 {
+  border-color: rgba(22, 163, 74, 0.35) !important;
+}
+
+[data-theme="light"] .bg-emerald-500\/10,
+[data-theme="light"] .bg-emerald-500\/20 {
+  background-color: rgba(22, 163, 74, 0.12) !important;
+}
+
+[data-theme="light"] .bg-zinc-900\/40 {
+  background-color: var(--app-surface-2) !important;
+}
+
+[data-theme="light"] .text-white\/70 {
+  color: rgba(75, 85, 99, 0.95) !important;
+}
+
+select,
+option {
+  color: var(--app-text);
+}
+
+select {
+  background-color: var(--app-surface-2);
+  border-color: var(--app-border);
+}
+
+option {
+  background-color: var(--app-surface);
+}
+
+select:focus {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 40%, transparent);
+}
+
+select:focus-visible {
+  outline: none;
+}
+
+select option:checked {
+  background-color: var(--app-accent);
+  color: var(--app-on-accent);
+}
+
+.badge-muted {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+[data-theme="light"] .badge-muted {
+  color: rgba(55, 65, 81, 0.9) !important;
+}
+
+[data-theme="light"] .badge-green {
+  color: #047857 !important;
+}
+
+[data-theme="light"] .badge-amber {
+  color: #b45309 !important;
+}
+
+[data-theme="light"] .badge-red {
+  color: #b91c1c !important;
+}
+
 @keyframes fadeUp {
   from {
     opacity: 0;

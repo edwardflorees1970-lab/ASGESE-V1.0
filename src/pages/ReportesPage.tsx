@@ -329,15 +329,13 @@ export function ReportesPage() {
   }, [toast]);
 
   const canEditOrDelete = (run: RunRow) => {
-    const st = normalizeStatus(run.status);
-    if (st === "final") return isAdmin;
     if (isAdmin) return true;
-    return role === "user" && run.created_by === user?.id;
+    return run.created_by === user?.id;
   };
 
   const canChangeStatus = (run: RunRow) => {
     if (isAdmin) return true;
-    return role === "user" && run.created_by === user?.id;
+    return run.created_by === user?.id;
   };
 
   const exportRunPdf = async (run: RunRow) => {
@@ -695,8 +693,8 @@ export function ReportesPage() {
                     className={cls(
                       "rounded-lg border px-2 py-1 text-xs",
                       statusLabel === "final"
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                        : "border-white/10 bg-white/5 text-white/70"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                        : "border-white/10 bg-white/5 badge-muted"
                     )}
                   >
                     {statusLabel}
@@ -712,7 +710,7 @@ export function ReportesPage() {
                 )}
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {(isAdmin || role === "user") && (
+                  {canEditOrDelete(r) && (
                     <button
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                       onClick={() => handleEdit(r)}
@@ -727,7 +725,7 @@ export function ReportesPage() {
                   >
                     PDF
                   </button>
-                  {(isAdmin || role === "user") && (
+                  {canChangeStatus(r) && (
                     <button
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                       onClick={() =>
@@ -738,7 +736,7 @@ export function ReportesPage() {
                       {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
                     </button>
                   )}
-                  {(isAdmin || role === "user") && (
+                  {canEditOrDelete(r) && (
                     <button
                       className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
                       onClick={() => deleteRun(r)}
@@ -824,8 +822,8 @@ export function ReportesPage() {
                           className={cls(
                             "rounded-lg border px-2 py-1 text-xs",
                             statusLabel === "final"
-                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                              : "border-white/10 bg-white/5 text-white/70"
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                              : "border-white/10 bg-white/5 badge-muted"
                           )}
                         >
                           {statusLabel}
@@ -833,7 +831,7 @@ export function ReportesPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          {(isAdmin || role === "user") && (
+                          {canEditOrDelete(r) && (
                             <button
                               className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                               onClick={() => handleEdit(r)}
@@ -848,7 +846,7 @@ export function ReportesPage() {
                           >
                             PDF
                           </button>
-                          {(isAdmin || role === "user") && (
+                          {canChangeStatus(r) && (
                             <button
                               className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                               onClick={() =>
@@ -862,7 +860,7 @@ export function ReportesPage() {
                               {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
                             </button>
                           )}
-                          {(isAdmin || role === "user") && (
+                          {canEditOrDelete(r) && (
                             <button
                               className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
                               onClick={() => deleteRun(r)}

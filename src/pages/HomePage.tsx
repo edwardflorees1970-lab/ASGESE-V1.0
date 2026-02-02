@@ -450,8 +450,8 @@ export function HomePage() {
                   className={cls(
                     "rounded-lg border px-2 py-1 text-xs",
                     r.status === "final"
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                      : "border-white/10 bg-white/5 text-white/70"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                      : "border-white/10 bg-white/5 badge-muted"
                   )}
                 >
                   {r.status}

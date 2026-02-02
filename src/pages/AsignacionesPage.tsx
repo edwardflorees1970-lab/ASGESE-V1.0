@@ -307,8 +307,8 @@ export function AsignacionesPage() {
                     className={cls(
                       "rounded-lg px-3 py-1.5 text-xs",
                       assigned
-                        ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                        : "border border-white/10 bg-white/5 text-white/70"
+                        ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                        : "border border-white/10 bg-white/5 badge-muted"
                     )}
                   >
                     {saving === u.id ? "..." : assigned ? "Asignado" : canManageAssignments ? "Asignar" : "Solo lectura"}
