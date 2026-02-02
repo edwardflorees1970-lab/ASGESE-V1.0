@@ -72,6 +72,7 @@ export function AppShell() {
       <nav className="mt-4 space-y-1">
         <Item to="/app" label="Inicio" onClick={onItemClick} />
         <Item to="/app/monitoreo" label="Monitoreo" onClick={onItemClick} />
+        <Item to="/app/instituciones" label="Instituciones" onClick={onItemClick} />
         <Item to="/app/reportes" label="Reportes y resultados" onClick={onItemClick} />
         {isAdmin && <Item to="/app/usuarios" label="Usuarios" onClick={onItemClick} />}
         {isAdmin && <Item to="/app/asignaciones" label="Asignaciones" onClick={onItemClick} />}
