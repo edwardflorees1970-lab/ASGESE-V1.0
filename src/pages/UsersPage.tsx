@@ -155,6 +155,9 @@ export function UsersPage() {
   const [rol, setRol] = useState<"" | "admin" | "user" | "jefe_area" | "director">("");
   const [area, setArea] = useState("");
   const [ugel, setUgel] = useState("");
+  const [qInput, setQInput] = useState("");
+  const [areaInput, setAreaInput] = useState("");
+  const [ugelInput, setUgelInput] = useState("");
 
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -277,6 +280,9 @@ export function UsersPage() {
 
   const onSearch = () => {
     setPage(1);
+    setQ(qInput.trim());
+    setArea(areaInput.trim());
+    setUgel(ugelInput.trim());
     setSearchTick((s) => s + 1);
   };
 
@@ -341,7 +347,7 @@ export function UsersPage() {
       setOpenCreate(false);
       setCreateForm(emptyCreateForm);
       setPage(1);
-      await load();
+      void load();
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message || "No se pudo crear" });
     } finally {
@@ -378,7 +384,7 @@ export function UsersPage() {
 
       setOpenEdit(false);
       setEditUser(null);
-      await load();
+      void load();
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message || "No se pudo actualizar" });
     } finally {
@@ -415,7 +421,7 @@ export function UsersPage() {
       await adminUsersDelete(u.id);
       setToast({ type: "ok", msg: "Usuario eliminado ✅" });
       setPage(1);
-      await load();
+      void load();
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message || "No se pudo eliminar" });
     } finally {
@@ -475,8 +481,8 @@ export function UsersPage() {
             <div className="md:col-span-5">
               <Field label="Buscar (nombre, correo, documento)">
                 <Input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
+                  value={qInput}
+                  onChange={(e) => setQInput(e.target.value)}
                   placeholder="Ej: acabreara / 75310856 / apellidos..."
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onSearch();
@@ -499,13 +505,21 @@ export function UsersPage() {
 
             <div className="md:col-span-3">
               <Field label="Área">
-                <Input value={area} onChange={(e) => setArea(e.target.value)} placeholder="AGEBRE..." />
+                <Input
+                  value={areaInput}
+                  onChange={(e) => setAreaInput(e.target.value)}
+                  placeholder="AGEBRE..."
+                />
               </Field>
             </div>
 
             <div className="md:col-span-2">
               <Field label="UGEL">
-                <Input value={ugel} onChange={(e) => setUgel(e.target.value)} placeholder="UGEL 06" />
+                <Input
+                  value={ugelInput}
+                  onChange={(e) => setUgelInput(e.target.value)}
+                  placeholder="UGEL 06"
+                />
               </Field>
             </div>
 
@@ -520,7 +534,11 @@ export function UsersPage() {
                   setRol("");
                   setArea("");
                   setUgel("");
+                  setQInput("");
+                  setAreaInput("");
+                  setUgelInput("");
                   setPage(1);
+                  setSearchTick((s) => s + 1);
                 }}
               >
                 Limpiar
@@ -551,7 +569,7 @@ export function UsersPage() {
                     className={cls(
                       "rounded-lg border px-2 py-1 text-xs",
                       u.rol === "admin"
-                        ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                        ? "border-amber-500/30 bg-amber-500/10 text-amber-100 badge-amber"
                         : "border-white/10 bg-white/5 text-white/70"
                     )}
                   >
@@ -676,11 +694,11 @@ export function UsersPage() {
                           className={cls(
                             "rounded-lg border px-2 py-1 text-xs",
                             u.rol === "admin"
-                              ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                              ? "border-amber-500/30 bg-amber-500/10 text-amber-100 badge-amber"
                               : "border-white/10 bg-white/5 text-white/70"
                           )}
                         >
-                    {roleLabel(u.rol)}
+                          {roleLabel(u.rol)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-white/70">{u.area || "-"}</td>
