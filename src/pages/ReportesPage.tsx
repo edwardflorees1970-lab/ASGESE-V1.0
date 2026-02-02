@@ -8,6 +8,7 @@ import { FICHA_ESCRIBE_LM } from "../forms/ficha_escribe_lm";
 import { FICHA_LEE_LM } from "../forms/ficha_lee_lm";
 import { FICHA_ORAL_LM } from "../forms/ficha_oral_lm";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
+import { useAppConfig } from "../app/AppConfigProvider";
 
 type RunRow = {
   id: string;
@@ -110,6 +111,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 export function ReportesPage() {
   const nav = useNavigate();
   const { user, profile } = useAuth();
+  const { isTestMode } = useAppConfig();
   const role = profile?.role;
   const isAdmin = isAdminRole(role);
   const canSeeAll = canSeeAllRole(role);
@@ -225,6 +227,7 @@ export function ReportesPage() {
           .gte("created_at", start.toISOString())
           .lt("created_at", end.toISOString())
           .order("created_at", { ascending: false });
+        query = query.eq("is_test", isTestMode);
 
         if (!canSeeAll) {
           query = query.eq("created_by", user.id);
@@ -320,7 +323,7 @@ export function ReportesPage() {
     return () => {
       alive = false;
     };
-  }, [year, month, monitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll]);
+  }, [year, month, monitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll, isTestMode]);
 
   useEffect(() => {
     if (!toast) return;

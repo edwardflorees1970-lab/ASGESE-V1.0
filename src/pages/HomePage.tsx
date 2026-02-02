@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useAppConfig } from "../app/AppConfigProvider";
 import { roleLabel } from "../lib/roles";
 
 type RunRow = {
@@ -69,6 +70,7 @@ function monthOptions() {
 }
 
 export function HomePage() {
+  const { isTestMode } = useAppConfig();
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState("ALL");
@@ -164,6 +166,7 @@ export function HomePage() {
           .gte("created_at", start.toISOString())
           .lt("created_at", end.toISOString())
           .order("created_at", { ascending: false });
+        query = query.eq("is_test", isTestMode);
 
         if (fichaIds) {
           if (fichaIds.length === 0) {
@@ -239,7 +242,7 @@ export function HomePage() {
     return () => {
       alive = false;
     };
-  }, [year, month, monitoreo, monitoreos]);
+  }, [year, month, monitoreo, monitoreos, isTestMode]);
 
   const stats = useMemo(() => {
     const totalRuns = runs.length;

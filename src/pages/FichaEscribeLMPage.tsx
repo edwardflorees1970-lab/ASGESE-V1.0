@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import logoAgebreUrl from "../assets/logoagebresf.png";
+import { useAppConfig } from "../app/AppConfigProvider";
 import {
   FICHA_ESCRIBE_LM,
   GROUP_LABEL,
@@ -340,6 +341,7 @@ function normalizeStatus(s: string) {
 
 export function FichaEscribeLMPage() {
   const { user, profile } = useAuth();
+  const { isTestMode } = useAppConfig();
   const nav = useNavigate();
   const [atTop, setAtTop] = useState(true);
   const [atBottom, setAtBottom] = useState(false);
@@ -756,6 +758,7 @@ export function FichaEscribeLMPage() {
         monitor_firma_dni: footer.monitor_firma_dni.trim(),
 
         status: runId ? normalizeStatus(runStatus) : "draft",
+        is_test: isTestMode,
       };
 
       let runIdFinal = runId;

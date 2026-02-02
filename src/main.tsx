@@ -4,13 +4,16 @@ import App from "./App.tsx";
 import "./index.css";
 import { AuthProvider } from "./app/AuthProvider";
 import { ThemeProvider } from "./app/ThemeProvider";
+import { AppConfigProvider } from "./app/AppConfigProvider";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
     <ThemeProvider>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <AppConfigProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </AppConfigProvider>
     </ThemeProvider>
   </BrowserRouter>
 );
