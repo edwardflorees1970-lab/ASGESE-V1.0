@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { getFichasByMonitoreo } from "../lib/monitoreoApi";
+import { canSeeAllRole } from "../lib/roles";
 
 type FichaCard = {
   key: string; // "ESCRIBE" | "LEE" | "ORAL"
@@ -62,9 +63,9 @@ export function MonitoreoDetailPage() {
         const mon = monData as MonitoreoRow;
         setMonitoreo(mon);
 
-        const isAdmin = profile?.role === "admin";
-        let allow = isAdmin;
-        if (!isAdmin && profile?.id) {
+        const canSeeAll = canSeeAllRole(profile?.role);
+        let allow = canSeeAll;
+        if (!canSeeAll && profile?.id) {
           const { data: asig, error: asigError } = await supabase
             .from("monitoreo_asignacion")
             .select("id")

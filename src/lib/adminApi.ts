@@ -3,7 +3,7 @@ import { supabase } from "./supabaseClient";
 /** Tipos */
 export type UsersListQuery = {
   q?: string;
-  rol?: "admin" | "user";
+  rol?: "admin" | "user" | "jefe_area" | "director";
   area?: string;
   ugel?: string;
   page?: number;
@@ -25,7 +25,7 @@ export type ProfileRow = {
   comision: string | null;
   ugel: string | null;
   // OJO: en BD es "role", pero en el frontend usamos "rol"
-  rol: "admin" | "user";
+  rol: "admin" | "user" | "jefe_area" | "director";
   created_at?: string;
   updated_at?: string;
 };
@@ -43,7 +43,7 @@ export type AdminCreateUserInput = {
   area?: string | null;
   comision?: string | null;
   ugel?: string | null;
-  rol: "admin" | "user";
+  rol: "admin" | "user" | "jefe_area" | "director";
   password: string;
 };
 

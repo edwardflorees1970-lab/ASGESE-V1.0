@@ -7,6 +7,7 @@ import { exportFichaEscribeLmPdf } from "../lib/pdf/fichaEscribeLmPdf";
 import { FICHA_ESCRIBE_LM } from "../forms/ficha_escribe_lm";
 import { FICHA_LEE_LM } from "../forms/ficha_lee_lm";
 import { FICHA_ORAL_LM } from "../forms/ficha_oral_lm";
+import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 
 type RunRow = {
   id: string;
@@ -109,7 +110,9 @@ function downloadCsv(filename: string, rows: string[][]) {
 export function ReportesPage() {
   const nav = useNavigate();
   const { user, profile } = useAuth();
-  const isAdmin = profile?.role === "admin";
+  const role = profile?.role;
+  const isAdmin = isAdminRole(role);
+  const canSeeAll = canSeeAllRole(role);
 
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
@@ -207,7 +210,7 @@ export function ReportesPage() {
         }
 
         let roleUserIds: string[] | null = null;
-        if (isAdmin && roleFilter !== "ALL") {
+        if (canSeeAll && roleFilter !== "ALL") {
           const { data: roleUsers, error: roleErr } = await supabase
             .from("profiles")
             .select("id, role")
@@ -223,7 +226,7 @@ export function ReportesPage() {
           .lt("created_at", end.toISOString())
           .order("created_at", { ascending: false });
 
-        if (!isAdmin) {
+        if (!canSeeAll) {
           query = query.eq("created_by", user.id);
         } else if (roleUserIds) {
           if (!roleUserIds.length) {
@@ -317,7 +320,7 @@ export function ReportesPage() {
     return () => {
       alive = false;
     };
-  }, [year, month, monitoreo, status, roleFilter, monitoreos, user?.id, isAdmin]);
+  }, [year, month, monitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll]);
 
   useEffect(() => {
     if (!toast) return;
@@ -328,11 +331,13 @@ export function ReportesPage() {
   const canEditOrDelete = (run: RunRow) => {
     const st = normalizeStatus(run.status);
     if (st === "final") return isAdmin;
-    return isAdmin || run.created_by === user?.id;
+    if (isAdmin) return true;
+    return role === "user" && run.created_by === user?.id;
   };
 
   const canChangeStatus = (run: RunRow) => {
-    return isAdmin || run.created_by === user?.id;
+    if (isAdmin) return true;
+    return role === "user" && run.created_by === user?.id;
   };
 
   const exportRunPdf = async (run: RunRow) => {
@@ -441,6 +446,7 @@ export function ReportesPage() {
         "Fecha",
         "Estado",
         "Creador",
+        "Rol creador",
         "Monitoreado",
         "Institucion",
       ],
@@ -464,6 +470,7 @@ export function ReportesPage() {
         fmtDateShort(r.created_at),
         normalizeStatus(r.status),
         creatorName,
+        roleLabel(creator?.role),
         r.docente || "",
         r.institucion_educativa || "",
       ]);
@@ -536,7 +543,7 @@ export function ReportesPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Reportes</h1>
           <p className="mt-1 text-sm text-white/60">
-            {isAdmin
+            {canSeeAll
               ? "Todos los registros con filtros avanzados."
               : "Tus registros con filtros por fecha y monitoreo."}
           </p>
@@ -621,7 +628,7 @@ export function ReportesPage() {
             </select>
           </label>
 
-          {isAdmin && (
+          {canSeeAll && (
             <label className="block">
               <div className="mb-2 text-xs font-medium text-white/70">Rol creador</div>
               <select
@@ -630,8 +637,10 @@ export function ReportesPage() {
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="ALL">Todos</option>
-                <option value="admin">admin</option>
-                <option value="user">user</option>
+                <option value="admin">Administrador</option>
+                <option value="jefe_area">Jefe de área</option>
+                <option value="director">Director(a)</option>
+                <option value="user">Usuario</option>
               </select>
             </label>
           )}
@@ -694,7 +703,7 @@ export function ReportesPage() {
                   </div>
                 </div>
                 <div className="mt-1 text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
-                {isAdmin && (
+                {canSeeAll && (
                   <div className="mt-1 text-xs text-white/60">
                     <div>Por: {creatorName}</div>
                     <div className="text-white/50">Monitoreado: {monitoreado}</div>
@@ -703,35 +712,41 @@ export function ReportesPage() {
                 )}
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                    onClick={() => handleEdit(r)}
-                    disabled={!canEditOrDelete(r)}
-                  >
-                    Editar
-                  </button>
+                  {(isAdmin || role === "user") && (
+                    <button
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                      onClick={() => handleEdit(r)}
+                      disabled={!canEditOrDelete(r)}
+                    >
+                      Editar
+                    </button>
+                  )}
                   <button
                     className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                     onClick={() => exportRunPdf(r)}
                   >
                     PDF
                   </button>
-                  <button
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                    onClick={() =>
-                      updateStatus(r, normalizeStatus(r.status) === "final" ? "draft" : "final")
-                    }
-                    disabled={!canChangeStatus(r)}
-                  >
-                    {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
-                  </button>
-                  <button
-                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
-                    onClick={() => deleteRun(r)}
-                    disabled={!canEditOrDelete(r)}
-                  >
-                    Eliminar
-                  </button>
+                  {(isAdmin || role === "user") && (
+                    <button
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                      onClick={() =>
+                        updateStatus(r, normalizeStatus(r.status) === "final" ? "draft" : "final")
+                      }
+                      disabled={!canChangeStatus(r)}
+                    >
+                      {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
+                    </button>
+                  )}
+                  {(isAdmin || role === "user") && (
+                    <button
+                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
+                      onClick={() => deleteRun(r)}
+                      disabled={!canEditOrDelete(r)}
+                    >
+                      Eliminar
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -753,7 +768,7 @@ export function ReportesPage() {
                 <th className="px-4 py-3">Monitoreo</th>
                 <th className="px-4 py-3">Ficha</th>
                 <th className="px-4 py-3">Fecha</th>
-                {isAdmin && <th className="px-4 py-3 w-64">Creador</th>}
+                {canSeeAll && <th className="px-4 py-3 w-64">Creador</th>}
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
@@ -761,13 +776,13 @@ export function ReportesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-white/60" colSpan={isAdmin ? 6 : 5}>
+                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 6 : 5}>
                     Cargando...
                   </td>
                 </tr>
               ) : runs.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-white/60" colSpan={isAdmin ? 6 : 5}>
+                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 6 : 5}>
                     Sin registros.
                   </td>
                 </tr>
@@ -793,7 +808,7 @@ export function ReportesPage() {
                       <td className="px-4 py-3">{mon?.codigo || "-"}</td>
                       <td className="px-4 py-3">{ficha?.codigo || "-"}</td>
                       <td className="px-4 py-3 text-white/70">{fmtDateShort(r.created_at)}</td>
-                      {isAdmin && (
+                      {canSeeAll && (
                         <td className="px-4 py-3 text-white/70 w-64">
                           <div className="font-medium text-white/80">{creatorName}</div>
                           <div className="text-xs text-white/50 leading-4">
@@ -818,38 +833,44 @@ export function ReportesPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          <button
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                            onClick={() => handleEdit(r)}
-                            disabled={!canEditOrDelete(r)}
-                          >
-                            Editar
-                          </button>
+                          {(isAdmin || role === "user") && (
+                            <button
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                              onClick={() => handleEdit(r)}
+                              disabled={!canEditOrDelete(r)}
+                            >
+                              Editar
+                            </button>
+                          )}
                           <button
                             className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                             onClick={() => exportRunPdf(r)}
                           >
                             PDF
                           </button>
-                          <button
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                            onClick={() =>
-                              updateStatus(
-                                r,
-                                normalizeStatus(r.status) === "final" ? "draft" : "final"
-                              )
-                            }
-                            disabled={!canChangeStatus(r)}
-                          >
-                            {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
-                          </button>
-                          <button
-                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
-                            onClick={() => deleteRun(r)}
-                            disabled={!canEditOrDelete(r)}
-                          >
-                            Eliminar
-                          </button>
+                          {(isAdmin || role === "user") && (
+                            <button
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                              onClick={() =>
+                                updateStatus(
+                                  r,
+                                  normalizeStatus(r.status) === "final" ? "draft" : "final"
+                                )
+                              }
+                              disabled={!canChangeStatus(r)}
+                            >
+                              {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
+                            </button>
+                          )}
+                          {(isAdmin || role === "user") && (
+                            <button
+                              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
+                              onClick={() => deleteRun(r)}
+                              disabled={!canEditOrDelete(r)}
+                            >
+                              Eliminar
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
