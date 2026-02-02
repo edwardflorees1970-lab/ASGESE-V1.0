@@ -54,6 +54,42 @@ function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
+type Tone = "red" | "amber" | "green" | "accent";
+
+function toneClasses(tone: Tone, checked: boolean) {
+  if (tone === "red") {
+    return checked
+      ? "border-red-400/60 bg-red-500/20 text-red-50"
+      : "border-red-500/30 bg-red-500/5 text-red-100/80 hover:bg-red-500/10";
+  }
+  if (tone === "amber") {
+    return checked
+      ? "border-amber-400/60 bg-amber-400/20 text-amber-50"
+      : "border-amber-400/30 bg-amber-400/5 text-amber-100/80 hover:bg-amber-400/10";
+  }
+  if (tone === "green") {
+    return checked
+      ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-50"
+      : "border-emerald-400/30 bg-emerald-500/5 text-emerald-100/80 hover:bg-emerald-500/10";
+  }
+  return checked
+    ? "border-slate-300/60 bg-slate-400/20 text-white"
+    : "border-slate-400/30 bg-slate-400/5 text-white/80 hover:bg-slate-400/10";
+}
+
+function levelTone(nivel: number): Tone {
+  if (nivel === 1) return "red";
+  if (nivel === 2) return "amber";
+  return "green";
+}
+
+function groupTone(group: QuestionGroup): Tone {
+  if (group === "PLANIFICACION") return "red";
+  if (group === "TEXTUALIZACION") return "amber";
+  if (group === "REVISION") return "green";
+  return "accent";
+}
+
 function todayISO() {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -164,9 +200,14 @@ function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
+function Pill({ children, tone = "accent" }: { children: React.ReactNode; tone?: Tone }) {
   return (
-    <span className="inline-flex items-center rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/70">
+    <span
+      className={cls(
+        "inline-flex items-center rounded-lg border px-2 py-1 text-xs",
+        toneClasses(tone, false)
+      )}
+    >
       {children}
     </span>
   );
@@ -178,20 +219,20 @@ function RadioPill({
   checked,
   onChange,
   label,
+  tone = "accent",
 }: {
   name: string;
   value: string;
   checked: boolean;
   onChange: () => void;
   label: string;
+  tone?: Tone;
 }) {
   return (
     <label
       className={cls(
         "cursor-pointer select-none rounded-xl border px-3 py-2 text-xs transition",
-        checked
-          ? "border-white/30 bg-white/15 text-white"
-          : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+        toneClasses(tone, checked)
       )}
     >
       <input
@@ -227,7 +268,7 @@ const QuestionRow = memo(function QuestionRow({
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <Pill>Ítem {q.numero}</Pill>
+            <Pill tone={groupTone(q.group)}>Ítem {q.numero}</Pill>
             <span className="text-xs text-white/50">({GROUP_LABEL[q.group]})</span>
           </div>
           <div className="mt-2 text-sm text-white">{q.texto}</div>
@@ -262,6 +303,7 @@ const QuestionRow = memo(function QuestionRow({
               checked={st.nivel === n}
               onChange={() => onNivelChange(q.id, n as NivelAvance)}
               label={String(n)}
+              tone={levelTone(n)}
             />
           ))}
         </div>
@@ -816,7 +858,13 @@ export function FichaEscribeLMPage() {
       <div className="text-sm font-semibold">Nivel de avance</div>
       <div className="mt-3 grid gap-2 md:grid-cols-3">
         {FICHA_ESCRIBE_LM.encabezado.nivel_avance_info.map((x) => (
-          <div key={x.nivel} className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <div
+            key={x.nivel}
+            className={cls(
+              "rounded-xl border p-3",
+              toneClasses(levelTone(x.nivel), false)
+            )}
+          >
             <div className="text-xs text-white/60">Nivel</div>
             <div className="mt-1 text-lg font-semibold">{x.nivel}</div>
             <div className="mt-2 text-xs text-white/70">{x.descripcion}</div>
@@ -1116,7 +1164,13 @@ export function FichaEscribeLMPage() {
             <section
               key={g}
               id={`sec-${g}`}
-              className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5"
+              className={cls(
+                "rounded-2xl border bg-white/5 p-4 md:p-5",
+                g === "PLANIFICACION" && "border-red-500/30",
+                g === "TEXTUALIZACION" && "border-amber-400/30",
+                g === "REVISION" && "border-emerald-400/30",
+                g === "EVALUACION" && "border-slate-400/30"
+              )}
             >
               <button
                 type="button"
@@ -1124,9 +1178,19 @@ export function FichaEscribeLMPage() {
                 className="flex w-full items-center justify-between text-left"
                 aria-expanded={!!openSections[g]}
               >
-                <div className="text-lg font-semibold">{GROUP_LABEL[g]}</div>
+                <div
+                  className={cls(
+                    "text-lg font-semibold",
+                    g === "PLANIFICACION" && "text-red-100",
+                    g === "TEXTUALIZACION" && "text-amber-100",
+                    g === "REVISION" && "text-emerald-100",
+                    g === "EVALUACION" && "text-slate-100"
+                  )}
+                >
+                  {GROUP_LABEL[g]}
+                </div>
                 <div className="flex items-center gap-2">
-                  <Pill>{list.length} ítems</Pill>
+                  <Pill tone={groupTone(g)}>{list.length} ítems</Pill>
                   <span className="text-xs text-white/60">
                     {openSections[g] ? "Ocultar" : "Mostrar"}
                   </span>
