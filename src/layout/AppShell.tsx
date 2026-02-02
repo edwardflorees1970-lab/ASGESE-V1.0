@@ -4,6 +4,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole, roleLabel } from "../lib/roles";
 import { useTheme } from "../app/ThemeProvider";
+import { useAppConfig } from "../app/AppConfigProvider";
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -43,6 +44,7 @@ const Item = ({
 export function AppShell() {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { isTestMode, setMode } = useAppConfig();
   const nav = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -78,6 +80,22 @@ export function AppShell() {
         </div>
         <div className="mt-1 text-lg font-semibold tracking-tight">AGEBRE</div>
         <div className="mt-2 text-xs text-white/60">{roleLabel(role)}</div>
+        {role === "admin" && (
+          <button
+            type="button"
+            onClick={async () => {
+              await setMode(isTestMode ? "prod" : "test");
+            }}
+            className={cls(
+              "mt-3 w-full rounded-lg border px-3 py-2 text-xs",
+              isTestMode
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-100 badge-amber"
+                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+            )}
+          >
+            {isTestMode ? "Modo TEST" : "Modo PRODUCCIÓN"}
+          </button>
+        )}
         <button
           type="button"
           onClick={toggleTheme}
