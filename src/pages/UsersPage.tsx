@@ -9,6 +9,9 @@ import {
   adminUsersList,
   adminUsersUpdate,
 } from "../lib/adminApi";
+import { useAuth } from "../app/AuthProvider";
+import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
+import { supabase } from "../lib/supabaseClient";
 
 
 type Toast = { type: "ok" | "err"; msg: string } | null;
@@ -141,11 +144,15 @@ function Button({
 }
 
 export function UsersPage() {
+  const { profile } = useAuth();
+  const role = profile?.role;
+  const canManageUsers = isAdminRole(role);
+  const canSeeAll = canSeeAllRole(role);
   const [toast, setToast] = useState<Toast>(null);
 
   // Query UI
   const [q, setQ] = useState("");
-  const [rol, setRol] = useState<"" | "admin" | "user">("");
+  const [rol, setRol] = useState<"" | "admin" | "user" | "jefe_area" | "director">("");
   const [area, setArea] = useState("");
   const [ugel, setUgel] = useState("");
 
@@ -194,10 +201,60 @@ export function UsersPage() {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
-      const res = await adminUsersList(query);
-      if (requestId !== requestIdRef.current) return;
-      setItems(res.items);
-      setTotal(res.total);
+      if (canManageUsers) {
+        const res = await adminUsersList(query);
+        if (requestId !== requestIdRef.current) return;
+        setItems(res.items);
+        setTotal(res.total);
+      } else if (canSeeAll) {
+        let qx = supabase
+          .from("profiles")
+          .select(
+            "id, role, tipo_documento, numero_documento, apellido_paterno, apellido_materno, nombres, correo, email, telefono, fecha_nacimiento, cargo, area, comision, ugel",
+            { count: "exact" }
+          )
+          .order("apellido_paterno", { ascending: true })
+          .range((page - 1) * pageSize, page * pageSize - 1);
+
+        if (rol) qx = qx.eq("role", rol);
+        if (area.trim()) qx = qx.ilike("area", `%${area.trim()}%`);
+        if (ugel.trim()) qx = qx.ilike("ugel", `%${ugel.trim()}%`);
+        if (q.trim()) {
+          const term = q.trim().replaceAll("%", "");
+          qx = qx.or(
+            [
+              `apellido_paterno.ilike.%${term}%`,
+              `apellido_materno.ilike.%${term}%`,
+              `nombres.ilike.%${term}%`,
+              `correo.ilike.%${term}%`,
+              `email.ilike.%${term}%`,
+              `numero_documento.ilike.%${term}%`,
+            ].join(",")
+          );
+        }
+
+        const { data, error, count } = await qx;
+        if (error) throw new Error(error.message);
+        if (requestId !== requestIdRef.current) return;
+        const mapped = (data ?? []).map((u: any) => ({
+          id: u.id,
+          tipo_documento: u.tipo_documento,
+          numero_documento: u.numero_documento,
+          apellido_paterno: u.apellido_paterno,
+          apellido_materno: u.apellido_materno,
+          nombres: u.nombres,
+          correo: u.correo,
+          telefono: u.telefono,
+          fecha_nacimiento: u.fecha_nacimiento,
+          cargo: u.cargo,
+          area: u.area,
+          comision: u.comision,
+          ugel: u.ugel,
+          rol: u.role,
+        })) as ProfileRow[];
+        setItems(mapped);
+        setTotal(count ?? 0);
+      }
     } catch (e: any) {
       if (requestId !== requestIdRef.current) return;
       setToast({ type: "err", msg: e?.message || "No se pudo cargar usuarios" });
@@ -235,6 +292,7 @@ export function UsersPage() {
   };
 
   const submitCreate = async () => {
+    if (!canManageUsers) return;
     if (!createForm.password || createForm.password.trim().length < 8) {
       setToast({ type: "err", msg: "La contraseña debe tener mínimo 8 caracteres." });
       return;
@@ -292,6 +350,7 @@ export function UsersPage() {
   };
 
   const submitEdit = async () => {
+    if (!canManageUsers) return;
     if (!editUser) return;
     setEditBusy(true);
     try {
@@ -328,6 +387,7 @@ export function UsersPage() {
   };
 
   const submitReset = async () => {
+    if (!canManageUsers) return;
     if (!resetUser) return;
     setResetBusy(true);
     try {
@@ -344,6 +404,7 @@ export function UsersPage() {
   };
 
   const submitDelete = async (u: ProfileRow) => {
+    if (!canManageUsers) return;
     const ok = window.confirm(
       `Vas a eliminar a:\n${formatName(u)}\n(${u.correo})\n\n¿Confirmas?`
     );
@@ -385,7 +446,9 @@ export function UsersPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
             <p className="mt-1 text-sm text-white/60">
-              Administra cuentas, roles y contraseñas.
+              {canManageUsers
+                ? "Administra cuentas, roles y contraseñas."
+                : "Consulta usuarios registrados."}
             </p>
           </div>
 
@@ -393,14 +456,16 @@ export function UsersPage() {
             <Button variant="ghost" onClick={load} disabled={loading}>
               {loading ? "Actualizando..." : "Actualizar"}
             </Button>
-            <Button
-              onClick={() => {
-                setCreateForm(emptyCreateForm);
-                setOpenCreate(true);
-              }}
-            >
-              + Crear usuario
-            </Button>
+            {canManageUsers && (
+              <Button
+                onClick={() => {
+                  setCreateForm(emptyCreateForm);
+                  setOpenCreate(true);
+                }}
+              >
+                + Crear usuario
+              </Button>
+            )}
           </div>
         </div>
 
@@ -425,6 +490,8 @@ export function UsersPage() {
                 <Select value={rol} onChange={(e) => setRol(e.target.value as any)}>
                   <option value="">Todos</option>
                   <option value="admin">Admin</option>
+                  <option value="jefe_area">Jefe de área</option>
+                  <option value="director">Director(a)</option>
                   <option value="user">User</option>
                 </Select>
               </Field>
@@ -488,7 +555,7 @@ export function UsersPage() {
                         : "border-white/10 bg-white/5 text-white/70"
                     )}
                   >
-                    {u.rol}
+                    {roleLabel(u.rol)}
                   </span>
                 </div>
 
@@ -498,30 +565,34 @@ export function UsersPage() {
                   <div>UGEL: {u.ugel || "-"}</div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    variant="ghost"
-                    className="px-3 py-2 text-xs"
-                    onClick={() => openEditModal(u)}
-                  >
-                    Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="px-3 py-2 text-xs"
-                    onClick={() => openResetModal(u)}
-                  >
-                    Reset pass
-                  </Button>
-                  <Button
-                    variant="danger"
-                    className="px-3 py-2 text-xs"
-                    disabled={deleteBusyId === u.id}
-                    onClick={() => submitDelete(u)}
-                  >
-                    {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
-                  </Button>
-                </div>
+                {canManageUsers ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      variant="ghost"
+                      className="px-3 py-2 text-xs"
+                      onClick={() => openEditModal(u)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="px-3 py-2 text-xs"
+                      onClick={() => openResetModal(u)}
+                    >
+                      Reset pass
+                    </Button>
+                    <Button
+                      variant="danger"
+                      className="px-3 py-2 text-xs"
+                      disabled={deleteBusyId === u.id}
+                      onClick={() => submitDelete(u)}
+                    >
+                      {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-3 text-xs text-white/50">Solo lectura</div>
+                )}
               </div>
             ))
           )}
@@ -575,20 +646,20 @@ export function UsersPage() {
                   <th className="px-4 py-3">Rol</th>
                   <th className="px-4 py-3">Área</th>
                   <th className="px-4 py-3">UGEL</th>
-                  <th className="px-4 py-3 text-right">Acciones</th>
+                  {canManageUsers && <th className="px-4 py-3 text-right">Acciones</th>}
                 </tr>
               </thead>
 
               <tbody>
                 {loading ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-white/60" colSpan={6}>
+                    <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 6 : 5}>
                       Cargando usuarios...
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-white/60" colSpan={6}>
+                    <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 6 : 5}>
                       No hay resultados.
                     </td>
                   </tr>
@@ -609,28 +680,30 @@ export function UsersPage() {
                               : "border-white/10 bg-white/5 text-white/70"
                           )}
                         >
-                          {u.rol}
+                    {roleLabel(u.rol)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-white/70">{u.area || "-"}</td>
                       <td className="px-4 py-3 text-white/70">{u.ugel || "-"}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" onClick={() => openEditModal(u)}>
-                            Editar
-                          </Button>
-                          <Button variant="ghost" onClick={() => openResetModal(u)}>
-                            Reset pass
-                          </Button>
-                          <Button
-                            variant="danger"
-                            disabled={deleteBusyId === u.id}
-                            onClick={() => submitDelete(u)}
-                          >
-                            {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
-                          </Button>
-                        </div>
-                      </td>
+                      {canManageUsers && (
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" onClick={() => openEditModal(u)}>
+                              Editar
+                            </Button>
+                            <Button variant="ghost" onClick={() => openResetModal(u)}>
+                              Reset pass
+                            </Button>
+                            <Button
+                              variant="danger"
+                              disabled={deleteBusyId === u.id}
+                              onClick={() => submitDelete(u)}
+                            >
+                              {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -664,12 +737,13 @@ export function UsersPage() {
       </div>
 
       {/* MODAL CREAR */}
-      <Modal
-        open={openCreate}
-        title="Crear usuario"
-        onClose={() => !createBusy && setOpenCreate(false)}
-      >
-        <div className="grid gap-4 md:grid-cols-12">
+      {canManageUsers && (
+        <Modal
+          open={openCreate}
+          title="Crear usuario"
+          onClose={() => !createBusy && setOpenCreate(false)}
+        >
+          <div className="grid gap-4 md:grid-cols-12">
           <div className="md:col-span-3">
             <Field label="Tipo doc">
               <Select
@@ -693,15 +767,17 @@ export function UsersPage() {
           </div>
           <div className="md:col-span-3">
             <Field label="Rol">
-              <Select
-                value={createForm.rol ?? "user"}
-                onChange={(e) => setCreateForm((s) => ({ ...s, rol: e.target.value as any }))}
-              >
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </Select>
-            </Field>
-          </div>
+                <Select
+                  value={createForm.rol ?? "user"}
+                  onChange={(e) => setCreateForm((s) => ({ ...s, rol: e.target.value as any }))}
+                >
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                  <option value="jefe_area">jefe_area</option>
+                  <option value="director">director</option>
+                </Select>
+              </Field>
+            </div>
           <div className="md:col-span-3">
             <Field label="UGEL">
               <Input
@@ -825,19 +901,21 @@ export function UsersPage() {
               {createBusy ? "Creando..." : "Crear"}
             </Button>
           </div>
-        </div>
-      </Modal>
+          </div>
+        </Modal>
+      )}
 
       {/* MODAL EDITAR */}
-      <Modal
-        open={openEdit}
-        title="Editar usuario"
-        onClose={() => !editBusy && setOpenEdit(false)}
-      >
-        {!editUser ? (
-          <div className="text-sm text-white/60">Sin usuario seleccionado.</div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-12">
+      {canManageUsers && (
+        <Modal
+          open={openEdit}
+          title="Editar usuario"
+          onClose={() => !editBusy && setOpenEdit(false)}
+        >
+          {!editUser ? (
+            <div className="text-sm text-white/60">Sin usuario seleccionado.</div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-12">
             <div className="md:col-span-3">
               <Field label="Tipo doc">
                 <Select
@@ -871,6 +949,8 @@ export function UsersPage() {
                 >
                   <option value="user">user</option>
                   <option value="admin">admin</option>
+                  <option value="jefe_area">jefe_area</option>
+                  <option value="director">director</option>
                 </Select>
               </Field>
             </div>
@@ -987,20 +1067,22 @@ export function UsersPage() {
                 {editBusy ? "Guardando..." : "Guardar cambios"}
               </Button>
             </div>
-          </div>
-        )}
-      </Modal>
+            </div>
+          )}
+        </Modal>
+      )}
 
       {/* MODAL RESET PASSWORD */}
-      <Modal
-        open={openReset}
-        title="Resetear contraseña"
-        onClose={() => !resetBusy && setOpenReset(false)}
-      >
-        {!resetUser ? (
-          <div className="text-sm text-white/60">Sin usuario seleccionado.</div>
-        ) : (
-          <div className="space-y-4">
+      {canManageUsers && (
+        <Modal
+          open={openReset}
+          title="Resetear contraseña"
+          onClose={() => !resetBusy && setOpenReset(false)}
+        >
+          {!resetUser ? (
+            <div className="text-sm text-white/60">Sin usuario seleccionado.</div>
+          ) : (
+            <div className="space-y-4">
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
               <div className="text-sm font-semibold">{formatName(resetUser)}</div>
               <div className="text-xs text-white/60">{resetUser.correo}</div>
@@ -1026,9 +1108,10 @@ export function UsersPage() {
                 {resetBusy ? "Reseteando..." : "Resetear"}
               </Button>
             </div>
-          </div>
-        )}
-      </Modal>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

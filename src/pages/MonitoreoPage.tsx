@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
+import { canSeeAllRole } from "../lib/roles";
 
 type MonitoreoCard = {
   id: string;
@@ -36,10 +37,10 @@ export function MonitoreoPage() {
           return;
         }
 
-        const isAdmin = profile.role === "admin";
+        const canSeeAll = canSeeAllRole(profile.role);
         let ids: string[] = [];
 
-        if (!isAdmin) {
+        if (!canSeeAll) {
           const { data: asig, error: asigError } = await supabase
             .from("monitoreo_asignacion")
             .select("monitoreo_id")
@@ -61,7 +62,7 @@ export function MonitoreoPage() {
           .order("anio", { ascending: false })
           .order("nombre", { ascending: true });
 
-        const { data, error: monError } = isAdmin ? await q : await q.in("id", ids);
+        const { data, error: monError } = canSeeAll ? await q : await q.in("id", ids);
         if (monError) throw new Error(monError.message);
 
         const items = (data ?? []).map((m: any) => ({

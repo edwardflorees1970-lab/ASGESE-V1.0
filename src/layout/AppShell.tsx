@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
+import { canSeeAllRole, roleLabel } from "../lib/roles";
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -42,7 +43,8 @@ export function AppShell() {
       .join(" ")
       .trim() || profile?.correo || profile?.email || "Usuario";
 
-  const isAdmin = profile?.role === "admin"; // ✅ FIX real
+  const role = profile?.role;
+  const canSeeAll = canSeeAllRole(role);
 
   const SidebarContent = ({
     onItemClick,
@@ -66,16 +68,16 @@ export function AppShell() {
           )}
         </div>
         <div className="mt-1 text-lg font-semibold tracking-tight">AGEBRE</div>
-        <div className="mt-2 text-xs text-white/60">{isAdmin ? "Administrador" : "Monitor"}</div>
+        <div className="mt-2 text-xs text-white/60">{roleLabel(role)}</div>
       </div>
 
       <nav className="mt-4 space-y-1">
         <Item to="/app" label="Inicio" onClick={onItemClick} />
         <Item to="/app/monitoreo" label="Monitoreo" onClick={onItemClick} />
-        {isAdmin && <Item to="/app/asignaciones" label="Asignaciones" onClick={onItemClick} />}
+        {canSeeAll && <Item to="/app/asignaciones" label="Asignaciones" onClick={onItemClick} />}
         <Item to="/app/reportes" label="Reportes y resultados" onClick={onItemClick} />
         <Item to="/app/instituciones" label="Instituciones" onClick={onItemClick} />
-        {isAdmin && <Item to="/app/usuarios" label="Usuarios" onClick={onItemClick} />}
+        {canSeeAll && <Item to="/app/usuarios" label="Usuarios" onClick={onItemClick} />}
       </nav>
 
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
