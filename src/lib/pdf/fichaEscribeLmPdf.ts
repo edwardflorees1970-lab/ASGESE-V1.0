@@ -102,7 +102,7 @@ export function exportFichaEscribeLmPdf(args: {
   autoTable(doc, {
     startY: 44,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 2 },
+    styles: { fontSize: 8, cellPadding: 2, textColor: 20 },
     headStyles: { fillColor: [240, 240, 240], textColor: 20 },
     body: [
       ["Institución Educativa", safe(header.institucion_educativa), "Código Modular", safe(header.codigo_modular)],
@@ -195,26 +195,48 @@ export function exportFichaEscribeLmPdf(args: {
     yAfterQ = 18;
   }
 
-  autoTable(doc, {
-    startY: yAfterQ,
-    theme: "grid",
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [240, 240, 240], textColor: 20 },
-    head: [["Cierre"]],
-    body: [
-      ["Observación general", safe(footer.observacion_general)],
-      ["Compromiso", safe(footer.compromiso)],
-      ["Lugar y fecha", `${safe(footer.lugar)} - ${safe(footer.fecha)}`],
-    ],
-    columnStyles: {
-      0: { cellWidth: 35 },
-      1: { cellWidth: W - M * 2 - 35 },
-    },
-    margin: { left: M, right: M },
-  });
+  const cierreObs = safe(footer.observacion_general) || "-";
+  const cierreComp = safe(footer.compromiso) || "-";
+  const cierreLugar = safe(footer.lugar) || "-";
+  const cierreFecha = safe(footer.fecha) || "-";
+
+  doc.setTextColor(0);
+  // Render manual del cierre para evitar tablas vacías
+  const labelW = 35;
+  const valueW = W - M * 2 - labelW;
+  const lineH = 4.2;
+
+  const ensureSpace = (lines: number) => {
+    const needed = lines * lineH + 10;
+    if (yAfterQ + needed > pageH - 20) {
+      doc.addPage();
+      yAfterQ = 18;
+    }
+  };
+
+  const drawRow = (label: string, value: string, y: number) => {
+    doc.setFont("helvetica", "bold");
+    doc.text(label, M, y);
+    doc.setFont("helvetica", "normal");
+    const lines = doc.splitTextToSize(value || "-", valueW);
+    doc.text(lines, M + labelW, y);
+    return y + lines.length * lineH + 2;
+  };
+
+  ensureSpace(6);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("Cierre", M, yAfterQ);
+  doc.setFontSize(8);
+  doc.setTextColor(0);
+
+  let yClose = yAfterQ + 6;
+  yClose = drawRow("Observacion general", cierreObs, yClose);
+  yClose = drawRow("Compromiso", cierreComp, yClose);
+  yClose = drawRow("Lugar y fecha", `${cierreLugar} - ${cierreFecha}`, yClose);
+  let yAfterClose = yClose + 6;
 
   // ===== Firmas
-  let yAfterClose = (doc as any).lastAutoTable.finalY + 8;
   if (yAfterClose > pageH - 40) {
     doc.addPage();
     yAfterClose = 18;
@@ -239,6 +261,7 @@ export function exportFichaEscribeLmPdf(args: {
   doc.text(`DNI: ${safe(footer.monitor_firma_dni)}`, M + 105, yAfterClose + 26);
 
   // Nombre del archivo
-  const fname = `UGEL06_Ficha_LM_ESCRIBE_${safe(header.codigo_modular) || "SINCM"}_${safe(footer.fecha) || ""}.pdf`;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const fname = `UGEL06_Ficha_LM_ESCRIBE_${safe(header.codigo_modular) || "SINCM"}_${safe(footer.fecha) || ""}_${stamp}.pdf`;
   doc.save(fname);
 }

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+﻿import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
@@ -40,6 +40,14 @@ type FooterState = {
   monitor_doc_tipo: "DNI" | "CE";
   monitor_firma_nombre: string;
   monitor_firma_dni: string;
+};
+
+type IeOption = {
+  id: string;
+  nombre: string;
+  codigo_modular: string | null;
+  codigo_local: string | null;
+  nivel?: { nombre: string } | { nombre: string }[] | null;
 };
 
 function cls(...xs: Array<string | false | null | undefined>) {
@@ -98,7 +106,7 @@ function Field({
   children: React.ReactNode;
   hint?: string;
 }) {
-  // ❗ FIX: ya NO usamos <label> envolviendo inputs (causaba salto/foco)
+  // â— FIX: ya NO usamos <label> envolviendo inputs (causaba salto/foco)
   return (
     <div className="block">
       <div className="mb-2 text-xs font-medium text-white/70">{label}</div>
@@ -138,7 +146,7 @@ function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      // ✅ FIX extra: evita que se “escape” el foco por bubbling raro
+      // âœ… FIX extra: evita que se â€œescapeâ€ el foco por bubbling raro
       onKeyDown={(e) => {
         e.stopPropagation();
         props.onKeyDown?.(e);
@@ -316,6 +324,11 @@ export function FichaOralLMPage() {
     area_monitoreo: "",
   });
 
+  const [ieQuery, setIeQuery] = useState("");
+  const [ieLoading, setIeLoading] = useState(false);
+  const [ieOptions, setIeOptions] = useState<IeOption[]>([]);
+  const [ieOpen, setIeOpen] = useState(false);
+
   const [answers, setAnswers] = useState<Record<string, QuestionState>>({});
 
   const [footer, setFooter] = useState<FooterState>({
@@ -347,12 +360,53 @@ export function FichaOralLMPage() {
       if (parsed?.header) setHeader(parsed.header);
       if (parsed?.answers) setAnswers(parsed.answers);
       if (parsed?.footer) setFooter(parsed.footer);
-      setToast({ type: "ok", msg: "Borrador cargado ✅" });
+      setToast({ type: "ok", msg: "Borrador cargado." });
     } catch {
       // nada
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey]);
+
+  useEffect(() => {
+    setIeQuery(header.institucion_educativa);
+  }, [header.institucion_educativa]);
+
+  useEffect(() => {
+    const term = ieQuery.trim();
+    if (term.length < 2) {
+      setIeOptions([]);
+      return;
+    }
+
+    let alive = true;
+    const t = setTimeout(async () => {
+      setIeLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("institucion_educativa")
+          .select("id, nombre, codigo_modular, codigo_local, nivel:cat_nivel(nombre)")
+          .or(
+            `nombre.ilike.%${term}%,codigo_modular.ilike.%${term}%,codigo_local.ilike.%${term}%`
+          )
+          .order("nombre", { ascending: true })
+          .limit(20);
+        if (!alive) return;
+        if (error) throw new Error(error.message);
+        setIeOptions((data ?? []) as IeOption[]);
+      } catch {
+        if (!alive) return;
+        setIeOptions([]);
+      } finally {
+        if (!alive) return;
+        setIeLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [ieQuery]);
 
   // Cargar ficha existente (modo edición)
   useEffect(() => {
@@ -505,7 +559,7 @@ export function FichaOralLMPage() {
   const saveDraft = () => {
     try {
       localStorage.setItem(draftKey, JSON.stringify({ header, answers, footer }));
-      setToast({ type: "ok", msg: "Borrador guardado ✅" });
+      setToast({ type: "ok", msg: "Borrador guardado." });
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message || "No se pudo guardar borrador" });
     }
@@ -536,10 +590,10 @@ export function FichaOralLMPage() {
       monitor_firma_nombre: "",
       monitor_firma_dni: "",
     });
-    setToast({ type: "ok", msg: "Borrador eliminado ✅" });
+    setToast({ type: "ok", msg: "Borrador eliminado." });
   };
 
-  // ✅ Validación: TODO obligatorio excepto obs por pregunta, observacion_general y compromiso
+  // âœ… Validación: TODO obligatorio excepto obs por pregunta, observacion_general y compromiso
   const validate = () => {
     if (!header.institucion_educativa.trim()) return "Falta Institución Educativa.";
     if (!header.codigo_modular.trim()) return "Falta Código Modular.";
@@ -697,6 +751,17 @@ export function FichaOralLMPage() {
         .from("ficha_answer")
         .upsert(answerRows, { onConflict: "run_id,question_id" });
       if (ansErr) throw new Error(`ficha_answer: ${ansErr.message}`);
+const footerForPdf = {
+  ...footer,
+  observacion_general: runPayload.observacion_general,
+  compromiso: runPayload.compromiso,
+  lugar: runPayload.lugar,
+  fecha: runPayload.fecha,
+  docente_firma_nombre: runPayload.docente_firma_nombre,
+  docente_firma_dni: runPayload.docente_firma_dni,
+  monitor_firma_nombre: runPayload.monitor_firma_nombre,
+  monitor_firma_dni: runPayload.monitor_firma_dni,
+};
 
       // 5) PDF + listo
       try {
@@ -708,10 +773,10 @@ export function FichaOralLMPage() {
           header,
           preguntas: FICHA_ORAL_LM.preguntas,
           answers,
-          footer,
+          footer: footerForPdf,
           logoDataUrl,
         });
-        setToast({ type: "ok", msg: "Guardado en base de datos y PDF generado ✅" });
+        setToast({ type: "ok", msg: "Guardado en base de datos y PDF generado." });
       } catch (pdfErr: any) {
         const { exportFichaEscribeLmPdf } = await import("../lib/pdf/fichaEscribeLmPdf");
         exportFichaEscribeLmPdf({
@@ -720,7 +785,7 @@ export function FichaOralLMPage() {
           header,
           preguntas: FICHA_ORAL_LM.preguntas,
           answers,
-          footer,
+          footer: footerForPdf,
         });
         setToast({
           type: "err",
@@ -791,7 +856,7 @@ export function FichaOralLMPage() {
           onClick={() => nav(-1)}
           className="self-start rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
         >
-          ← Volver
+          Volver
         </button>
         <div>
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight">
@@ -826,7 +891,7 @@ export function FichaOralLMPage() {
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/80 backdrop-blur hover:bg-white/20"
           >
-            ↑ Arriba
+            Arriba
           </button>
         )}
         {!atBottom && (
@@ -835,7 +900,7 @@ export function FichaOralLMPage() {
             onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
             className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/80 backdrop-blur hover:bg-white/20"
           >
-            ↓ Abajo
+            Abajo
           </button>
         )}
       </div>
@@ -846,17 +911,67 @@ export function FichaOralLMPage() {
 
         <div className="mt-4 grid gap-4 md:grid-cols-12">
           <div className="md:col-span-6">
-            <Field label="Institución Educativa">
-              <Input
-                value={header.institucion_educativa}
-                onChange={(e) =>
-                  setHeader((s) => ({
-                    ...s,
-                    institucion_educativa: toUpper(e.target.value),
-                  }))
-                }
-                placeholder="Ej: I.E. 7259 Víctor Raúl Haya de la Torre"
-              />
+            <Field label="Institucion Educativa">
+              <div
+                className="relative"
+                onFocus={() => setIeOpen(true)}
+                onBlur={() => setTimeout(() => setIeOpen(false), 150)}
+              >
+                <Input
+                  value={header.institucion_educativa}
+                  onChange={(e) => {
+                    const value = toUpper(e.target.value);
+                    setHeader((s) => ({ ...s, institucion_educativa: value }));
+                    setIeQuery(value);
+                    setIeOpen(true);
+                  }}
+                  placeholder="Buscar institucion educativa..."
+                />
+                {ieOpen && (ieOptions.length > 0 || ieLoading) && (
+                  <div className="absolute z-20 mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 shadow-xl">
+                    <div className="max-h-64 overflow-y-auto py-1 text-sm">
+                      {ieLoading && (
+                        <div className="px-3 py-2 text-xs text-white/60">
+                          Buscando...
+                        </div>
+                      )}
+                      {ieOptions.map((opt) => {
+                        const nivelName = Array.isArray(opt.nivel)
+                          ? opt.nivel[0]?.nombre
+                          : opt.nivel?.nombre;
+                        return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setHeader((s) => ({
+                              ...s,
+                              institucion_educativa: opt.nombre || "",
+                              codigo_modular: opt.codigo_modular || "",
+                              codigo_local: opt.codigo_local || "",
+                            }));
+                            setIeQuery(opt.nombre || "");
+                            setIeOpen(false);
+                          }}
+                        >
+                          <div className="text-sm text-white">{opt.nombre}</div>
+                          <div className="text-[11px] text-white/50">
+                            {opt.codigo_modular || "-"} / {opt.codigo_local || "-"}
+                            {nivelName ? ` · ${nivelName}` : ""}
+                          </div>
+                        </button>
+                      )})}
+                      {!ieLoading && ieOptions.length === 0 && (
+                        <div className="px-3 py-2 text-xs text-white/60">
+                          Sin resultados.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </Field>
           </div>
 
@@ -1251,3 +1366,4 @@ export function FichaOralLMPage() {
     </div>
   );
 }
+

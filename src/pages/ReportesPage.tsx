@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
+import logoAgebreUrl from "../assets/logoagebresf.png";
+import { exportFichaEscribeLmPdf } from "../lib/pdf/fichaEscribeLmPdf";
+import { FICHA_ESCRIBE_LM } from "../forms/ficha_escribe_lm";
+import { FICHA_LEE_LM } from "../forms/ficha_lee_lm";
+import { FICHA_ORAL_LM } from "../forms/ficha_oral_lm";
 
 type RunRow = {
   id: string;
@@ -9,6 +14,8 @@ type RunRow = {
   created_by: string;
   created_at: string;
   ficha_id: string;
+  institucion_educativa: string | null;
+  docente: string | null;
 };
 
 type ProfileRow = {
@@ -71,6 +78,32 @@ function monthOptions() {
 
 function normalizeStatus(s: string) {
   return s === "submitted" ? "draft" : s;
+}
+
+function loadImageAsDataUrl(url: string): Promise<string> {
+  return fetch(url)
+    .then((res) => res.blob())
+    .then(
+      (blob) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error("No se pudo leer el logo"));
+          reader.readAsDataURL(blob);
+        })
+    );
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 export function ReportesPage() {
@@ -185,7 +218,7 @@ export function ReportesPage() {
 
         let query = supabase
           .from("ficha_run")
-          .select("id, status, created_by, created_at, ficha_id")
+          .select("id, status, created_by, created_at, ficha_id, institucion_educativa, docente")
           .gte("created_at", start.toISOString())
           .lt("created_at", end.toISOString())
           .order("created_at", { ascending: false });
@@ -302,6 +335,144 @@ export function ReportesPage() {
     return isAdmin || run.created_by === user?.id;
   };
 
+  const exportRunPdf = async (run: RunRow) => {
+    try {
+      const ficha = fichas[run.ficha_id];
+      const fichaCodigo = String(ficha?.codigo || "").toUpperCase();
+      const meta =
+        fichaCodigo === "LEE"
+          ? FICHA_LEE_LM
+          : fichaCodigo === "ORAL"
+          ? FICHA_ORAL_LM
+          : FICHA_ESCRIBE_LM;
+
+      const { data: runDetail, error: runErr } = await supabase
+        .from("ficha_run")
+        .select(
+          "institucion_educativa, codigo_modular, codigo_local, lugar_ie, director_monitor, docente, condicion_docente, area_monitoreo, observacion_general, compromiso, lugar, fecha, docente_firma_nombre, docente_firma_dni, monitor_firma_nombre, monitor_firma_dni"
+        )
+        .eq("id", run.id)
+        .single();
+      if (runErr) throw new Error(runErr.message);
+
+      const { data: qData, error: qErr } = await supabase
+        .from("ficha_question")
+        .select("id, numero, texto, grupo, orden")
+        .eq("ficha_id", run.ficha_id)
+        .eq("is_active", true)
+        .order("orden", { ascending: true });
+      if (qErr) throw new Error(qErr.message);
+
+      const { data: aData, error: aErr } = await supabase
+        .from("ficha_answer")
+        .select("question_id, yn, nivel, obs")
+        .eq("run_id", run.id);
+      if (aErr) throw new Error(aErr.message);
+
+      const answers: Record<string, any> = {};
+      (aData ?? []).forEach((a: any) => {
+        answers[a.question_id] = {
+          yn: a.yn ?? "",
+          nivel: a.nivel ?? null,
+          obs: a.obs ?? "",
+        };
+      });
+
+      const preguntas = (qData ?? []).map((q: any) => ({
+        id: q.id,
+        numero: String(q.numero).padStart(2, "0"),
+        texto: q.texto,
+        group: q.grupo,
+      }));
+
+      const header = {
+        institucion_educativa: runDetail?.institucion_educativa ?? "",
+        codigo_modular: runDetail?.codigo_modular ?? "",
+        codigo_local: runDetail?.codigo_local ?? "",
+        lugar_ie: runDetail?.lugar_ie ?? "",
+        director_monitor: runDetail?.director_monitor ?? "",
+        docente: runDetail?.docente ?? "",
+        condicion_docente: runDetail?.condicion_docente ?? "",
+        area_monitoreo: runDetail?.area_monitoreo ?? "",
+      };
+
+      const footer = {
+        observacion_general: runDetail?.observacion_general ?? "",
+        compromiso: runDetail?.compromiso ?? "",
+        lugar: runDetail?.lugar ?? "",
+        fecha: runDetail?.fecha ?? "",
+        docente_firma_nombre: runDetail?.docente_firma_nombre ?? "",
+        docente_firma_dni: runDetail?.docente_firma_dni ?? "",
+        monitor_firma_nombre: runDetail?.monitor_firma_nombre ?? "",
+        monitor_firma_dni: runDetail?.monitor_firma_dni ?? "",
+      };
+
+      try {
+        const logoDataUrl = await loadImageAsDataUrl(logoAgebreUrl);
+        exportFichaEscribeLmPdf({
+          titulo: meta.titulo,
+          area: meta.area,
+          header,
+          preguntas,
+          answers,
+          footer,
+          logoDataUrl,
+        });
+      } catch {
+        exportFichaEscribeLmPdf({
+          titulo: meta.titulo,
+          area: meta.area,
+          header,
+          preguntas,
+          answers,
+          footer,
+        });
+      }
+    } catch (e: any) {
+      setToast({ type: "err", msg: e?.message || "No se pudo generar el PDF." });
+    }
+  };
+
+  const exportExcel = () => {
+    const rows: string[][] = [
+      [
+        "Monitoreo",
+        "Ficha",
+        "Fecha",
+        "Estado",
+        "Creador",
+        "Monitoreado",
+        "Institucion",
+      ],
+    ];
+
+    runs.forEach((r) => {
+      const ficha = fichas[r.ficha_id];
+      const mon = ficha ? monById[ficha.monitoreo_id] : null;
+      const creator = profiles[r.created_by];
+      const creatorName =
+        [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        creator?.correo ||
+        creator?.email ||
+        "Usuario";
+      rows.push([
+        mon?.codigo || "",
+        ficha?.codigo || "",
+        fmtDateShort(r.created_at),
+        normalizeStatus(r.status),
+        creatorName,
+        r.docente || "",
+        r.institucion_educativa || "",
+      ]);
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`reporte_monitoreo_${stamp}.csv`, rows);
+  };
+
   const handleEdit = (run: RunRow) => {
     const ficha = fichas[run.ficha_id];
     const mon = ficha ? monById[ficha.monitoreo_id] : null;
@@ -369,6 +540,21 @@ export function ReportesPage() {
               ? "Todos los registros con filtros avanzados."
               : "Tus registros con filtros por fecha y monitoreo."}
           </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={loading || runs.length === 0}
+            className={cls(
+              "rounded-xl border px-4 py-2 text-sm",
+              loading || runs.length === 0
+                ? "border-white/10 text-white/30"
+                : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
+            )}
+          >
+            Exportar Excel (CSV)
+          </button>
         </div>
       </div>
 
@@ -487,6 +673,9 @@ export function ReportesPage() {
               creator?.email ||
               "Usuario";
 
+            const monitoreado = r.docente?.trim() || "-";
+            const institucion = r.institucion_educativa?.trim() || "-";
+
             return (
               <div key={r.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -505,7 +694,13 @@ export function ReportesPage() {
                   </div>
                 </div>
                 <div className="mt-1 text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
-                {isAdmin && <div className="mt-1 text-xs text-white/60">Por: {creatorName}</div>}
+                {isAdmin && (
+                  <div className="mt-1 text-xs text-white/60">
+                    <div>Por: {creatorName}</div>
+                    <div className="text-white/50">Monitoreado: {monitoreado}</div>
+                    <div className="text-white/50">Institucion: {institucion}</div>
+                  </div>
+                )}
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
@@ -514,6 +709,12 @@ export function ReportesPage() {
                     disabled={!canEditOrDelete(r)}
                   >
                     Editar
+                  </button>
+                  <button
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                    onClick={() => exportRunPdf(r)}
+                  >
+                    PDF
                   </button>
                   <button
                     className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
@@ -546,13 +747,13 @@ export function ReportesPage() {
           </div>
         </div>
         <div className="w-full overflow-x-auto">
-          <table className="min-w-[900px] w-full">
+          <table className="min-w-[980px] w-full">
             <thead className="bg-black/20">
               <tr className="text-left text-xs text-white/60">
                 <th className="px-4 py-3">Monitoreo</th>
                 <th className="px-4 py-3">Ficha</th>
                 <th className="px-4 py-3">Fecha</th>
-                {isAdmin && <th className="px-4 py-3">Creador</th>}
+                {isAdmin && <th className="px-4 py-3 w-64">Creador</th>}
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
@@ -584,12 +785,25 @@ export function ReportesPage() {
                     creator?.correo ||
                     creator?.email ||
                     "Usuario";
+                  const monitoreado = r.docente?.trim() || "-";
+                  const institucion = r.institucion_educativa?.trim() || "-";
+
                   return (
                     <tr key={r.id} className="border-t border-white/10 text-sm">
                       <td className="px-4 py-3">{mon?.codigo || "-"}</td>
                       <td className="px-4 py-3">{ficha?.codigo || "-"}</td>
                       <td className="px-4 py-3 text-white/70">{fmtDateShort(r.created_at)}</td>
-                      {isAdmin && <td className="px-4 py-3 text-white/70">{creatorName}</td>}
+                      {isAdmin && (
+                        <td className="px-4 py-3 text-white/70 w-64">
+                          <div className="font-medium text-white/80">{creatorName}</div>
+                          <div className="text-xs text-white/50 leading-4">
+                            Monitoreado: {monitoreado}
+                          </div>
+                          <div className="text-xs text-white/50 leading-4">
+                            Institucion: {institucion}
+                          </div>
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <span
                           className={cls(
@@ -610,6 +824,12 @@ export function ReportesPage() {
                             disabled={!canEditOrDelete(r)}
                           >
                             Editar
+                          </button>
+                          <button
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                            onClick={() => exportRunPdf(r)}
+                          >
+                            PDF
                           </button>
                           <button
                             className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
