@@ -16,6 +16,7 @@ type HeaderState = {
   institucion_educativa: string;
   codigo_modular: string;
   codigo_local: string;
+  rei: string;
 
   lugar_ie: string;
   director_monitor: string;
@@ -48,6 +49,7 @@ type IeOption = {
   nombre: string;
   codigo_modular: string | null;
   codigo_local: string | null;
+  rei?: string | null;
   nivel?: { nombre: string } | { nombre: string }[] | null;
 };
 
@@ -127,6 +129,8 @@ function onlyDigits(value: string) {
 function limitDigits(value: string, max: number) {
   return onlyDigits(value).slice(0, max);
 }
+
+const REI_OPTIONS = ["SIN REI", ...Array.from({ length: 19 }, (_, i) => `REI ${i + 1}`)];
 
 function loadImageAsDataUrl(url: string): Promise<string> {
   return fetch(url)
@@ -377,6 +381,7 @@ export function FichaOralLMPage() {
     institucion_educativa: "",
     codigo_modular: "",
     codigo_local: "",
+    rei: "",
 
     lugar_ie: "",
     director_monitor: "",
@@ -445,7 +450,7 @@ export function FichaOralLMPage() {
       try {
         const { data, error } = await supabase
           .from("institucion_educativa")
-          .select("id, nombre, codigo_modular, codigo_local, nivel:cat_nivel(nombre)")
+          .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre)")
           .or(
             `nombre.ilike.%${term}%,codigo_modular.ilike.%${term}%,codigo_local.ilike.%${term}%`
           )
@@ -479,7 +484,7 @@ export function FichaOralLMPage() {
         const { data: run, error: runErr } = await supabase
           .from("ficha_run")
           .select(
-            "id, ficha_id, status, institucion_educativa, codigo_modular, codigo_local, lugar_ie, director_monitor, docente, condicion_docente, area_monitoreo, observacion_general, compromiso, lugar, fecha, docente_firma_nombre, docente_firma_dni, monitor_firma_nombre, monitor_firma_dni"
+            "id, ficha_id, status, institucion_educativa, codigo_modular, codigo_local, rei, lugar_ie, director_monitor, docente, condicion_docente, area_monitoreo, observacion_general, compromiso, lugar, fecha, docente_firma_nombre, docente_firma_dni, monitor_firma_nombre, monitor_firma_dni"
           )
           .eq("id", runId)
           .single();
@@ -491,6 +496,7 @@ export function FichaOralLMPage() {
           institucion_educativa: run.institucion_educativa ?? "",
           codigo_modular: run.codigo_modular ?? "",
           codigo_local: run.codigo_local ?? "",
+          rei: run.rei ?? "",
           lugar_ie: run.lugar_ie ?? "",
           director_monitor: run.director_monitor ?? "",
           docente: run.docente ?? "",
@@ -632,6 +638,7 @@ export function FichaOralLMPage() {
       institucion_educativa: "",
       codigo_modular: "",
       codigo_local: "",
+      rei: "",
       lugar_ie: "",
       director_monitor: "",
       docente: "",
@@ -757,6 +764,7 @@ export function FichaOralLMPage() {
         institucion_educativa: header.institucion_educativa.trim(),
         codigo_modular: header.codigo_modular.trim(),
         codigo_local: header.codigo_local.trim(),
+        rei: header.rei.trim(),
 
         lugar_ie: header.lugar_ie.trim(),
         director_monitor: header.director_monitor.trim(),
@@ -1019,6 +1027,7 @@ const footerForPdf = {
                               institucion_educativa: opt.nombre || "",
                               codigo_modular: opt.codigo_modular || "",
                               codigo_local: opt.codigo_local || "",
+                              rei: opt.rei || "",
                             }));
                             setIeQuery(opt.nombre || "");
                             setIeOpen(false);
@@ -1028,6 +1037,7 @@ const footerForPdf = {
                           <div className="text-[11px] text-white/50">
                             {opt.codigo_modular || "-"} / {opt.codigo_local || "-"}
                             {nivelName ? ` · ${nivelName}` : ""}
+                            {opt.rei ? ` · ${opt.rei}` : ""}
                           </div>
                         </button>
                       )})}
@@ -1076,6 +1086,22 @@ const footerForPdf = {
                 maxLength={6}
                 placeholder="########"
               />
+            </Field>
+          </div>
+
+          <div className="md:col-span-3">
+            <Field label="REI">
+              <Select
+                value={header.rei}
+                onChange={(e) => setHeader((s) => ({ ...s, rei: e.target.value }))}
+              >
+                <option value="">Seleccionar...</option>
+                {REI_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
 

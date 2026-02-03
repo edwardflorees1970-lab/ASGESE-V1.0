@@ -10,6 +10,8 @@ type InstitucionRow = {
   codigo_local: string | null;
   nombre: string;
   director: string | null;
+  rei: string | null;
+  telefono: string | null;
   nivel: { nombre: string } | null;
   modalidad: { nombre: string } | null;
   ugel: { nombre: string } | null;
@@ -22,6 +24,8 @@ type InstitucionDetail = {
   codigo_local: string | null;
   nombre: string;
   codigo_institucional: string | null;
+  rei: string | null;
+  telefono: string | null;
   nivel: { nombre: string } | null;
   modalidad: { nombre: string } | null;
   tipo_sexo: string | null;
@@ -49,6 +53,8 @@ type FormState = {
   codigo_local: string;
   nombre: string;
   codigo_institucional: string;
+  rei: string;
+  telefono: string;
   nivel_id: string;
   modalidad_id: string;
   tipo_sexo: string;
@@ -84,6 +90,8 @@ const emptyForm: FormState = {
   codigo_local: "",
   nombre: "",
   codigo_institucional: "",
+  rei: "",
+  telefono: "",
   nivel_id: "",
   modalidad_id: "",
   tipo_sexo: "",
@@ -126,6 +134,7 @@ export function InstitucionesPage() {
   const [modalidadId, setModalidadId] = useState("");
   const [distritoId, setDistritoId] = useState("");
   const [gestion, setGestion] = useState("");
+  const [rei, setRei] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
@@ -138,11 +147,12 @@ export function InstitucionesPage() {
   const [provincias, setProvincias] = useState<CatalogItem[]>([]);
   const [dres, setDres] = useState<CatalogItem[]>([]);
   const [gestiones, setGestiones] = useState<string[]>([]);
+  const [reis, setReis] = useState<string[]>([]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [niv, mod, ug, dist, dep, prov, dre, ges] = await Promise.all([
+      const [niv, mod, ug, dist, dep, prov, dre, ges, reiRes] = await Promise.all([
         supabase.from("cat_nivel").select("id, nombre").order("nombre"),
         supabase.from("cat_modalidad").select("id, nombre").order("nombre"),
         supabase.from("cat_ugel").select("id, nombre").order("nombre"),
@@ -151,6 +161,7 @@ export function InstitucionesPage() {
         supabase.from("cat_provincia").select("id, nombre").order("nombre"),
         supabase.from("cat_dre").select("id, nombre").order("nombre"),
         supabase.from("institucion_educativa").select("gestion").range(0, 10000),
+        supabase.from("institucion_educativa").select("rei").range(0, 10000),
       ]);
       if (!alive) return;
       if (niv.data) setNiveles(niv.data as CatalogItem[]);
@@ -167,6 +178,13 @@ export function InstitucionesPage() {
         const uniq = Array.from(new Set(raw)).sort((a, b) => a.localeCompare(b));
         setGestiones(uniq);
       }
+      if (reiRes.data) {
+        const raw = (reiRes.data as Array<{ rei: string | null }>)
+          .map((r) => r.rei?.trim())
+          .filter((v): v is string => !!v);
+        const uniq = Array.from(new Set(raw)).sort((a, b) => a.localeCompare(b));
+        setReis(uniq);
+      }
     })();
     return () => {
       alive = false;
@@ -180,7 +198,7 @@ export function InstitucionesPage() {
       let query = supabase
         .from("institucion_educativa")
         .select(
-          "id, codigo_modular, codigo_local, nombre, director, nivel:cat_nivel(nombre), modalidad:cat_modalidad(nombre), ugel:cat_ugel(nombre), distrito:cat_distrito(nombre)",
+          "id, codigo_modular, codigo_local, nombre, director, rei, telefono, nivel:cat_nivel(nombre), modalidad:cat_modalidad(nombre), ugel:cat_ugel(nombre), distrito:cat_distrito(nombre)",
           { count: "exact" }
         )
         .order("nombre", { ascending: true })
@@ -190,6 +208,7 @@ export function InstitucionesPage() {
       if (modalidadId) query = query.eq("modalidad_id", modalidadId);
       if (gestion) query = query.eq("gestion", gestion);
       if (distritoId) query = query.eq("distrito_id", distritoId);
+      if (rei) query = query.eq("rei", rei);
       if (q.trim()) {
         const term = q.trim().replaceAll("%", "");
         query = query.or(
@@ -217,11 +236,11 @@ export function InstitucionesPage() {
 
   useEffect(() => {
     load();
-  }, [q, nivelId, modalidadId, gestion, distritoId, page, pageSize]);
+  }, [q, nivelId, modalidadId, gestion, distritoId, rei, page, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, nivelId, modalidadId, gestion, distritoId, pageSize]);
+  }, [q, nivelId, modalidadId, gestion, distritoId, rei, pageSize]);
 
   useEffect(() => {
     if (!toast) return;
@@ -251,6 +270,8 @@ export function InstitucionesPage() {
       codigo_local: r.codigo_local ?? "",
       nombre: r.nombre ?? "",
       codigo_institucional: r.codigo_institucional ?? "",
+      rei: r.rei ?? "",
+      telefono: r.telefono ?? "",
       nivel_id: r.nivel_id ?? "",
       modalidad_id: r.modalidad_id ?? "",
       tipo_sexo: r.tipo_sexo ?? "",
@@ -293,6 +314,8 @@ export function InstitucionesPage() {
             "codigo_local",
             "nombre",
             "codigo_institucional",
+            "rei",
+            "telefono",
             "tipo_sexo",
             "gestion",
             "director",
@@ -360,6 +383,8 @@ export function InstitucionesPage() {
         codigo_local: form.codigo_local.trim() || null,
         nombre: form.nombre.trim(),
         codigo_institucional: form.codigo_institucional.trim() || null,
+        rei: form.rei.trim() || null,
+        telefono: form.telefono.trim() || null,
         nivel_id: form.nivel_id || null,
         modalidad_id: form.modalidad_id || null,
         tipo_sexo: form.tipo_sexo.trim() || null,
@@ -456,7 +481,7 @@ export function InstitucionesPage() {
         </p>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -496,6 +521,18 @@ export function InstitucionesPage() {
           {gestiones.map((g) => (
             <option key={g} value={g}>
               {labelGestion(g)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={rei}
+          onChange={(e) => setRei(e.target.value)}
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
+        >
+          <option value="">REI</option>
+          {reis.map((r) => (
+            <option key={r} value={r}>
+              {r}
             </option>
           ))}
         </select>
@@ -580,6 +617,18 @@ export function InstitucionesPage() {
               value={form.codigo_institucional}
               onChange={(e) => setForm({ ...form, codigo_institucional: e.target.value })}
               placeholder="codigo institucional"
+              className="rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm outline-none"
+            />
+            <input
+              value={form.rei}
+              onChange={(e) => setForm({ ...form, rei: e.target.value })}
+              placeholder="REI"
+              className="rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm outline-none"
+            />
+            <input
+              value={form.telefono}
+              onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+              placeholder="Teléfono"
               className="rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm outline-none"
             />
             <input
@@ -780,15 +829,18 @@ export function InstitucionesPage() {
                       {row.codigo_modular}
                       {row.codigo_local ? ` - ${row.codigo_local}` : ""}
                     </div>
-                    <div className="mt-1 text-xs text-white/60">
-                      {row.nivel?.nombre || "Nivel: -"} -{" "}
-                      {row.modalidad?.nombre || "Modalidad: -"} -{" "}
-                      {row.ugel?.nombre || "UGEL: -"} -{" "}
-                      {row.distrito?.nombre || "Distrito: -"}
-                    </div>
-                    <div className="mt-1 text-xs text-white/50">
-                      Director: {row.director || "-"}
-                    </div>
+                  <div className="mt-1 text-xs text-white/60">
+                    {row.nivel?.nombre || "Nivel: -"} -{" "}
+                    {row.modalidad?.nombre || "Modalidad: -"} -{" "}
+                    {row.ugel?.nombre || "UGEL: -"} -{" "}
+                    {row.distrito?.nombre || "Distrito: -"}
+                  </div>
+                  <div className="mt-1 text-xs text-white/50">
+                    REI: {row.rei || "-"} · Teléfono: {row.telefono || "-"}
+                  </div>
+                  <div className="mt-1 text-xs text-white/50">
+                    Director: {row.director || "-"}
+                  </div>
                   </div>
                   {isAdmin && (
                     <div className="flex flex-wrap gap-2">
@@ -902,6 +954,14 @@ export function InstitucionesPage() {
                     <div>
                       <div className="text-xs text-white/50">Código institucional</div>
                       <div>{detail.codigo_institucional || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">REI</div>
+                      <div>{detail.rei || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/50">Teléfono</div>
+                      <div>{detail.telefono || "-"}</div>
                     </div>
                     <div>
                       <div className="text-xs text-white/50">Nivel</div>

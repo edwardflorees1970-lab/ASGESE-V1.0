@@ -355,7 +355,7 @@ export function ReportesPage() {
       const { data: runDetail, error: runErr } = await supabase
         .from("ficha_run")
         .select(
-          "institucion_educativa, codigo_modular, codigo_local, lugar_ie, director_monitor, docente, condicion_docente, area_monitoreo, observacion_general, compromiso, lugar, fecha, docente_firma_nombre, docente_firma_dni, monitor_firma_nombre, monitor_firma_dni"
+          "institucion_educativa, codigo_modular, codigo_local, rei, lugar_ie, director_monitor, docente, condicion_docente, area_monitoreo, observacion_general, compromiso, lugar, fecha, docente_firma_nombre, docente_firma_dni, monitor_firma_nombre, monitor_firma_dni"
         )
         .eq("id", run.id)
         .single();
@@ -395,6 +395,7 @@ export function ReportesPage() {
         institucion_educativa: runDetail?.institucion_educativa ?? "",
         codigo_modular: runDetail?.codigo_modular ?? "",
         codigo_local: runDetail?.codigo_local ?? "",
+        rei: runDetail?.rei ?? "",
         lugar_ie: runDetail?.lugar_ie ?? "",
         director_monitor: runDetail?.director_monitor ?? "",
         docente: runDetail?.docente ?? "",

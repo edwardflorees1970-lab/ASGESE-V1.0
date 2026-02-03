@@ -16,9 +16,10 @@ type UpdateBody = {
   area?: string | null;
   comision?: string | null;
   ugel?: string | null;
+  rei?: string | null;
 
-  rol?: "admin" | "user" | null;
-  role?: "admin" | "user" | null;
+  rol?: "admin" | "user" | "jefe_area" | "director" | null;
+  role?: "admin" | "user" | "jefe_area" | "director" | null;
 };
 
 function corsHeaders() {
@@ -97,6 +98,7 @@ serve(async (req) => {
     put("area", body.area);
     put("comision", body.comision);
     put("ugel", body.ugel);
+    put("rei", body.rei);
 
     if (body.correo !== undefined && body.correo !== null) {
       const correo = String(body.correo).trim().toLowerCase();

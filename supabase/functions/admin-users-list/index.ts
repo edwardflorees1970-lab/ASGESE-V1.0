@@ -3,9 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 type Body = {
   q?: string; // búsqueda (nombre/doc/correo)
-  rol?: "admin" | "user";
+  rol?: "admin" | "user" | "jefe_area" | "director";
   area?: string;
   ugel?: string;
+  rei?: string;
 
   page?: number; // 1..N
   pageSize?: number; // 1..100
@@ -96,13 +97,14 @@ serve(async (req) => {
     let query = supaAdmin
       .from("profiles")
       .select(
-        "id, tipo_documento, numero_documento, apellido_paterno, apellido_materno, nombres, correo, telefono, fecha_nacimiento, cargo, area, comision, ugel, role, created_at, updated_at",
+        "id, tipo_documento, numero_documento, apellido_paterno, apellido_materno, nombres, correo, telefono, fecha_nacimiento, cargo, area, comision, ugel, rei, role, created_at, updated_at",
         { count: "exact" }
       );
 
     if (body.rol) query = query.eq("role", body.rol);
     if (body.area) query = query.eq("area", body.area);
     if (body.ugel) query = query.eq("ugel", body.ugel);
+    if (body.rei) query = query.eq("rei", body.rei);
 
     if (body.q && body.q.trim()) {
       const q = body.q.trim();

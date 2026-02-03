@@ -14,7 +14,8 @@ type CreateBody = {
   area?: string | null;
   comision?: string | null;
   ugel?: string | null;
-  rol?: "admin" | "user";           // OJO: tu tabla usa "role", no "rol"
+  rei?: string | null;
+  rol?: "admin" | "user" | "jefe_area" | "director"; // OJO: tu tabla usa "role", no "rol"
   password: string;                 // obligatorio
 };
 
@@ -119,9 +120,10 @@ serve(async (req) => {
       area: (body.area ?? null) ? String(body.area).trim() : null,
       comision: (body.comision ?? null) ? String(body.comision).trim() : null,
       ugel: (body.ugel ?? null) ? String(body.ugel).trim() : null,
+      rei: (body.rei ?? null) ? String(body.rei).trim() : "SIN REI",
 
       // IMPORTANTE: tu columna es "role"
-      role: (body.rol || "user") as "admin" | "user",
+      role: (body.rol || "user") as "admin" | "user" | "jefe_area" | "director",
 
       updated_at: new Date().toISOString(),
     };
@@ -141,4 +143,3 @@ serve(async (req) => {
     return json({ error: "Error interno", details: String(e) }, 500);
   }
 });
-

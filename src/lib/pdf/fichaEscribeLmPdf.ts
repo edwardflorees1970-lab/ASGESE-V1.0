@@ -8,6 +8,7 @@ export type HeaderState = {
   institucion_educativa: string;
   codigo_modular: string;
   codigo_local: string;
+  rei: string;
   lugar_ie: string;
   director_monitor: string;
   docente: string;
@@ -106,14 +107,10 @@ export function exportFichaEscribeLmPdf(args: {
     headStyles: { fillColor: [240, 240, 240], textColor: 20 },
     body: [
       ["Institución Educativa", safe(header.institucion_educativa), "Código Modular", safe(header.codigo_modular)],
-      ["Código Local", safe(header.codigo_local), "Lugar IE", safe(header.lugar_ie)],
-      ["Director(a) / Monitor(a)", safe(header.director_monitor), "Docente", safe(header.docente)],
-      [
-        "Condición Docente",
-        safe(header.condicion_docente),
-        "Área monitoreada",
-        safe(header.area_monitoreo),
-      ],
+      ["Código Local", safe(header.codigo_local), "REI", safe(header.rei)],
+      ["Lugar IE", safe(header.lugar_ie), "Director(a) / Monitor(a)", safe(header.director_monitor)],
+      ["Docente", safe(header.docente), "Condición Docente", safe(header.condicion_docente)],
+      ["Área monitoreada", safe(header.area_monitoreo), "", ""],
     ],
     columnStyles: {
       0: { cellWidth: 35 },
