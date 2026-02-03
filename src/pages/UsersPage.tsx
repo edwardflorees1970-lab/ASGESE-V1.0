@@ -16,6 +16,8 @@ import { supabase } from "../lib/supabaseClient";
 
 type Toast = { type: "ok" | "err"; msg: string } | null;
 
+const REI_OPTIONS = ["SIN REI", ...Array.from({ length: 19 }, (_, i) => `REI ${i + 1}`)];
+
 const emptyCreateForm: AdminCreateUserInput = {
   tipo_documento: "DNI",
   numero_documento: "",
@@ -29,6 +31,7 @@ const emptyCreateForm: AdminCreateUserInput = {
   area: "",
   comision: "",
   ugel: "UGEL 06",
+  rei: "SIN REI",
   rol: "user",
   password: "",
 };
@@ -155,9 +158,11 @@ export function UsersPage() {
   const [rol, setRol] = useState<"" | "admin" | "user" | "jefe_area" | "director">("");
   const [area, setArea] = useState("");
   const [ugel, setUgel] = useState("");
+  const [rei, setRei] = useState("");
   const [qInput, setQInput] = useState("");
   const [areaInput, setAreaInput] = useState("");
   const [ugelInput, setUgelInput] = useState("");
+  const [reiInput, setReiInput] = useState("");
 
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -169,10 +174,11 @@ export function UsersPage() {
       rol: (rol || undefined) as any,
       area: area.trim() || undefined,
       ugel: ugel.trim() || undefined,
+      rei: rei.trim() || undefined,
       page,
       pageSize,
     }),
-    [q, rol, area, ugel, page]
+    [q, rol, area, ugel, rei, page]
   );
 
   // Data
@@ -213,7 +219,7 @@ export function UsersPage() {
         let qx = supabase
           .from("profiles")
           .select(
-            "id, role, tipo_documento, numero_documento, apellido_paterno, apellido_materno, nombres, correo, email, telefono, fecha_nacimiento, cargo, area, comision, ugel",
+            "id, role, tipo_documento, numero_documento, apellido_paterno, apellido_materno, nombres, correo, email, telefono, fecha_nacimiento, cargo, area, comision, ugel, rei",
             { count: "exact" }
           )
           .order("apellido_paterno", { ascending: true })
@@ -222,6 +228,7 @@ export function UsersPage() {
         if (rol) qx = qx.eq("role", rol);
         if (area.trim()) qx = qx.ilike("area", `%${area.trim()}%`);
         if (ugel.trim()) qx = qx.ilike("ugel", `%${ugel.trim()}%`);
+        if (rei.trim()) qx = qx.eq("rei", rei.trim());
         if (q.trim()) {
           const term = q.trim().replaceAll("%", "");
           qx = qx.or(
@@ -253,6 +260,7 @@ export function UsersPage() {
           area: u.area,
           comision: u.comision,
           ugel: u.ugel,
+          rei: u.rei ?? "SIN REI",
           rol: u.role,
         })) as ProfileRow[];
         setItems(mapped);
@@ -270,7 +278,16 @@ export function UsersPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.q, query.rol, query.area, query.ugel, query.page, query.pageSize, searchTick]);
+  }, [
+    query.q,
+    query.rol,
+    query.area,
+    query.ugel,
+    query.rei,
+    query.page,
+    query.pageSize,
+    searchTick,
+  ]);
 
   useEffect(() => {
     if (!toast) return;
@@ -283,6 +300,7 @@ export function UsersPage() {
     setQ(qInput.trim());
     setArea(areaInput.trim());
     setUgel(ugelInput.trim());
+    setRei(reiInput.trim());
     setSearchTick((s) => s + 1);
   };
 
@@ -328,6 +346,7 @@ export function UsersPage() {
         comision: createForm.comision?.trim() || null,
         cargo: createForm.cargo?.trim() || null,
         ugel: createForm.ugel?.trim() || null,
+        rei: createForm.rei?.trim() || "SIN REI",
         telefono: createForm.telefono?.trim() || null,
         fecha_nacimiento: createForm.fecha_nacimiento?.trim() || null,
       };
@@ -374,6 +393,7 @@ export function UsersPage() {
         area: editUser.area,
         comision: editUser.comision,
         ugel: editUser.ugel,
+        rei: editUser.rei,
         rol: editUser.rol,
       });
 
@@ -523,6 +543,19 @@ export function UsersPage() {
               </Field>
             </div>
 
+            <div className="md:col-span-2">
+              <Field label="REI">
+                <Select value={reiInput} onChange={(e) => setReiInput(e.target.value)}>
+                  <option value="">Todas</option>
+                  {REI_OPTIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
             <div className="md:col-span-12 flex gap-2 pt-2">
               <Button variant="ghost" onClick={onSearch}>
                 Buscar
@@ -534,9 +567,11 @@ export function UsersPage() {
                   setRol("");
                   setArea("");
                   setUgel("");
+                  setRei("");
                   setQInput("");
                   setAreaInput("");
                   setUgelInput("");
+                  setReiInput("");
                   setPage(1);
                   setSearchTick((s) => s + 1);
                 }}
@@ -581,6 +616,7 @@ export function UsersPage() {
                   <div>Documento: {maskDoc(u.tipo_documento, u.numero_documento)}</div>
                   <div>Área: {u.area || "-"}</div>
                   <div>UGEL: {u.ugel || "-"}</div>
+                  <div>REI: {u.rei || "SIN REI"}</div>
                 </div>
 
                 {canManageUsers ? (
@@ -664,6 +700,7 @@ export function UsersPage() {
                   <th className="px-4 py-3">Rol</th>
                   <th className="px-4 py-3">Área</th>
                   <th className="px-4 py-3">UGEL</th>
+                  <th className="px-4 py-3">REI</th>
                   {canManageUsers && <th className="px-4 py-3 text-right">Acciones</th>}
                 </tr>
               </thead>
@@ -671,13 +708,13 @@ export function UsersPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 6 : 5}>
+                    <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 7 : 6}>
                       Cargando usuarios...
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 6 : 5}>
+                    <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 7 : 6}>
                       No hay resultados.
                     </td>
                   </tr>
@@ -703,6 +740,7 @@ export function UsersPage() {
                       </td>
                       <td className="px-4 py-3 text-white/70">{u.area || "-"}</td>
                       <td className="px-4 py-3 text-white/70">{u.ugel || "-"}</td>
+                      <td className="px-4 py-3 text-white/70">{u.rei || "SIN REI"}</td>
                       {canManageUsers && (
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-2">
@@ -802,6 +840,20 @@ export function UsersPage() {
                 value={createForm.ugel ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, ugel: e.target.value }))}
               />
+            </Field>
+          </div>
+          <div className="md:col-span-3">
+            <Field label="REI">
+              <Select
+                value={createForm.rei ?? "SIN REI"}
+                onChange={(e) => setCreateForm((s) => ({ ...s, rei: e.target.value }))}
+              >
+                {REI_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
 
@@ -980,6 +1032,22 @@ export function UsersPage() {
                     setEditUser((s) => (s ? { ...s, ugel: e.target.value } : s))
                   }
                 />
+              </Field>
+            </div>
+            <div className="md:col-span-3">
+              <Field label="REI">
+                <Select
+                  value={editUser.rei ?? "SIN REI"}
+                  onChange={(e) =>
+                    setEditUser((s) => (s ? { ...s, rei: e.target.value } : s))
+                  }
+                >
+                  {REI_OPTIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
               </Field>
             </div>
 

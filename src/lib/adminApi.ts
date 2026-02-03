@@ -6,6 +6,7 @@ export type UsersListQuery = {
   rol?: "admin" | "user" | "jefe_area" | "director";
   area?: string;
   ugel?: string;
+  rei?: string;
   page?: number;
   pageSize?: number;
 };
@@ -24,6 +25,7 @@ export type ProfileRow = {
   area: string | null;
   comision: string | null;
   ugel: string | null;
+  rei?: string | null;
   // OJO: en BD es "role", pero en el frontend usamos "rol"
   rol: "admin" | "user" | "jefe_area" | "director";
   created_at?: string;
@@ -43,6 +45,7 @@ export type AdminCreateUserInput = {
   area?: string | null;
   comision?: string | null;
   ugel?: string | null;
+  rei?: string | null;
   rol: "admin" | "user" | "jefe_area" | "director";
   password: string;
 };
