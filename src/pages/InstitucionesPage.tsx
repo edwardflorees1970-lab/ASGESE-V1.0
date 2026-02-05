@@ -151,12 +151,15 @@ export function InstitucionesPage() {
   const [provincias, setProvincias] = useState<CatalogItem[]>([]);
   const [dres, setDres] = useState<CatalogItem[]>([]);
   const [gestiones, setGestiones] = useState<string[]>([]);
-  const [reis, setReis] = useState<string[]>([]);
+  const reiOptions = useMemo(
+    () => ["SIN REI", ...Array.from({ length: 19 }, (_, i) => `REI ${i + 1}`)],
+    []
+  );
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [niv, mod, ug, dist, dep, prov, dre, ges, reiRes] = await Promise.all([
+      const [niv, mod, ug, dist, dep, prov, dre, ges] = await Promise.all([
         supabase.from("cat_nivel").select("id, nombre").order("nombre"),
         supabase.from("cat_modalidad").select("id, nombre").order("nombre"),
         supabase.from("cat_ugel").select("id, nombre").order("nombre"),
@@ -165,7 +168,6 @@ export function InstitucionesPage() {
         supabase.from("cat_provincia").select("id, nombre").order("nombre"),
         supabase.from("cat_dre").select("id, nombre").order("nombre"),
         supabase.from("institucion_educativa").select("gestion").range(0, 10000),
-        supabase.from("institucion_educativa").select("rei").range(0, 10000),
       ]);
       if (!alive) return;
       if (niv.data) setNiveles(niv.data as CatalogItem[]);
@@ -181,13 +183,6 @@ export function InstitucionesPage() {
           .filter((v): v is string => !!v);
         const uniq = Array.from(new Set(raw)).sort((a, b) => a.localeCompare(b));
         setGestiones(uniq);
-      }
-      if (reiRes.data) {
-        const raw = (reiRes.data as Array<{ rei: string | null }>)
-          .map((r) => r.rei?.trim())
-          .filter((v): v is string => !!v);
-        const uniq = Array.from(new Set(raw)).sort((a, b) => a.localeCompare(b));
-        setReis(uniq);
       }
     })();
     return () => {
@@ -542,7 +537,7 @@ export function InstitucionesPage() {
           className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
         >
           <option value="">REI</option>
-          {reis.map((r) => (
+          {reiOptions.map((r) => (
             <option key={r} value={r}>
               {r}
             </option>
@@ -631,12 +626,18 @@ export function InstitucionesPage() {
               placeholder="codigo institucional"
               className="rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm outline-none"
             />
-            <input
+            <select
               value={form.rei}
               onChange={(e) => setForm({ ...form, rei: e.target.value })}
-              placeholder="REI"
-              className="rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm outline-none"
-            />
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none"
+            >
+              <option value="">REI</option>
+              {reiOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
             <input
               value={form.telefono}
               onChange={(e) => setForm({ ...form, telefono: e.target.value })}
