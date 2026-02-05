@@ -152,7 +152,14 @@ export function InstitucionesPage() {
   const [dres, setDres] = useState<CatalogItem[]>([]);
   const [gestiones, setGestiones] = useState<string[]>([]);
   const reiOptions = useMemo(
-    () => ["SIN REI", ...Array.from({ length: 19 }, (_, i) => `REI ${i + 1}`)],
+    () =>
+      [
+        { value: "SIN REI", label: "SIN REI" },
+        ...Array.from({ length: 19 }, (_, i) => {
+          const v = String(i + 1).padStart(2, "0");
+          return { value: v, label: `REI ${v}` };
+        }),
+      ],
     []
   );
 
@@ -207,7 +214,16 @@ export function InstitucionesPage() {
       if (modalidadId) query = query.eq("modalidad_id", modalidadId);
       if (gestion) query = query.eq("gestion", gestion);
       if (distritoId) query = query.eq("distrito_id", distritoId);
-      if (rei) query = query.eq("rei", rei);
+      if (rei) {
+        const reiNorm = rei.toUpperCase().replace(/\s+/g, " ").trim();
+        if (reiNorm === "SIN REI") {
+          query = query.or("rei.is.null,rei.eq.SIN REI,rei.eq.");
+        } else {
+          const digits = reiNorm.replace(/\D/g, "");
+          const padded = digits ? digits.padStart(2, "0") : reiNorm;
+          query = query.or(`rei.eq.${padded},rei.eq.${digits}`);
+        }
+      }
       if (q.trim()) {
         const term = q.trim().replaceAll("%", "");
         query = query.or(
@@ -377,12 +393,20 @@ export function InstitucionesPage() {
     }
     setSaving(true);
     try {
+      const reiValue = (() => {
+        const raw = form.rei.trim();
+        if (!raw) return null;
+        if (raw.toUpperCase() === "SIN REI") return "SIN REI";
+        const digits = raw.replace(/\D/g, "");
+        return digits ? digits.padStart(2, "0") : raw;
+      })();
+
       const payload: any = {
         codigo_modular: form.codigo_modular.trim(),
         codigo_local: form.codigo_local.trim() || null,
         nombre: form.nombre.trim(),
         codigo_institucional: form.codigo_institucional.trim() || null,
-        rei: form.rei.trim() || null,
+        rei: reiValue,
         telefono: form.telefono.trim() || null,
         nivel_id: form.nivel_id || null,
         modalidad_id: form.modalidad_id || null,
@@ -538,8 +562,8 @@ export function InstitucionesPage() {
         >
           <option value="">REI</option>
           {reiOptions.map((r) => (
-            <option key={r} value={r}>
-              {r}
+            <option key={r.value} value={r.value}>
+              {r.label}
             </option>
           ))}
         </select>
@@ -633,8 +657,8 @@ export function InstitucionesPage() {
             >
               <option value="">REI</option>
               {reiOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>
