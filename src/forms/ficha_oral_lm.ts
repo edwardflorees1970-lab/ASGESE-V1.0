@@ -236,5 +236,5 @@ export const FICHA_ORAL_LM = {
       texto:
         "?Ha elaborado un instrumento de evaluaci?n que le permita determinar el nivel de logro en relaci?n a los criterios que ha planteado?",
     },
-  ]] as QuestionItem[],
+  ] as QuestionItem[],
 };

@@ -12,6 +12,7 @@ import {
 import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { supabase } from "../lib/supabaseClient";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 
 type Toast = { type: "ok" | "err"; msg: string } | null;
@@ -204,6 +205,8 @@ export function UsersPage() {
   const [resetBusy, setResetBusy] = useState(false);
 
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<ProfileRow | null>(null);
   const requestIdRef = useRef(0);
 
   const load = async () => {
@@ -429,12 +432,9 @@ export function UsersPage() {
     }
   };
 
-  const submitDelete = async (u: ProfileRow) => {
-    if (!canManageUsers) return;
-    const ok = window.confirm(
-      `Vas a eliminar a:\n${formatName(u)}\n(${u.correo})\n\n¿Confirmas?`
-    );
-    if (!ok) return;
+  const submitDelete = async () => {
+    if (!canManageUsers || !confirmDeleteUser) return;
+    const u = confirmDeleteUser;
 
     setDeleteBusyId(u.id);
     try {
@@ -446,6 +446,8 @@ export function UsersPage() {
       setToast({ type: "err", msg: e?.message || "No se pudo eliminar" });
     } finally {
       setDeleteBusyId(null);
+      setConfirmDeleteOpen(false);
+      setConfirmDeleteUser(null);
     }
   };
 
@@ -639,7 +641,10 @@ export function UsersPage() {
                       variant="danger"
                       className="px-3 py-2 text-xs"
                       disabled={deleteBusyId === u.id}
-                      onClick={() => submitDelete(u)}
+                      onClick={() => {
+                        setConfirmDeleteUser(u);
+                        setConfirmDeleteOpen(true);
+                      }}
                     >
                       {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
                     </Button>
@@ -753,7 +758,10 @@ export function UsersPage() {
                             <Button
                               variant="danger"
                               disabled={deleteBusyId === u.id}
-                              onClick={() => submitDelete(u)}
+                              onClick={() => {
+                                setConfirmDeleteUser(u);
+                                setConfirmDeleteOpen(true);
+                              }}
                             >
                               {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
                             </Button>
@@ -1198,6 +1206,22 @@ export function UsersPage() {
           )}
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Eliminar usuario"
+        description={
+          confirmDeleteUser
+            ? `Se eliminará a ${formatName(confirmDeleteUser)} (${confirmDeleteUser.correo}).`
+            : "Se eliminará el usuario seleccionado."
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        busy={!!deleteBusyId}
+        onClose={() => !deleteBusyId && setConfirmDeleteOpen(false)}
+        onConfirm={submitDelete}
+      />
     </div>
   );
 }

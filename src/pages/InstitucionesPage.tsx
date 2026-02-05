@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type CatalogItem = { id: string; nombre: string };
 
@@ -128,6 +129,9 @@ export function InstitucionesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<InstitucionDetail | null>(null);
   const [detailCache, setDetailCache] = useState<Record<string, InstitucionDetail>>({});
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmDeleteRow, setConfirmDeleteRow] = useState<InstitucionRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [q, setQ] = useState("");
   const [nivelId, setNivelId] = useState("");
@@ -435,14 +439,22 @@ export function InstitucionesPage() {
     }
   };
 
-  const remove = async (row: InstitucionRow) => {
-    if (!confirm(`¿Eliminar ${row.nombre}?`)) return;
-    const { error } = await supabase.from("institucion_educativa").delete().eq("id", row.id);
+  const remove = async () => {
+    if (!confirmDeleteRow) return;
+    setDeleteBusy(true);
+    const { error } = await supabase
+      .from("institucion_educativa")
+      .delete()
+      .eq("id", confirmDeleteRow.id);
     if (error) {
       setToast({ type: "err", msg: error.message });
+      setDeleteBusy(false);
       return;
     }
     setToast({ type: "ok", msg: "Institucion eliminada." });
+    setDeleteBusy(false);
+    setConfirmDeleteOpen(false);
+    setConfirmDeleteRow(null);
     await load();
   };
 
@@ -856,10 +868,11 @@ export function InstitucionesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          remove(row);
-                        }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteRow(row);
+                        setConfirmDeleteOpen(true);
+                      }}
                         className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100 hover:bg-red-500/20"
                       >
                         Eliminar
@@ -1040,6 +1053,22 @@ export function InstitucionesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Eliminar institución"
+        description={
+          confirmDeleteRow
+            ? `Se eliminará ${confirmDeleteRow.nombre}. Esta acción no se puede deshacer.`
+            : "Se eliminará la institución seleccionada."
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        busy={deleteBusy}
+        onClose={() => !deleteBusy && setConfirmDeleteOpen(false)}
+        onConfirm={remove}
+      />
     </div>
   );
 }

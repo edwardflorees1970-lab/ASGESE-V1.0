@@ -9,6 +9,7 @@ import { FICHA_LEE_LM } from "../forms/ficha_lee_lm";
 import { FICHA_ORAL_LM } from "../forms/ficha_oral_lm";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { useAppConfig } from "../app/AppConfigProvider";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type RunRow = {
   id: string;
@@ -129,6 +130,9 @@ export function ReportesPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmDeleteRun, setConfirmDeleteRun] = useState<RunRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
@@ -506,22 +510,27 @@ export function ReportesPage() {
     setRuns((prev) => prev.map((r) => (r.id === run.id ? { ...r, status: next } : r)));
   };
 
-  const deleteRun = async (run: RunRow) => {
-    if (!canEditOrDelete(run)) return;
-    const ok = window.confirm("¿Eliminar este registro?");
-    if (!ok) return;
+  const deleteRun = async () => {
+    if (!confirmDeleteRun || !canEditOrDelete(confirmDeleteRun)) return;
+    setDeleteBusy(true);
+    const run = confirmDeleteRun;
     const { error: ansErr } = await supabase.from("ficha_answer").delete().eq("run_id", run.id);
     if (ansErr) {
       setToast({ type: "err", msg: ansErr.message });
+      setDeleteBusy(false);
       return;
     }
     const { error } = await supabase.from("ficha_run").delete().eq("id", run.id);
     if (error) {
       setToast({ type: "err", msg: error.message });
+      setDeleteBusy(false);
       return;
     }
     setToast({ type: "ok", msg: "Registro eliminado." });
     setRuns((prev) => prev.filter((r) => r.id !== run.id));
+    setDeleteBusy(false);
+    setConfirmDeleteOpen(false);
+    setConfirmDeleteRun(null);
   };
 
   return (
@@ -743,7 +752,10 @@ export function ReportesPage() {
                   {canEditOrDelete(r) && (
                     <button
                       className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
-                      onClick={() => deleteRun(r)}
+                      onClick={() => {
+                        setConfirmDeleteRun(r);
+                        setConfirmDeleteOpen(true);
+                      }}
                       disabled={!canEditOrDelete(r)}
                     >
                       Eliminar
@@ -867,7 +879,10 @@ export function ReportesPage() {
                           {canEditOrDelete(r) && (
                             <button
                               className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
-                              onClick={() => deleteRun(r)}
+                              onClick={() => {
+                                setConfirmDeleteRun(r);
+                                setConfirmDeleteOpen(true);
+                              }}
                               disabled={!canEditOrDelete(r)}
                             >
                               Eliminar
@@ -883,6 +898,18 @@ export function ReportesPage() {
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Eliminar registro"
+        description="¿Seguro que deseas eliminar este registro? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        busy={deleteBusy}
+        onClose={() => !deleteBusy && setConfirmDeleteOpen(false)}
+        onConfirm={deleteRun}
+      />
     </div>
   );
 }

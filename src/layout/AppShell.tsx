@@ -5,6 +5,7 @@ import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole, roleLabel } from "../lib/roles";
 import { useTheme } from "../app/ThemeProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -47,6 +48,8 @@ export function AppShell() {
   const { isTestMode, setMode } = useAppConfig();
   const nav = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
 
   const nombre =
     [profile?.nombres, profile?.apellido_paterno, profile?.apellido_materno]
@@ -120,10 +123,7 @@ export function AppShell() {
         <div className="text-xs text-white/50">Sesión</div>
         <div className="mt-1 text-sm font-medium">{nombre}</div>
         <button
-          onClick={async () => {
-            await signOut();
-            nav("/login");
-          }}
+          onClick={() => setLogoutOpen(true)}
           className="mt-3 w-full rounded-xl border border-white/10 bg-zinc-900/60 py-2 text-sm text-white/80 hover:bg-zinc-900"
         >
           Cerrar sesión
@@ -214,6 +214,24 @@ export function AppShell() {
           </div>
         </main>
       </div>
+
+      <ConfirmDialog
+        open={logoutOpen}
+        title="Cerrar sesión"
+        description="¿Estás seguro de cerrar la sesión actual?"
+        confirmText="Cerrar sesión"
+        cancelText="Cancelar"
+        variant="danger"
+        busy={logoutBusy}
+        onClose={() => !logoutBusy && setLogoutOpen(false)}
+        onConfirm={async () => {
+          setLogoutBusy(true);
+          await signOut();
+          setLogoutBusy(false);
+          setLogoutOpen(false);
+          nav("/login");
+        }}
+      />
     </div>
   );
 }
