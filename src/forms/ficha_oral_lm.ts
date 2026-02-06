@@ -3,15 +3,15 @@
 export type NivelAvance = 1 | 2 | 3;
 
 export type QuestionGroup =
-  | "ANTES_ORALIDAD"
-  | "DURANTE_ORALIDAD"
-  | "DESPUES_ORALIDAD"
+  | "ANTES_TEXTO_ORAL"
+  | "DURANTE_TEXTO_ORAL"
+  | "DESPUES_TEXTO_ORAL"
   | "EVALUACION";
 
 export const GROUP_LABEL: Record<QuestionGroup, string> = {
-  ANTES_ORALIDAD: "Antes del texto oral",
-  DURANTE_ORALIDAD: "Durante el texto oral",
-  DESPUES_ORALIDAD: "Después del texto oral",
+  ANTES_TEXTO_ORAL: "Antes del texto oral",
+  DURANTE_TEXTO_ORAL: "Durante el texto oral",
+  DESPUES_TEXTO_ORAL: "Después del texto oral",
   EVALUACION: "Evaluación",
 };
 

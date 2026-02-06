@@ -894,15 +894,15 @@ const footerForPdf = {
 
   // Render dinámico de grupos en orden fijo
   const GROUP_ORDER: QuestionGroup[] = [
-    "ANTES_ORALIDAD",
-    "DURANTE_ORALIDAD",
-    "DESPUES_ORALIDAD",
+    "ANTES_TEXTO_ORAL",
+    "DURANTE_TEXTO_ORAL",
+    "DESPUES_TEXTO_ORAL",
     "EVALUACION",
   ];
   const [openSections, setOpenSections] = useState<Record<QuestionGroup, boolean>>({
-    ANTES_ORALIDAD: true,
-    DURANTE_ORALIDAD: true,
-    DESPUES_ORALIDAD: true,
+    ANTES_TEXTO_ORAL: true,
+    DURANTE_TEXTO_ORAL: true,
+    DESPUES_TEXTO_ORAL: true,
     EVALUACION: true,
   });
 
