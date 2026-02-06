@@ -1,4 +1,9 @@
-import { supabase } from "./supabaseClient";
+﻿import { supabase } from "./supabaseClient";
+
+function parseMode(value: unknown): boolean {
+  const raw = String(value ?? "").toLowerCase();
+  return raw === "true" || raw === "1" || raw === "si" || raw === "sí";
+}
 
 export async function getIsTestMode(): Promise<boolean> {
   const { data, error } = await supabase
@@ -12,6 +17,5 @@ export async function getIsTestMode(): Promise<boolean> {
     return false;
   }
 
-  const raw = String((data as any)?.value ?? "").toLowerCase();
-  return raw === "true" || raw === "1" || raw === "si" || raw === "sí";
+  return parseMode((data as any)?.value);
 }

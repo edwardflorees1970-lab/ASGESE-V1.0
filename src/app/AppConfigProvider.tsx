@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+﻿import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 type AppConfigCtx = {
@@ -9,6 +9,11 @@ type AppConfigCtx = {
 };
 
 const Ctx = createContext<AppConfigCtx | null>(null);
+
+function parseMode(value: unknown): boolean {
+  const raw = String(value ?? "").toLowerCase();
+  return raw === "true" || raw === "1" || raw === "si" || raw === "sí";
+}
 
 async function fetchMode(): Promise<boolean> {
   const { data, error } = await supabase
@@ -21,8 +26,7 @@ async function fetchMode(): Promise<boolean> {
     console.warn("app_config: no se pudo leer modo_test:", error.message);
     return false;
   }
-  const raw = String((data as any)?.value ?? "").toLowerCase();
-  return raw === "true" || raw === "1" || raw === "si" || raw === "sí";
+  return parseMode((data as any)?.value);
 }
 
 export function AppConfigProvider({ children }: { children: React.ReactNode }) {
@@ -50,6 +54,45 @@ export function AppConfigProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("app_config_modo_test")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_config",
+          filter: "key=eq.modo_test",
+        },
+        (payload) => {
+          const next = parseMode((payload.new as any)?.value);
+          setIsTestMode(next);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+    const interval = setInterval(() => {
+      refresh();
+    }, 30000);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   const value = useMemo<AppConfigCtx>(
