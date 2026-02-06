@@ -83,6 +83,16 @@ export function AppShell() {
         </div>
         <div className="mt-1 text-lg font-semibold tracking-tight">AGEBRE</div>
         <div className="mt-2 text-xs text-white/60">{roleLabel(role)}</div>
+        <div
+          className={cls(
+            "mt-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]",
+            isTestMode
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
+              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+          )}
+        >
+          {isTestMode ? "Modo TEST" : "Modo PRODUCCIÓN"}
+        </div>
         {role === "admin" && (
           <button
             type="button"
@@ -141,6 +151,16 @@ export function AppShell() {
         <div className="flex items-center justify-between px-4 py-3">
           <div className="text-sm font-semibold tracking-tight">AGEBRE</div>
           <div className="flex items-center gap-2">
+            <div
+              className={cls(
+                "rounded-full border px-2 py-1 text-[11px]",
+                isTestMode
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
+                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+              )}
+            >
+              {isTestMode ? "TEST" : "PROD"}
+            </div>
             <button
               type="button"
               onClick={toggleTheme}
