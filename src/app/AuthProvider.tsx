@@ -18,6 +18,7 @@ export type Profile = {
   area: string | null;
   ugel: string | null;
   rei: string | null;
+  can_create_monitoreo: boolean | null;
 };
 
 type AuthCtx = {
@@ -43,7 +44,7 @@ async function fetchProfile(userId: string) {
   return supabase
     .from("profiles")
     .select(
-      "id, email, correo, role, nombres, apellido_paterno, apellido_materno, numero_documento, tipo_documento, area, ugel, rei"
+      "id, email, correo, role, nombres, apellido_paterno, apellido_materno, numero_documento, tipo_documento, area, ugel, rei, can_create_monitoreo"
     )
     .eq("id", userId)
     .maybeSingle();

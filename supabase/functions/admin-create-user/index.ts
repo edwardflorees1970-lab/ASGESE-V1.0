@@ -15,6 +15,7 @@ type CreateBody = {
   comision?: string | null;
   ugel?: string | null;
   rei?: string | null;
+  can_create_monitoreo?: boolean | null;
   rol?: "admin" | "user" | "jefe_area" | "director"; // OJO: tu tabla usa "role", no "rol"
   password: string;                 // obligatorio
 };
@@ -121,6 +122,7 @@ serve(async (req) => {
       comision: (body.comision ?? null) ? String(body.comision).trim() : null,
       ugel: (body.ugel ?? null) ? String(body.ugel).trim() : null,
       rei: (body.rei ?? null) ? String(body.rei).trim() : "SIN REI",
+      can_create_monitoreo: body.can_create_monitoreo ?? false,
 
       // IMPORTANTE: tu columna es "role"
       role: (body.rol || "user") as "admin" | "user" | "jefe_area" | "director",

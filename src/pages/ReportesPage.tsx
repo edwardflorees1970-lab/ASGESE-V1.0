@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import jsPDF from "jspdf";
+import logoUrl from "../assets/logoagebresf.png";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
-import logoAgebreUrl from "../assets/logoagebresf.png";
-import { exportFichaEscribeLmPdf } from "../lib/pdf/fichaEscribeLmPdf";
-import { FICHA_ESCRIBE_LM } from "../forms/ficha_escribe_lm";
-import { FICHA_LEE_LM } from "../forms/ficha_lee_lm";
-import { FICHA_ORAL_LM } from "../forms/ficha_oral_lm";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -16,7 +13,7 @@ type RunRow = {
   status: string;
   created_by: string;
   created_at: string;
-  ficha_id: string;
+  template_id?: string;
   institucion_educativa: string | null;
   docente: string | null;
 };
@@ -35,6 +32,13 @@ type FichaRow = {
   id: string;
   codigo: string;
   monitoreo_id: string;
+  form_template_id?: string | null;
+};
+
+type TemplateRow = {
+  id: string;
+  titulo: string;
+  codigo: string;
 };
 
 type MonitoreoRow = {
@@ -79,22 +83,29 @@ function monthOptions() {
   ];
 }
 
-function normalizeStatus(s: string) {
-  return s === "submitted" ? "draft" : s;
+function statusLabel(s: string) {
+  if (s === "borrador") return "borrador";
+  if (s === "draft") return "draft";
+  return s;
 }
 
-function loadImageAsDataUrl(url: string): Promise<string> {
-  return fetch(url)
-    .then((res) => res.blob())
-    .then(
-      (blob) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(new Error("No se pudo leer el logo"));
-          reader.readAsDataURL(blob);
-        })
-    );
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function toDataUrl(img: HTMLImageElement): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+  ctx.drawImage(img, 0, 0);
+  return canvas.toDataURL("image/png");
 }
 
 function downloadCsv(filename: string, rows: string[][]) {
@@ -136,7 +147,8 @@ export function ReportesPage() {
 
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
-  const [fichas, setFichas] = useState<Record<string, FichaRow>>({});
+  const [fichasByTemplate, setFichasByTemplate] = useState<Record<string, FichaRow>>({});
+  const [templates, setTemplates] = useState<Record<string, TemplateRow>>({});
   const [monById, setMonById] = useState<Record<string, MonitoreoRow>>({});
 
   // Años disponibles
@@ -189,7 +201,7 @@ export function ReportesPage() {
         if (!user?.id) {
           setRuns([]);
           setProfiles({});
-          setFichas({});
+          setFichasByTemplate({});
           setMonById({});
           setLoading(false);
           return;
@@ -200,18 +212,20 @@ export function ReportesPage() {
         const start = m ? new Date(y, m - 1, 1) : new Date(y, 0, 1);
         const end = m ? new Date(y, m, 1) : new Date(y + 1, 0, 1);
 
-        let fichaIds: string[] | null = null;
+        let templateIdsByMon: string[] | null = null;
         if (monitoreo !== "ALL") {
           const mon = monitoreos.find((x) => x.codigo === monitoreo);
           if (mon?.id) {
             const { data: fichasData, error: fichasErr } = await supabase
               .from("ficha_catalog")
-              .select("id, codigo, monitoreo_id")
+              .select("id, codigo, monitoreo_id, form_template_id")
               .eq("monitoreo_id", mon.id);
             if (fichasErr) throw new Error(fichasErr.message);
-            fichaIds = (fichasData ?? []).map((f: any) => f.id);
+            templateIdsByMon = (fichasData ?? [])
+              .map((f: any) => f.form_template_id)
+              .filter(Boolean);
           } else {
-            fichaIds = [];
+            templateIdsByMon = [];
           }
         }
 
@@ -225,67 +239,93 @@ export function ReportesPage() {
           roleUserIds = (roleUsers ?? []).map((u: any) => u.id);
         }
 
-        let query = supabase
-          .from("ficha_run")
-          .select("id, status, created_by, created_at, ficha_id, institucion_educativa, docente")
+        let formQuery = supabase
+          .from("form_run")
+          .select("id, status, created_by, created_at, template_id, header_json, footer_json")
           .gte("created_at", start.toISOString())
           .lt("created_at", end.toISOString())
-          .order("created_at", { ascending: false });
-        query = query.eq("is_test", isTestMode);
+          .order("created_at", { ascending: false })
+          .eq("is_test", isTestMode);
 
         if (!canSeeAll) {
-          query = query.eq("created_by", user.id);
+          formQuery = formQuery.eq("created_by", user.id);
         } else if (roleUserIds) {
           if (!roleUserIds.length) {
             if (!alive) return;
             setRuns([]);
             setProfiles({});
-            setFichas({});
+            setFichasByTemplate({});
+            setTemplates({});
             setMonById({});
             setLoading(false);
             return;
           }
-          query = query.in("created_by", roleUserIds);
+          formQuery = formQuery.in("created_by", roleUserIds);
         }
 
-        if (status !== "ALL") {
-          if (status === "draft") {
-            query = query.in("status", ["draft", "submitted"]);
-          } else {
-            query = query.eq("status", status);
-          }
+        if (status === "ALL") {
+          formQuery = formQuery.neq("status", "borrador");
+        } else {
+          formQuery = formQuery.eq("status", status);
         }
-        if (fichaIds) {
-          if (!fichaIds.length) {
+
+        if (templateIdsByMon) {
+          if (!templateIdsByMon.length) {
             if (!alive) return;
             setRuns([]);
             setProfiles({});
-            setFichas({});
+            setFichasByTemplate({});
+            setTemplates({});
             setMonById({});
             setLoading(false);
             return;
           }
-          query = query.in("ficha_id", fichaIds);
+          formQuery = formQuery.in("template_id", templateIdsByMon);
         }
 
-        const { data: runData, error: runErr } = await query;
-        if (runErr) throw new Error(runErr.message);
-        const runRows = (runData ?? []) as RunRow[];
+        const { data: formData, error: formErr } = await formQuery;
+        if (formErr) throw new Error(formErr.message);
+        const dynRuns: RunRow[] = (formData ?? []).map((r: any) => ({
+          id: r.id,
+          status: r.status,
+          created_by: r.created_by,
+          created_at: r.created_at,
+          template_id: r.template_id,
+          institucion_educativa: r.header_json?.institucion ?? null,
+          docente: r.header_json?.monitoreado ?? null,
+        }));
+
+        const runRows = [...dynRuns].sort((a, b) =>
+          String(b.created_at).localeCompare(String(a.created_at))
+        );
         if (!alive) return;
         setRuns(runRows);
 
-        const fichaIdSet = Array.from(new Set(runRows.map((r) => r.ficha_id)));
-        if (fichaIdSet.length) {
-          const { data: fData, error: fErr } = await supabase
-            .from("ficha_catalog")
-            .select("id, codigo, monitoreo_id")
-            .in("id", fichaIdSet);
-          if (fErr) throw new Error(fErr.message);
-          const fMap: Record<string, FichaRow> = {};
-          (fData ?? []).forEach((f: any) => (fMap[f.id] = f));
-          setFichas(fMap);
+        const templateIdSet = Array.from(new Set(dynRuns.map((r) => r.template_id).filter(Boolean) as string[]));
+        if (templateIdSet.length) {
+          const { data: tData, error: tErr } = await supabase
+            .from("form_template")
+            .select("id, titulo, codigo")
+            .in("id", templateIdSet);
+          if (tErr) throw new Error(tErr.message);
+          const tMap: Record<string, TemplateRow> = {};
+          (tData ?? []).forEach((t: any) => (tMap[t.id] = t));
+          setTemplates(tMap);
 
-          const monIdSet = Array.from(new Set((fData ?? []).map((f: any) => f.monitoreo_id)));
+          const { data: fTplData, error: fTplErr } = await supabase
+            .from("ficha_catalog")
+            .select("id, codigo, monitoreo_id, form_template_id")
+            .in("form_template_id", templateIdSet);
+          if (fTplErr) throw new Error(fTplErr.message);
+          const fByTpl: Record<string, FichaRow> = {};
+          (fTplData ?? []).forEach((f: any) => {
+            if (f.form_template_id) fByTpl[f.form_template_id] = f;
+          });
+          setFichasByTemplate((prev) => ({ ...prev, ...fByTpl }));
+
+          const monIdSet = Array.from(
+            new Set((fTplData ?? []).map((f: any) => f.monitoreo_id))
+          );
           if (monIdSet.length) {
             const { data: mData, error: mErr } = await supabase
               .from("monitoreo_catalog")
@@ -294,13 +334,10 @@ export function ReportesPage() {
             if (mErr) throw new Error(mErr.message);
             const mMap: Record<string, MonitoreoRow> = {};
             (mData ?? []).forEach((m: any) => (mMap[m.id] = m));
-            setMonById(mMap);
-          } else {
-            setMonById({});
+            setMonById((prev) => ({ ...prev, ...mMap }));
           }
         } else {
-          setFichas({});
-          setMonById({});
+          setTemplates({});
         }
 
         const userIds = Array.from(new Set(runRows.map((r) => r.created_by)));
@@ -345,102 +382,330 @@ export function ReportesPage() {
     return run.created_by === user?.id;
   };
 
-  const exportRunPdf = async (run: RunRow) => {
+  const exportRunPdf = async (run?: RunRow) => {
+    if (!run?.template_id) {
+      setToast({ type: "err", msg: "No se pudo resolver la ficha." });
+      return;
+    }
     try {
-      const ficha = fichas[run.ficha_id];
-      const fichaCodigo = String(ficha?.codigo || "").toUpperCase();
-      const meta =
-        fichaCodigo === "LEE"
-          ? FICHA_LEE_LM
-          : fichaCodigo === "ORAL"
-          ? FICHA_ORAL_LM
-          : FICHA_ESCRIBE_LM;
+      const [{ data: tpl }, { data: secRows }, { data: qRows }, { data: runRow }, { data: ansRows }] =
+        await Promise.all([
+          supabase
+            .from("form_template")
+            .select("id, titulo, codigo, subtitulo, header_config, footer_config")
+            .eq("id", run.template_id)
+            .maybeSingle(),
+          supabase
+            .from("form_section")
+            .select("id, template_id, titulo, orden")
+            .eq("template_id", run.template_id)
+            .order("orden", { ascending: true }),
+          supabase
+            .from("form_question")
+            .select("id, template_id, section_id, tipo, texto, orden, orden_in_section, config_json")
+            .eq("template_id", run.template_id)
+            .order("orden", { ascending: true }),
+          supabase
+            .from("form_run")
+            .select("id, header_json, footer_json")
+            .eq("id", run.id)
+            .maybeSingle(),
+          supabase
+            .from("form_answer")
+            .select("question_id, value_json")
+            .eq("run_id", run.id),
+        ]);
 
-      const { data: runDetail, error: runErr } = await supabase
-        .from("ficha_run")
-        .select(
-          "institucion_educativa, codigo_modular, codigo_local, rei, lugar_ie, director_monitor, docente, condicion_docente, area_monitoreo, observacion_general, compromiso, lugar, fecha, docente_firma_nombre, docente_firma_dni, monitor_firma_nombre, monitor_firma_dni"
-        )
-        .eq("id", run.id)
-        .single();
-      if (runErr) throw new Error(runErr.message);
+      if (!tpl || !runRow) {
+        setToast({ type: "err", msg: "No se pudo cargar datos de la ficha." });
+        return;
+      }
 
-      const { data: qData, error: qErr } = await supabase
-        .from("ficha_question")
-        .select("id, numero, texto, grupo, orden")
-        .eq("ficha_id", run.ficha_id)
-        .eq("is_active", true)
-        .order("orden", { ascending: true });
-      if (qErr) throw new Error(qErr.message);
-
-      const { data: aData, error: aErr } = await supabase
-        .from("ficha_answer")
-        .select("question_id, yn, nivel, obs")
-        .eq("run_id", run.id);
-      if (aErr) throw new Error(aErr.message);
-
-      const answers: Record<string, any> = {};
-      (aData ?? []).forEach((a: any) => {
-        answers[a.question_id] = {
-          yn: a.yn ?? "",
-          nivel: a.nivel ?? null,
-          obs: a.obs ?? "",
-        };
+      const answersMap: Record<string, any> = {};
+      (ansRows ?? []).forEach((a: any) => {
+        answersMap[a.question_id] = a.value_json;
       });
 
-      const preguntas = (qData ?? []).map((q: any) => ({
-        id: q.id,
-        numero: String(q.numero).padStart(2, "0"),
-        texto: q.texto,
-        group: q.grupo,
-      }));
-
+      const headerCfg = tpl.header_config ?? {};
+      const footerCfg = tpl.footer_config ?? {};
+      const defaultHeader = {
+        institucion: true,
+        codigo_modular: true,
+        codigo_local: true,
+        distrito: true,
+        rei: true,
+        monitor: true,
+        monitoreado: true,
+        condicion: true,
+        area: true,
+        nivel_avance: false,
+        nivel_avance_info: [],
+      };
+      const defaultFooter = {
+        observacion: true,
+        compromiso: true,
+        lugar: true,
+        fecha: true,
+        docente_nombre: true,
+        docente_dni: true,
+        monitor_nombre: true,
+        monitor_dni: true,
+        firmas: true,
+      };
+      const effectiveHeader = { ...defaultHeader, ...(headerCfg || {}) };
+      const effectiveFooter = { ...defaultFooter, ...(footerCfg || {}) };
+      const headerRaw = runRow.header_json ?? {};
+      const footerRaw = runRow.footer_json ?? {};
       const header = {
-        institucion_educativa: runDetail?.institucion_educativa ?? "",
-        codigo_modular: runDetail?.codigo_modular ?? "",
-        codigo_local: runDetail?.codigo_local ?? "",
-        rei: runDetail?.rei ?? "",
-        lugar_ie: runDetail?.lugar_ie ?? "",
-        director_monitor: runDetail?.director_monitor ?? "",
-        docente: runDetail?.docente ?? "",
-        condicion_docente: runDetail?.condicion_docente ?? "",
-        area_monitoreo: runDetail?.area_monitoreo ?? "",
+        institucion:
+          headerRaw.institucion ??
+          headerRaw.institucion_educativa ??
+          headerRaw.ie ??
+          "",
+        codigo_modular: headerRaw.codigo_modular ?? headerRaw.cod_modular ?? "",
+        codigo_local: headerRaw.codigo_local ?? headerRaw.cod_local ?? "",
+        distrito: headerRaw.distrito ?? headerRaw.lugar ?? headerRaw.lugar_ie ?? "",
+        rei: headerRaw.rei ?? "",
+        monitor:
+          headerRaw.monitor ??
+          headerRaw.monitor_nombre ??
+          headerRaw.director_monitor ??
+          "",
+        monitoreado:
+          headerRaw.monitoreado ??
+          headerRaw.docente ??
+          headerRaw.docente_nombre ??
+          "",
+        condicion: headerRaw.condicion ?? headerRaw.condicion_docente ?? "",
+        area: headerRaw.area ?? headerRaw.area_monitoreo ?? "",
+      };
+      const footer = {
+        observacion:
+          footerRaw.observacion ??
+          footerRaw.observacion_general ??
+          footerRaw.obs ??
+          "",
+        compromiso: footerRaw.compromiso ?? "",
+        lugar: footerRaw.lugar ?? footerRaw.lugar_ie ?? "",
+        fecha: footerRaw.fecha ?? "",
+        docente_nombre:
+          footerRaw.docente_nombre ??
+          footerRaw.monitoreado ??
+          footerRaw.docente ??
+          "",
+        docente_dni: footerRaw.docente_dni ?? "",
+        monitor_nombre:
+          footerRaw.monitor_nombre ??
+          footerRaw.monitor ??
+          "",
+        monitor_dni: footerRaw.monitor_dni ?? "",
       };
 
-      const footer = {
-        observacion_general: runDetail?.observacion_general ?? "",
-        compromiso: runDetail?.compromiso ?? "",
-        lugar: runDetail?.lugar ?? "",
-        fecha: runDetail?.fecha ?? "",
-        docente_firma_nombre: runDetail?.docente_firma_nombre ?? "",
-        docente_firma_dni: runDetail?.docente_firma_dni ?? "",
-        monitor_firma_nombre: runDetail?.monitor_firma_nombre ?? "",
-        monitor_firma_dni: runDetail?.monitor_firma_dni ?? "",
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const M = 14;
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      let y = 18;
+      const contentW = pageW - M * 2;
+      const lineH = 5;
+      const smallLineH = 4.2;
+
+      const ensureSpace = (need: number) => {
+        if (y + need > pageH - 14) {
+          doc.addPage();
+          y = 18;
+        }
+      };
+
+      const drawSectionHeader = (title: string) => {
+        ensureSpace(10);
+        doc.setFillColor(230, 236, 243);
+        doc.setDrawColor(160, 170, 185);
+        doc.rect(M, y - 2.5, contentW, 8, "FD");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(title, M + 2, y + 2.5);
+        y += 10;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+      };
+
+      const drawKeyValueGrid = (pairs: Array<[string, string]>) => {
+        if (!pairs.length) return;
+        const cols = 2;
+        const colW = contentW / cols;
+        const rowH = 8;
+        const rows = Math.ceil(pairs.length / cols);
+        ensureSpace(rows * rowH + 4);
+        doc.setDrawColor(200);
+        for (let r = 0; r < rows; r += 1) {
+          for (let c = 0; c < cols; c += 1) {
+            const idx = r * cols + c;
+            const x = M + c * colW;
+            const yCell = y + r * rowH;
+            doc.rect(x, yCell, colW, rowH);
+            const pair = pairs[idx];
+            if (pair) {
+              doc.setFontSize(8);
+              doc.setTextColor(90);
+              doc.text(pair[0], x + 2, yCell + 3.5);
+              doc.setFontSize(9);
+              doc.setTextColor(20);
+              const valueLines = doc.splitTextToSize(pair[1] || "-", colW - 4);
+              doc.text(valueLines, x + 2, yCell + 7);
+            }
+          }
+        }
+        doc.setTextColor(20);
+        y += rows * rowH + 4;
+        doc.setFontSize(10);
       };
 
       try {
-        const logoDataUrl = await loadImageAsDataUrl(logoAgebreUrl);
-        exportFichaEscribeLmPdf({
-          titulo: meta.titulo,
-          area: meta.area,
-          header,
-          preguntas,
-          answers,
-          footer,
-          logoDataUrl,
-        });
+        const img = await loadImage(logoUrl);
+        const imgW = 22;
+        const imgH = (img.height / img.width) * imgW;
+        const dataUrl = toDataUrl(img);
+        if (dataUrl) doc.addImage(dataUrl, "PNG", M, y - 8, imgW, imgH);
       } catch {
-        exportFichaEscribeLmPdf({
-          titulo: meta.titulo,
-          area: meta.area,
-          header,
-          preguntas,
-          answers,
-          footer,
-        });
+        // ignore
       }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text(tpl.titulo, M + 26, y);
+      y += 6;
+      if (tpl.subtitulo) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.text(tpl.subtitulo, M + 26, y);
+        y += 6;
+      }
+      doc.setDrawColor(220);
+      doc.line(M, y, pageW - M, y);
+      y += 10;
+
+      const headerPairs: Array<[string, string]> = [];
+      if (effectiveHeader.institucion) headerPairs.push(["Institución educativa", header.institucion ?? ""]);
+      if (effectiveHeader.codigo_modular) headerPairs.push(["Código modular", header.codigo_modular ?? ""]);
+      if (effectiveHeader.codigo_local) headerPairs.push(["Código local", header.codigo_local ?? ""]);
+      if (effectiveHeader.distrito) headerPairs.push(["Distrito / Lugar", header.distrito ?? ""]);
+      if (effectiveHeader.rei) headerPairs.push(["REI", header.rei ?? ""]);
+      if (effectiveHeader.monitor) headerPairs.push(["Monitor", header.monitor ?? ""]);
+      if (effectiveHeader.monitoreado) headerPairs.push(["Monitoreado", header.monitoreado ?? ""]);
+      if (effectiveHeader.condicion) headerPairs.push(["Condición", header.condicion ?? ""]);
+      if (effectiveHeader.area) headerPairs.push(["Área", header.area ?? ""]);
+      if (headerPairs.length) {
+        drawSectionHeader("Encabezado");
+        drawKeyValueGrid(headerPairs);
+      }
+
+      if (effectiveHeader.nivel_avance) {
+        const info = Array.isArray(effectiveHeader?.nivel_avance_info) && effectiveHeader.nivel_avance_info.length
+          ? effectiveHeader.nivel_avance_info
+          : [
+              { nivel: 1, descripcion: "Bajo" },
+              { nivel: 2, descripcion: "Medio" },
+              { nivel: 3, descripcion: "Alto" },
+            ];
+        const nivelPairs: Array<[string, string]> = info.map((x: any) => [
+          `Nivel ${x.nivel}`,
+          x.descripcion ?? "",
+        ]);
+        drawSectionHeader("Niveles de respuesta (Sí)");
+        drawKeyValueGrid(nivelPairs);
+      }
+
+      (secRows ?? []).forEach((s: any) => {
+        drawSectionHeader(s.titulo);
+        (qRows ?? []).filter((q: any) => q.section_id === s.id).forEach((q: any) => {
+          const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
+          const lines = doc.splitTextToSize(title, contentW);
+          ensureSpace(lines.length * lineH + 6);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.text(lines, M, y);
+          y += lines.length * lineH;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+
+          const p = answersMap[q.id] ?? {};
+          const parts: string[] = [];
+          if (q.tipo === "yes_no") parts.push(`Respuesta: ${p.yn ?? "-"}`);
+          if (q.tipo === "yes_no_nivel") {
+            const levelLabels = q.config_json?.levelLabels ?? [];
+            const nivelLabel = p.nivel
+              ? levelLabels.find((l: any) => l.value === p.nivel)?.label ?? p.nivel
+              : "-";
+            parts.push(`Respuesta: ${p.yn ?? "-"}`);
+            parts.push(`Nivel: ${nivelLabel}`);
+          }
+          if (q.tipo === "opciones") {
+            if (p.option) parts.push(`Opción: ${p.option}`);
+            if (p.options?.length) parts.push(`Opciones: ${p.options.join(", ")}`);
+            if (!p.option && !p.options?.length) parts.push("Opciones: -");
+          }
+          if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
+          if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
+          if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
+          parts.push(`Observación: ${p.obs ?? "-"}`);
+
+          if (parts.length) {
+            const detail = parts.join(" | ");
+            const detailLines = doc.splitTextToSize(detail, contentW);
+            doc.text(detailLines, M, y);
+            y += detailLines.length * smallLineH;
+          }
+
+          y += 4;
+          doc.setDrawColor(235);
+          doc.line(M, y, pageW - M, y);
+          y += 3;
+        });
+      });
+
+      const footerPairs: Array<[string, string]> = [];
+      if (effectiveFooter.observacion) footerPairs.push(["Observación general", footer.observacion ?? ""]);
+      if (effectiveFooter.compromiso) footerPairs.push(["Compromiso", footer.compromiso ?? ""]);
+      if (effectiveFooter.lugar) footerPairs.push(["Lugar", footer.lugar ?? ""]);
+      if (effectiveFooter.fecha) footerPairs.push(["Fecha", footer.fecha ?? ""]);
+      if (effectiveFooter.docente_nombre) footerPairs.push(["Monitoreado", footer.docente_nombre ?? ""]);
+      if (effectiveFooter.docente_dni) footerPairs.push(["DNI Monitoreado", footer.docente_dni ?? ""]);
+      if (effectiveFooter.monitor_nombre) footerPairs.push(["Monitor", footer.monitor_nombre ?? ""]);
+      if (effectiveFooter.monitor_dni) footerPairs.push(["DNI Monitor", footer.monitor_dni ?? ""]);
+      if (footerPairs.length) {
+        drawSectionHeader("Cierre");
+        drawKeyValueGrid(footerPairs);
+      }
+
+      if (effectiveFooter.firmas) {
+        if (y + 22 > pageH - 14) {
+          doc.addPage();
+          y = 18;
+        }
+        doc.setDrawColor(120);
+        doc.line(M, y + 12, M + 70, y + 12);
+        doc.line(pageW - M - 70, y + 12, pageW - M, y + 12);
+        doc.setFontSize(8);
+        doc.text("Firma docente monitoreado", M, y + 16);
+        doc.text("Firma monitor", pageW - M - 70, y + 16);
+        if (footer.docente_nombre) {
+          doc.text(String(footer.docente_nombre), M, y + 20);
+        }
+        if (footer.docente_dni) {
+          doc.text(`DNI: ${footer.docente_dni}`, M, y + 24);
+        }
+        if (footer.monitor_nombre) {
+          doc.text(String(footer.monitor_nombre), pageW - M - 70, y + 20);
+        }
+        if (footer.monitor_dni) {
+          doc.text(`DNI: ${footer.monitor_dni}`, pageW - M - 70, y + 24);
+        }
+      }
+
+      doc.save(`ficha_${tpl.codigo || "ficha"}.pdf`);
     } catch (e: any) {
-      setToast({ type: "err", msg: e?.message || "No se pudo generar el PDF." });
+      setToast({ type: "err", msg: e?.message || "No se pudo exportar PDF." });
     }
   };
 
@@ -459,8 +724,9 @@ export function ReportesPage() {
     ];
 
     runs.forEach((r) => {
-      const ficha = fichas[r.ficha_id];
-      const mon = ficha ? monById[ficha.monitoreo_id] : null;
+      const dynFicha = r.template_id ? fichasByTemplate[r.template_id] : null;
+      const mon = dynFicha ? monById[dynFicha.monitoreo_id] : null;
+      const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "" : "";
       const creator = profiles[r.created_by];
       const creatorName =
         [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
@@ -472,9 +738,9 @@ export function ReportesPage() {
         "Usuario";
       rows.push([
         mon?.codigo || "",
-        ficha?.codigo || "",
+        fichaCodigo,
         fmtDateShort(r.created_at),
-        normalizeStatus(r.status),
+        statusLabel(r.status),
         creatorName,
         roleLabel(creator?.role),
         r.docente || "",
@@ -487,21 +753,18 @@ export function ReportesPage() {
   };
 
   const handleEdit = (run: RunRow) => {
-    const ficha = fichas[run.ficha_id];
-    const mon = ficha ? monById[ficha.monitoreo_id] : null;
-    if (!ficha || !mon) {
-      setToast({ type: "err", msg: "No se pudo resolver la ficha para editar." });
+    const dynFicha = run.template_id ? fichasByTemplate[run.template_id] : null;
+    const mon = dynFicha ? monById[dynFicha.monitoreo_id] : null;
+    if (!dynFicha || !mon) {
+      setToast({ type: "err", msg: "No se pudo resolver la ficha." });
       return;
     }
-    nav(`/app/monitoreo/${mon.codigo}/ficha/${ficha.codigo}?runId=${run.id}`);
+    nav(`/app/monitoreo/${mon.codigo}/ficha/${dynFicha.codigo}?runId=${run.id}&returnTo=reportes`);
   };
 
   const updateStatus = async (run: RunRow, next: "draft" | "final") => {
     if (!canChangeStatus(run)) return;
-    const { error } = await supabase
-      .from("ficha_run")
-      .update({ status: next })
-      .eq("id", run.id);
+    const { error } = await supabase.from("form_run").update({ status: next }).eq("id", run.id);
     if (error) {
       setToast({ type: "err", msg: error.message });
       return;
@@ -514,15 +777,30 @@ export function ReportesPage() {
     if (!confirmDeleteRun || !canEditOrDelete(confirmDeleteRun)) return;
     setDeleteBusy(true);
     const run = confirmDeleteRun;
-    const { error: ansErr } = await supabase.from("ficha_answer").delete().eq("run_id", run.id);
+    const { error: ansErr } = await supabase
+      .from("form_answer")
+      .delete()
+      .eq("run_id", run.id);
     if (ansErr) {
       setToast({ type: "err", msg: ansErr.message });
       setDeleteBusy(false);
       return;
     }
-    const { error } = await supabase.from("ficha_run").delete().eq("id", run.id);
+    const { data: deleted, error } = await supabase
+      .from("form_run")
+      .delete()
+      .eq("id", run.id)
+      .select("id");
     if (error) {
       setToast({ type: "err", msg: error.message });
+      setDeleteBusy(false);
+      return;
+    }
+    if (!deleted || deleted.length === 0) {
+      setToast({
+        type: "err",
+        msg: "No se pudo eliminar (posible RLS o permisos).",
+      });
       setDeleteBusy(false);
       return;
     }
@@ -618,6 +896,7 @@ export function ReportesPage() {
               className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
             >
               <option value="ALL">Todos</option>
+              <option value="borrador">borrador</option>
               {monitoreos.map((m) => (
                 <option key={m.codigo} value={m.codigo}>
                   {m.codigo} - {m.nombre}
@@ -680,10 +959,11 @@ export function ReportesPage() {
           </div>
         ) : (
           runs.map((r) => {
-            const ficha = fichas[r.ficha_id];
+            const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
             const mon = ficha ? monById[ficha.monitoreo_id] : null;
+            const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "-" : "-";
             const creator = profiles[r.created_by];
-            const statusLabel = normalizeStatus(r.status);
+            const statusText = statusLabel(r.status);
             const creatorName =
               [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
                 .filter(Boolean)
@@ -700,17 +980,17 @@ export function ReportesPage() {
               <div key={r.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-semibold">
-                    {mon?.codigo || "MON"} / {ficha?.codigo || "FICHA"}
+                    {mon?.codigo || "MON"} / {fichaCodigo}
                   </div>
                   <div
                     className={cls(
                       "rounded-lg border px-2 py-1 text-xs",
-                      statusLabel === "final"
+                      statusText === "final"
                         ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
                         : "border-white/10 bg-white/5 badge-muted"
                     )}
                   >
-                    {statusLabel}
+                    {statusText}
                   </div>
                 </div>
                 <div className="mt-1 text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
@@ -742,11 +1022,11 @@ export function ReportesPage() {
                     <button
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                       onClick={() =>
-                        updateStatus(r, normalizeStatus(r.status) === "final" ? "draft" : "final")
+                        updateStatus(r, r.status === "final" ? "draft" : "final")
                       }
                       disabled={!canChangeStatus(r)}
                     >
-                      {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
+                      {r.status === "final" ? "Reabrir" : "Finalizar"}
                     </button>
                   )}
                   {canEditOrDelete(r) && (
@@ -802,10 +1082,11 @@ export function ReportesPage() {
                 </tr>
               ) : (
                 runs.map((r) => {
-                  const ficha = fichas[r.ficha_id];
+                  const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
                   const mon = ficha ? monById[ficha.monitoreo_id] : null;
+                  const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "-" : "-";
                   const creator = profiles[r.created_by];
-                  const statusLabel = normalizeStatus(r.status);
+                  const statusText = statusLabel(r.status);
                   const creatorName =
                     [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
                       .filter(Boolean)
@@ -820,7 +1101,7 @@ export function ReportesPage() {
                   return (
                     <tr key={r.id} className="border-t border-white/10 text-sm">
                       <td className="px-4 py-3">{mon?.codigo || "-"}</td>
-                      <td className="px-4 py-3">{ficha?.codigo || "-"}</td>
+                      <td className="px-4 py-3">{fichaCodigo}</td>
                       <td className="px-4 py-3 text-white/70">{fmtDateShort(r.created_at)}</td>
                       {canSeeAll && (
                         <td className="px-4 py-3 text-white/70 w-64">
@@ -837,12 +1118,12 @@ export function ReportesPage() {
                         <span
                           className={cls(
                             "rounded-lg border px-2 py-1 text-xs",
-                            statusLabel === "final"
+                            statusText === "final"
                               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
                               : "border-white/10 bg-white/5 badge-muted"
                           )}
                         >
-                          {statusLabel}
+                          {statusText}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -868,12 +1149,12 @@ export function ReportesPage() {
                               onClick={() =>
                                 updateStatus(
                                   r,
-                                  normalizeStatus(r.status) === "final" ? "draft" : "final"
+                                  r.status === "final" ? "draft" : "final"
                                 )
                               }
                               disabled={!canChangeStatus(r)}
                             >
-                              {normalizeStatus(r.status) === "final" ? "Reabrir" : "Finalizar"}
+                              {r.status === "final" ? "Reabrir" : "Finalizar"}
                             </button>
                           )}
                           {canEditOrDelete(r) && (

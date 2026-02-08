@@ -17,6 +17,7 @@ type UpdateBody = {
   comision?: string | null;
   ugel?: string | null;
   rei?: string | null;
+  can_create_monitoreo?: boolean | null;
 
   rol?: "admin" | "user" | "jefe_area" | "director" | null;
   role?: "admin" | "user" | "jefe_area" | "director" | null;
@@ -99,6 +100,7 @@ serve(async (req) => {
     put("comision", body.comision);
     put("ugel", body.ugel);
     put("rei", body.rei);
+    put("can_create_monitoreo", body.can_create_monitoreo);
 
     if (body.correo !== undefined && body.correo !== null) {
       const correo = String(body.correo).trim().toLowerCase();

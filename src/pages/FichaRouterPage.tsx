@@ -2,19 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
-import { FichaEscribeLMPage } from "./FichaEscribeLMPage";
-import { FichaLeeLMPage } from "./FichaLeeLMPage";
-import { FichaOralLMPage } from "./FichaOralLMPage";
+import { FichaDinamicaPage } from "./FichaDinamicaPage";
 import { canSeeAllRole } from "../lib/roles";
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white">
-      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-      <p className="mt-2 text-sm text-white/60">Módulo en construcción.</p>
-    </div>
-  );
-}
 
 export function FichaRouterPage() {
   const { monitoreoCodigo, fichaCodigo } = useParams();
@@ -23,7 +12,7 @@ export function FichaRouterPage() {
   const [allowed, setAllowed] = useState(false);
 
   const m = (monitoreoCodigo || "").toUpperCase();
-  const f = (fichaCodigo || "").toUpperCase();
+  void fichaCodigo;
 
   useEffect(() => {
     let alive = true;
@@ -101,18 +90,5 @@ export function FichaRouterPage() {
     );
   }
 
-  // Por ahora implementamos LM/ESCRIBE real
-  if (m === "LM" && f === "ESCRIBE") {
-    return <FichaEscribeLMPage />;
-  }
-
-  if (m === "LM" && f === "LEE") {
-    return <FichaLeeLMPage />;
-  }
-
-  if (m === "LM" && f === "ORAL") {
-    return <FichaOralLMPage />;
-  }
-
-  return <Placeholder title={`Ficha no soportada: ${m}/${f}`} />;
+  return <FichaDinamicaPage />;
 }
