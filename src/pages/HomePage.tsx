@@ -8,7 +8,7 @@ type RunRow = {
   status: string;
   created_by: string;
   created_at: string;
-  ficha_id: string;
+  template_id?: string;
 };
 
 type ProfileRow = {
@@ -25,6 +25,7 @@ type FichaRow = {
   id: string;
   codigo: string;
   monitoreo_id: string;
+  form_template_id?: string | null;
 };
 
 type MonitoreoRow = {
@@ -84,7 +85,7 @@ export function HomePage() {
 
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
-  const [fichas, setFichas] = useState<Record<string, FichaRow>>({});
+  const [fichasByTemplate, setFichasByTemplate] = useState<Record<string, FichaRow>>({});
   const [monById, setMonById] = useState<Record<string, MonitoreoRow>>({});
 
   // Cargar años disponibles
@@ -144,41 +145,44 @@ export function HomePage() {
         const start = m ? new Date(y, m - 1, 1) : new Date(y, 0, 1);
         const end = m ? new Date(y, m, 1) : new Date(y + 1, 0, 1);
 
-        // Si hay filtro por monitoreo, resolvemos fichas_id
-        let fichaIds: string[] | null = null;
+        // Si hay filtro por monitoreo, resolvemos template_id
+        let templateIdsByMon: string[] | null = null;
         if (monitoreo !== "ALL") {
           const mon = monitoreos.find((x) => x.codigo === monitoreo);
           if (mon?.id) {
             const { data: fichasData, error: fichasErr } = await supabase
               .from("ficha_catalog")
-              .select("id, codigo, monitoreo_id")
+              .select("id, codigo, monitoreo_id, form_template_id")
               .eq("monitoreo_id", mon.id);
             if (fichasErr) throw new Error(fichasErr.message);
-            fichaIds = (fichasData ?? []).map((f: any) => f.id);
+            templateIdsByMon = (fichasData ?? [])
+              .map((f: any) => f.form_template_id)
+              .filter(Boolean);
           } else {
-            fichaIds = [];
+            templateIdsByMon = [];
           }
         }
 
         let query = supabase
-          .from("ficha_run")
-          .select("id, status, created_by, created_at, ficha_id")
+          .from("form_run")
+          .select("id, status, created_by, created_at, template_id")
           .gte("created_at", start.toISOString())
           .lt("created_at", end.toISOString())
           .order("created_at", { ascending: false });
         query = query.eq("is_test", isTestMode);
+        query = query.neq("status", "borrador");
 
-        if (fichaIds) {
-          if (fichaIds.length === 0) {
+        if (templateIdsByMon) {
+          if (templateIdsByMon.length === 0) {
             if (!alive) return;
             setRuns([]);
             setProfiles({});
-            setFichas({});
+            setFichasByTemplate({});
             setMonById({});
             setLoading(false);
             return;
           }
-          query = query.in("ficha_id", fichaIds);
+          query = query.in("template_id", templateIdsByMon);
         }
 
         const { data: runData, error: runErr } = await query;
@@ -188,16 +192,20 @@ export function HomePage() {
         setRuns(runRows);
 
         // Cargar fichas (para mostrar monitoreo/ficha)
-        const fichaIdSet = Array.from(new Set(runRows.map((r) => r.ficha_id)));
-        if (fichaIdSet.length) {
+        const templateIdSet = Array.from(
+          new Set(runRows.map((r) => r.template_id).filter(Boolean) as string[])
+        );
+        if (templateIdSet.length) {
           const { data: fData, error: fErr } = await supabase
             .from("ficha_catalog")
-            .select("id, codigo, monitoreo_id")
-            .in("id", fichaIdSet);
+            .select("id, codigo, monitoreo_id, form_template_id")
+            .in("form_template_id", templateIdSet);
           if (fErr) throw new Error(fErr.message);
           const fMap: Record<string, FichaRow> = {};
-          (fData ?? []).forEach((f: any) => (fMap[f.id] = f));
-          setFichas(fMap);
+          (fData ?? []).forEach((f: any) => {
+            if (f.form_template_id) fMap[f.form_template_id] = f;
+          });
+          setFichasByTemplate(fMap);
 
           const monIdSet = Array.from(new Set((fData ?? []).map((f: any) => f.monitoreo_id)));
           if (monIdSet.length) {
@@ -213,7 +221,7 @@ export function HomePage() {
             setMonById({});
           }
         } else {
-          setFichas({});
+          setFichasByTemplate({});
           setMonById({});
         }
 
@@ -247,7 +255,7 @@ export function HomePage() {
   const stats = useMemo(() => {
     const totalRuns = runs.length;
     const statusCounts = runs.reduce<Record<string, number>>((acc, r) => {
-      const st = r.status === "submitted" ? "draft" : r.status;
+      const st = r.status;
       acc[st] = (acc[st] || 0) + 1;
       return acc;
     }, {});
@@ -259,7 +267,7 @@ export function HomePage() {
     }, {});
 
     const byMonitoreo = runs.reduce<Record<string, number>>((acc, r) => {
-      const ficha = fichas[r.ficha_id];
+      const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
       const mon = ficha ? monById[ficha.monitoreo_id] : null;
       const key = mon?.codigo || "SIN_MON";
       acc[key] = (acc[key] || 0) + 1;
@@ -288,7 +296,7 @@ export function HomePage() {
       }));
 
     return { totalRuns, statusCounts, userCount, roleCounts, byMonitoreo, topUsers };
-  }, [runs, profiles, fichas, monById]);
+  }, [runs, profiles, fichasByTemplate, monById]);
 
   return (
     <div className="text-white">
@@ -376,7 +384,7 @@ export function HomePage() {
           <div className="mt-1 text-2xl font-semibold">{stats.statusCounts.final || 0}</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="text-xs text-white/60">Borradores</div>
+          <div className="text-xs text-white/60">Guardados</div>
           <div className="mt-1 text-2xl font-semibold">{stats.statusCounts.draft || 0}</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -441,7 +449,7 @@ export function HomePage() {
         <div className="text-sm font-semibold">Últimos registros</div>
         <div className="mt-3 space-y-2 text-sm text-white/70">
           {runs.slice(0, 6).map((r) => {
-            const ficha = fichas[r.ficha_id];
+            const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
             const mon = ficha ? monById[ficha.monitoreo_id] : null;
             return (
               <div key={r.id} className="flex flex-wrap items-center justify-between gap-2">

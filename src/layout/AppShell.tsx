@@ -121,6 +121,12 @@ export function AppShell() {
       <nav className="mt-4 space-y-1">
         <Item to="/app" label="Inicio" icon={<HomeIcon />} onClick={onItemClick} />
         <Item to="/app/monitoreo" label="Monitoreo" icon={<ClipboardIcon />} onClick={onItemClick} />
+        <Item
+          to="/app/gestion-monitoreos"
+          label={"Gesti\u00f3n de Monitoreos"}
+          icon={<FormIcon />}
+          onClick={onItemClick}
+        />
         {canSeeAll && (
           <Item to="/app/asignaciones" label="Asignaciones" icon={<UsersCheckIcon />} onClick={onItemClick} />
         )}
@@ -261,6 +267,17 @@ function HomeIcon() {
     <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
       <path
         d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function FormIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path
+        d="M6 3h9a2 2 0 0 1 2 2v1h2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6h2V5a2 2 0 0 1 2-2Zm0 5v12h11V8H6Zm2 2h7v2H8v-2Zm0 4h7v2H8v-2Z"
         fill="currentColor"
       />
     </svg>

@@ -33,6 +33,7 @@ const emptyCreateForm: AdminCreateUserInput = {
   comision: "",
   ugel: "UGEL 06",
   rei: "SIN REI",
+  can_create_monitoreo: false,
   rol: "user",
   password: "",
 };
@@ -264,6 +265,7 @@ export function UsersPage() {
           comision: u.comision,
           ugel: u.ugel,
           rei: u.rei ?? "SIN REI",
+          can_create_monitoreo: u.can_create_monitoreo ?? false,
           rol: u.role,
         })) as ProfileRow[];
         setItems(mapped);
@@ -350,6 +352,7 @@ export function UsersPage() {
         cargo: createForm.cargo?.trim() || null,
         ugel: createForm.ugel?.trim() || null,
         rei: createForm.rei?.trim() || "SIN REI",
+        can_create_monitoreo: !!createForm.can_create_monitoreo,
         telefono: createForm.telefono?.trim() || null,
         fecha_nacimiento: createForm.fecha_nacimiento?.trim() || null,
       };
@@ -397,6 +400,7 @@ export function UsersPage() {
         comision: editUser.comision,
         ugel: editUser.ugel,
         rei: editUser.rei,
+        can_create_monitoreo: editUser.can_create_monitoreo,
         rol: editUser.rol,
       });
 
@@ -842,6 +846,22 @@ export function UsersPage() {
                 </Select>
               </Field>
             </div>
+          {createForm.rol === "user" && (
+            <div className="md:col-span-3">
+              <Field label="Crear monitoreos">
+                <label className="flex items-center gap-2 text-xs text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={!!createForm.can_create_monitoreo}
+                    onChange={(e) =>
+                      setCreateForm((s) => ({ ...s, can_create_monitoreo: e.target.checked }))
+                    }
+                  />
+                  Habilitar creación de monitoreos
+                </label>
+              </Field>
+            </div>
+          )}
           <div className="md:col-span-3">
             <Field label="UGEL">
               <Input
@@ -1032,6 +1052,24 @@ export function UsersPage() {
                 </Select>
               </Field>
             </div>
+            {editUser.rol === "user" && (
+              <div className="md:col-span-3">
+                <Field label="Crear monitoreos">
+                  <label className="flex items-center gap-2 text-xs text-white/70">
+                    <input
+                      type="checkbox"
+                      checked={!!editUser.can_create_monitoreo}
+                      onChange={(e) =>
+                        setEditUser((s) =>
+                          s ? { ...s, can_create_monitoreo: e.target.checked } : s
+                        )
+                      }
+                    />
+                    Habilitar creación de monitoreos
+                  </label>
+                </Field>
+              </div>
+            )}
             <div className="md:col-span-3">
               <Field label="UGEL">
                 <Input

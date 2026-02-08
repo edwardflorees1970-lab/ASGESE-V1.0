@@ -97,7 +97,7 @@ serve(async (req) => {
     let query = supaAdmin
       .from("profiles")
       .select(
-        "id, tipo_documento, numero_documento, apellido_paterno, apellido_materno, nombres, correo, telefono, fecha_nacimiento, cargo, area, comision, ugel, rei, role, created_at, updated_at",
+        "id, tipo_documento, numero_documento, apellido_paterno, apellido_materno, nombres, correo, telefono, fecha_nacimiento, cargo, area, comision, ugel, rei, can_create_monitoreo, role, created_at, updated_at",
         { count: "exact" }
       );
 

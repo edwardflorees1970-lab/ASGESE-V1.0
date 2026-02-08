@@ -17,17 +17,7 @@ export type FichaCatalogRow = {
   version: number;
   orden: number;
   is_active: boolean;
-};
-
-export type FichaQuestionRow = {
-  id: string;
-  ficha_id: string;
-  qkey: string;   // 'P01'..'P27'
-  numero: number; // 1..27
-  grupo: string;  // PLANIFICACION/TEXTUALIZACION/REVISION/EVALUACION
-  texto: string;
-  orden: number;
-  is_active: boolean;
+  form_template_id?: string | null;
 };
 
 export async function getMonitoreosByYear(anio: number) {
@@ -57,7 +47,7 @@ export async function getMonitoreoByCodigo(anio: number, codigo: string) {
 export async function getFichasByMonitoreo(monitoreoId: string) {
   const { data, error } = await supabase
     .from("ficha_catalog")
-    .select("id, monitoreo_id, codigo, titulo, version, orden, is_active")
+    .select("id, monitoreo_id, codigo, titulo, version, orden, is_active, form_template_id")
     .eq("monitoreo_id", monitoreoId)
     .eq("is_active", true)
     .order("orden", { ascending: true })
@@ -70,7 +60,7 @@ export async function getFichasByMonitoreo(monitoreoId: string) {
 export async function getFichaByCodigo(monitoreoId: string, fichaCodigo: string, version = 1) {
   const { data, error } = await supabase
     .from("ficha_catalog")
-    .select("id, monitoreo_id, codigo, titulo, version, orden, is_active")
+    .select("id, monitoreo_id, codigo, titulo, version, orden, is_active, form_template_id")
     .eq("monitoreo_id", monitoreoId)
     .eq("codigo", fichaCodigo)
     .eq("version", version)
@@ -78,16 +68,4 @@ export async function getFichaByCodigo(monitoreoId: string, fichaCodigo: string,
 
   if (error) throw new Error(error.message);
   return (data ?? null) as FichaCatalogRow | null;
-}
-
-export async function getQuestionsByFicha(fichaId: string) {
-  const { data, error } = await supabase
-    .from("ficha_question")
-    .select("id, ficha_id, qkey, numero, grupo, texto, orden, is_active")
-    .eq("ficha_id", fichaId)
-    .eq("is_active", true)
-    .order("orden", { ascending: true });
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as FichaQuestionRow[];
 }

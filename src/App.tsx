@@ -24,6 +24,9 @@ const AsignacionesPage = lazy(() =>
 const InstitucionesPage = lazy(() =>
   import("./pages/InstitucionesPage").then((m) => ({ default: m.InstitucionesPage }))
 );
+const GestionMonitoreosPage = lazy(() =>
+  import("./pages/GestionMonitoreosPage").then((m) => ({ default: m.GestionMonitoreosPage }))
+);
 
 function PageLoader() {
   return (
@@ -53,6 +56,7 @@ export default function App() {
 
             <Route path="reportes" element={<ReportesPage />} />
             <Route path="instituciones" element={<InstitucionesPage />} />
+            <Route path="gestion-monitoreos" element={<GestionMonitoreosPage />} />
 
             {/* Solo admin */}
             <Route element={<ProtectedRoute requireAdmin />}>
