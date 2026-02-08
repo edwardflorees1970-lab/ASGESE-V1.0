@@ -1,0 +1,1349 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import jsPDF from "jspdf";
+import logoUrl from "../assets/logoagebresf.png";
+import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../app/AuthProvider";
+import { useAppConfig } from "../app/AppConfigProvider";
+
+type Template = {
+  id: string;
+  titulo: string;
+  codigo: string;
+  subtitulo: string | null;
+  header_config: any;
+  footer_config: any;
+};
+
+type Section = {
+  id: string;
+  template_id: string;
+  titulo: string;
+  orden: number;
+};
+
+type Question = {
+  id: string;
+  template_id: string;
+  section_id: string | null;
+  tipo: string;
+  texto: string;
+  orden: number;
+  orden_in_section: number | null;
+  required: boolean;
+  config_json: any;
+};
+
+type InstitucionLite = {
+  id: string;
+  nombre: string;
+  codigo_modular: string;
+  codigo_local: string | null;
+  rei: string | null;
+  nivel?: { nombre: string } | { nombre: string }[] | null;
+};
+
+type HeaderState = {
+  institucion: string;
+  codigo_modular: string;
+  codigo_local: string;
+  distrito: string;
+  rei: string;
+  monitor: string;
+  monitoreado: string;
+  condicion: string;
+  area: string;
+};
+
+type FooterState = {
+  observacion: string;
+  compromiso: string;
+  lugar: string;
+  fecha: string;
+  docente_nombre: string;
+  docente_dni: string;
+  monitor_nombre: string;
+  monitor_dni: string;
+};
+
+type NivelInfo = {
+  nivel: number;
+  descripcion: string;
+};
+
+type Tone = "red" | "amber" | "green";
+
+function levelTone(nivel: number): Tone {
+  if (nivel === 1) return "red";
+  if (nivel === 2) return "amber";
+  return "green";
+}
+
+function toneClasses(tone: Tone) {
+  switch (tone) {
+    case "red":
+      return "border-rose-500/40 bg-rose-500/10 text-rose-100";
+    case "amber":
+      return "border-amber-400/40 bg-amber-400/10 text-amber-100";
+    default:
+      return "border-emerald-500/40 bg-emerald-500/10 text-emerald-100";
+  }
+}
+
+function toUpper(value: string) {
+  return value.toUpperCase();
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function toDataUrl(img: HTMLImageElement): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+  ctx.drawImage(img, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+export function FichaDinamicaPage() {
+  const nav = useNavigate();
+  const { monitoreoCodigo, fichaCodigo } = useParams();
+  const [searchParams] = useSearchParams();
+  const runIdParam = searchParams.get("runId");
+  const returnTo = searchParams.get("returnTo");
+  const { user } = useAuth();
+  const { isTestMode } = useAppConfig();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [template, setTemplate] = useState<Template | null>(null);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [headerCfg, setHeaderCfg] = useState<any>({});
+  const [footerCfg, setFooterCfg] = useState<any>({});
+  const [header, setHeader] = useState<HeaderState>({
+    institucion: "",
+    codigo_modular: "",
+    codigo_local: "",
+    distrito: "",
+    rei: "",
+    monitor: "",
+    monitoreado: "",
+    condicion: "",
+    area: "",
+  });
+  const [footer, setFooter] = useState<FooterState>({
+    observacion: "",
+    compromiso: "",
+    lugar: "",
+    fecha: "",
+    docente_nombre: "",
+    docente_dni: "",
+    monitor_nombre: "",
+    monitor_dni: "",
+  });
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [runId, setRunId] = useState<string | null>(null);
+  const [runStatus, setRunStatus] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showUp, setShowUp] = useState(false);
+  const [showDown, setShowDown] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const [ieQuery, setIeQuery] = useState("");
+  const [ieOpen, setIeOpen] = useState(false);
+  const [ieOptions, setIeOptions] = useState<InstitucionLite[]>([]);
+  const [ieLoading, setIeLoading] = useState(false);
+
+  const defaultHeader = {
+    institucion: true,
+    codigo_modular: true,
+    codigo_local: true,
+    distrito: true,
+    rei: true,
+    monitor: true,
+    monitoreado: true,
+    condicion: true,
+    area: true,
+    area_options: [],
+    nivel_avance: false,
+    nivel_avance_info: [],
+  };
+  const defaultFooter = {
+    observacion: true,
+    compromiso: true,
+    lugar: true,
+    fecha: true,
+    docente_nombre: true,
+    docente_dni: true,
+    monitor_nombre: true,
+    monitor_dni: true,
+  };
+  const effectiveHeaderCfg = headerCfg && Object.keys(headerCfg).length ? headerCfg : defaultHeader;
+  const effectiveFooterCfg = footerCfg && Object.keys(footerCfg).length ? footerCfg : defaultFooter;
+  const nivelInfo: NivelInfo[] = Array.isArray(effectiveHeaderCfg?.nivel_avance_info)
+    ? effectiveHeaderCfg.nivel_avance_info
+    : [];
+  const nivelInfoDisplay =
+    effectiveHeaderCfg?.nivel_avance && nivelInfo.length === 0
+      ? [
+          { nivel: 1, descripcion: "Bajo" },
+          { nivel: 2, descripcion: "Medio" },
+          { nivel: 3, descripcion: "Alto" },
+        ]
+      : nivelInfo;
+
+  const areaOptions = useMemo(
+    () =>
+      (effectiveHeaderCfg?.area_options ?? []).map((v: string) => v.trim()).filter(Boolean),
+    [effectiveHeaderCfg]
+  );
+
+  const handleBack = () => {
+    if (returnTo === "reportes") {
+      nav("/app/reportes");
+      return;
+    }
+    if (monitoreoCodigo) {
+      nav(`/app/monitoreo/${monitoreoCodigo}`);
+      return;
+    }
+    nav("/app/monitoreo");
+  };
+
+  const resetFormState = () => {
+    setRunId(null);
+    setRunStatus(null);
+    setHeader({
+      institucion: "",
+      codigo_modular: "",
+      codigo_local: "",
+      distrito: "",
+      rei: "",
+      monitor: "",
+      monitoreado: "",
+      condicion: "",
+      area: "",
+    });
+    setFooter({
+      observacion: "",
+      compromiso: "",
+      lugar: "",
+      fecha: "",
+      docente_nombre: "",
+      docente_dni: "",
+      monitor_nombre: "",
+      monitor_dni: "",
+    });
+    setAnswers({});
+    setIeQuery("");
+    setIeOptions([]);
+    setIeOpen(false);
+  };
+
+  useEffect(() => {
+    if (!monitoreoCodigo || !fichaCodigo) return;
+    let alive = true;
+
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: mon } = await supabase
+          .from("monitoreo_catalog")
+          .select("id, codigo, is_active")
+          .eq("codigo", monitoreoCodigo)
+          .eq("is_active", true)
+          .order("anio", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!mon?.id) throw new Error("Monitoreo no encontrado.");
+
+        const { data: ficha, error: fichaErr } = await supabase
+          .from("ficha_catalog")
+          .select("id, codigo, titulo, form_template_id")
+          .eq("monitoreo_id", mon.id)
+          .eq("codigo", (fichaCodigo || "").toUpperCase())
+          .maybeSingle();
+        if (fichaErr) throw new Error(fichaErr.message);
+        if (!ficha?.form_template_id) throw new Error("Ficha dinámica no configurada.");
+
+        const { data: tpl, error: tplErr } = await supabase
+          .from("form_template")
+          .select("id, titulo, codigo, subtitulo, header_config, footer_config")
+          .eq("id", ficha.form_template_id)
+          .maybeSingle();
+        if (tplErr) throw new Error(tplErr.message);
+        if (!tpl) throw new Error("Plantilla no encontrada.");
+
+        const { data: secRows, error: secErr } = await supabase
+          .from("form_section")
+          .select("id, template_id, titulo, orden")
+          .eq("template_id", tpl.id)
+          .order("orden", { ascending: true });
+        if (secErr) throw new Error(secErr.message);
+
+        const { data: qRows, error: qErr } = await supabase
+          .from("form_question")
+          .select("id, template_id, section_id, tipo, texto, orden, orden_in_section, required, config_json")
+          .eq("template_id", tpl.id)
+          .order("orden", { ascending: true });
+        if (qErr) throw new Error(qErr.message);
+
+        if (!alive) return;
+        setTemplate(tpl as Template);
+        setHeaderCfg(tpl.header_config ?? defaultHeader);
+        setFooterCfg(tpl.footer_config ?? defaultFooter);
+        setSections((secRows as Section[]) ?? []);
+        setQuestions((qRows as Question[]) ?? []);
+      } catch (e: any) {
+        if (!alive) return;
+        setError(e?.message || "No se pudo cargar la ficha.");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [monitoreoCodigo, fichaCodigo]);
+
+  useEffect(() => {
+    if (!template?.id || !user?.id) return;
+    let alive = true;
+    (async () => {
+      if (!runIdParam) {
+        const { data: draft } = await supabase
+          .from("form_run")
+          .select("id, status, header_json, footer_json")
+          .eq("template_id", template.id)
+          .eq("created_by", user.id)
+          .eq("status", "borrador")
+          .eq("is_test", isTestMode)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!draft || !alive) {
+          resetFormState();
+          return;
+        }
+        setRunId(draft.id);
+        setRunStatus(draft.status);
+        setHeader((s) => ({ ...s, ...(draft.header_json ?? {}) }));
+        setFooter((s) => ({ ...s, ...(draft.footer_json ?? {}) }));
+        const { data: ansRows } = await supabase
+          .from("form_answer")
+          .select("question_id, value_json")
+          .eq("run_id", draft.id);
+        if (!alive) return;
+        const next: Record<string, any> = {};
+        (ansRows ?? []).forEach((r: any) => {
+          next[r.question_id] = r.value_json;
+        });
+        setAnswers(next);
+        return;
+      }
+      const { data } = await supabase
+        .from("form_run")
+        .select("id, status, header_json, footer_json")
+        .eq("id", runIdParam)
+        .eq("template_id", template.id)
+        .eq("is_test", isTestMode)
+        .maybeSingle();
+      if (!data || !alive) return;
+      setRunId(data.id);
+      setRunStatus(data.status);
+      setHeader((s) => ({ ...s, ...(data.header_json ?? {}) }));
+      setFooter((s) => ({ ...s, ...(data.footer_json ?? {}) }));
+      const { data: ansRows } = await supabase
+        .from("form_answer")
+        .select("question_id, value_json")
+        .eq("run_id", data.id);
+      if (!alive) return;
+      const next: Record<string, any> = {};
+      (ansRows ?? []).forEach((r: any) => {
+        next[r.question_id] = r.value_json;
+      });
+      setAnswers(next);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [template?.id, user?.id, isTestMode, runIdParam]);
+
+  useEffect(() => {
+    const term = ieQuery.trim();
+    if (term.length < 2) {
+      setIeOptions([]);
+      return;
+    }
+    setIeLoading(true);
+    const handle = setTimeout(async () => {
+      const { data } = await supabase
+        .from("institucion_educativa")
+        .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre)")
+        .or(`nombre.ilike.%${term}%,codigo_modular.ilike.%${term}%,codigo_local.ilike.%${term}%`)
+        .order("nombre", { ascending: true })
+        .limit(20);
+      setIeOptions(((data as unknown) as InstitucionLite[]) ?? []);
+      setIeLoading(false);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [ieQuery]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const yPos = window.scrollY;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setShowUp(yPos > 200);
+      setShowDown(yPos < max - 200);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const clearDraft = async () => {
+    if (!template?.id || !user?.id) return;
+    let targetId = runStatus === "borrador" || runStatus === "draft" ? runId : null;
+    if (!targetId) {
+      const { data: draft } = await supabase
+        .from("form_run")
+        .select("id")
+        .eq("template_id", template.id)
+        .eq("created_by", user.id)
+        .eq("status", "borrador")
+        .eq("is_test", isTestMode)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      targetId = draft?.id ?? null;
+      if (!targetId) {
+        const { data: draftPub } = await supabase
+          .from("form_run")
+          .select("id")
+          .eq("template_id", template.id)
+          .eq("created_by", user.id)
+          .eq("status", "draft")
+          .eq("is_test", isTestMode)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        targetId = draftPub?.id ?? null;
+      }
+    }
+    if (!targetId) {
+      resetFormState();
+      showToast("No hay borrador para limpiar.");
+      return;
+    }
+    const { error: ansErr } = await supabase.from("form_answer").delete().eq("run_id", targetId);
+    if (ansErr) {
+      showToast(ansErr.message);
+      return;
+    }
+    const { data: deleted, error } = await supabase
+      .from("form_run")
+      .delete()
+      .eq("id", targetId)
+      .select("id");
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+    if (!deleted || deleted.length === 0) {
+      showToast("No se pudo eliminar (posible RLS o permisos).");
+      return;
+    }
+    resetFormState();
+    showToast("Borrador eliminado.");
+  };
+
+  const validate = () => {
+    if (effectiveHeaderCfg.institucion && !header.institucion.trim()) return "Falta Institución Educativa.";
+    if (effectiveHeaderCfg.codigo_modular && !header.codigo_modular.trim()) return "Falta Código Modular.";
+    if (effectiveHeaderCfg.codigo_local && !header.codigo_local.trim()) return "Falta Código Local.";
+    if (effectiveHeaderCfg.distrito && !header.distrito.trim()) return "Falta Distrito/Lugar.";
+    if (effectiveHeaderCfg.monitor && !header.monitor.trim()) return "Falta nombre del monitor.";
+    if (effectiveHeaderCfg.monitoreado && !header.monitoreado.trim()) return "Falta nombre del monitoreado.";
+    if (effectiveHeaderCfg.condicion && !header.condicion.trim()) return "Falta condición.";
+    if (effectiveHeaderCfg.area && !header.area.trim()) return "Falta área.";
+
+    for (const q of questions) {
+      if (!q.required) continue;
+      const v = answers[q.id] ?? {};
+      if (q.tipo === "yes_no") {
+        if (v.yn !== "SI" && v.yn !== "NO") return `Falta marcar Sí/No en: ${q.texto}`;
+      }
+      if (q.tipo === "yes_no_nivel") {
+        if (v.yn !== "SI" && v.yn !== "NO") return `Falta marcar Sí/No en: ${q.texto}`;
+        if (v.yn === "SI" && !v.nivel) return `Falta nivel en: ${q.texto}`;
+      }
+      if (q.tipo === "opciones") {
+        if (q.config_json?.multi) {
+          if (!v.options || v.options.length === 0) return `Falta seleccionar opciones en: ${q.texto}`;
+        } else if (!v.option) {
+          return `Falta seleccionar opción en: ${q.texto}`;
+        }
+      }
+      if (q.tipo === "texto" && (!v.text || !String(v.text).trim())) return `Falta respuesta en: ${q.texto}`;
+      if (q.tipo === "numero" && (!v.number || !String(v.number).trim())) return `Falta número en: ${q.texto}`;
+      if (q.tipo === "archivo_pdf" && (!v.fileName || !String(v.fileName).trim()))
+        return `Falta adjunto en: ${q.texto}`;
+    }
+
+    if (effectiveFooterCfg.lugar && !footer.lugar.trim()) return "Falta Lugar.";
+    if (effectiveFooterCfg.fecha && !footer.fecha) return "Falta Fecha.";
+    return null;
+  };
+
+  const saveRun = async (status: "borrador" | "draft") => {
+    if (!template?.id || !user?.id) {
+      showToast("Sesión inválida. Vuelve a iniciar sesión.");
+      return;
+    }
+    if (status !== "borrador") {
+      const msg = validate();
+      if (msg) {
+        setError(msg);
+        showToast(msg);
+        return;
+      }
+    }
+    setSaving(true);
+    setError(null);
+    const payload = {
+      template_id: template.id,
+      created_by: user.id,
+      status,
+      is_test: isTestMode,
+      header_json: header,
+      footer_json: footer,
+    };
+    let currentRunId = status === "draft" ? null : runId;
+    if (status === "draft" && !currentRunId) {
+      const { data: draftRow } = await supabase
+        .from("form_run")
+        .select("id")
+        .eq("template_id", template.id)
+        .eq("created_by", user.id)
+        .eq("status", "borrador")
+        .eq("is_test", isTestMode)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (draftRow?.id) {
+        currentRunId = draftRow.id;
+      }
+    }
+    if (!currentRunId) {
+      const { data, error } = await supabase.from("form_run").insert(payload).select("id").single();
+      if (error) {
+        setError(error.message);
+        setSaving(false);
+        return;
+      }
+      currentRunId = data.id;
+      if (status === "borrador") setRunId(data.id);
+    } else {
+      const { error } = await supabase.from("form_run").update(payload).eq("id", currentRunId);
+      if (error) {
+        setError(error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    const rows = questions.map((q) => ({
+      run_id: currentRunId,
+      question_id: q.id,
+      value_json: answers[q.id] ?? {},
+    }));
+    if (rows.length) {
+      const { error } = await supabase
+        .from("form_answer")
+        .upsert(rows, { onConflict: "run_id,question_id" });
+      if (error) {
+        setError(error.message);
+        showToast(error.message);
+        setSaving(false);
+        return;
+      }
+    }
+    setSaving(false);
+    showToast(status === "draft" ? "Ficha guardada en BD." : "Borrador guardado.");
+    if (status === "draft") {
+      resetFormState();
+    } else {
+      setRunStatus(status);
+    }
+  };
+
+  const exportPdf = async () => {
+    if (!template) return;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const M = 14;
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    let y = 18;
+    const contentW = pageW - M * 2;
+    const lineH = 5;
+    const smallLineH = 4.2;
+
+    const ensureSpace = (need: number) => {
+      if (y + need > pageH - 14) {
+        doc.addPage();
+        y = 18;
+      }
+    };
+
+    const drawSectionHeader = (title: string) => {
+      ensureSpace(10);
+      doc.setFillColor(230, 236, 243);
+      doc.setDrawColor(160, 170, 185);
+      doc.rect(M, y - 2.5, contentW, 8, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(title, M + 2, y + 2.5);
+      y += 10;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+    };
+
+    const drawKeyValueGrid = (pairs: Array<[string, string]>) => {
+      if (!pairs.length) return;
+      const cols = 2;
+      const colW = contentW / cols;
+      const rowH = 8;
+      const rows = Math.ceil(pairs.length / cols);
+      ensureSpace(rows * rowH + 4);
+      doc.setDrawColor(200);
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          const idx = r * cols + c;
+          const x = M + c * colW;
+          const yCell = y + r * rowH;
+          doc.rect(x, yCell, colW, rowH);
+          const pair = pairs[idx];
+          if (pair) {
+            doc.setFontSize(8);
+            doc.setTextColor(90);
+            doc.text(pair[0], x + 2, yCell + 3.5);
+            doc.setFontSize(9);
+            doc.setTextColor(20);
+            const valueLines = doc.splitTextToSize(pair[1] || "-", colW - 4);
+            doc.text(valueLines, x + 2, yCell + 7);
+          }
+        }
+      }
+      doc.setTextColor(20);
+      y += rows * rowH + 4;
+      doc.setFontSize(10);
+    };
+
+    try {
+      const img = await loadImage(logoUrl);
+      const imgW = 22;
+      const imgH = (img.height / img.width) * imgW;
+      const dataUrl = toDataUrl(img);
+      if (dataUrl) doc.addImage(dataUrl, "PNG", M, y - 8, imgW, imgH);
+    } catch {
+      // ignore
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(template.titulo, M + 26, y);
+    y += 6;
+
+    if (template.subtitulo) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.text(template.subtitulo, M + 26, y);
+      y += 6;
+    }
+
+    doc.setDrawColor(220);
+    doc.line(M, y, pageW - M, y);
+    y += 10;
+
+    const headerPairs: Array<[string, string]> = [];
+    if (effectiveHeaderCfg?.institucion) headerPairs.push(["Institución educativa", header.institucion ?? ""]);
+    if (effectiveHeaderCfg?.codigo_modular) headerPairs.push(["Código modular", header.codigo_modular ?? ""]);
+    if (effectiveHeaderCfg?.codigo_local) headerPairs.push(["Código local", header.codigo_local ?? ""]);
+    if (effectiveHeaderCfg?.distrito) headerPairs.push(["Distrito / Lugar", header.distrito ?? ""]);
+    if (effectiveHeaderCfg?.rei) headerPairs.push(["REI", header.rei ?? ""]);
+    if (effectiveHeaderCfg?.monitor) headerPairs.push(["Monitor", header.monitor ?? ""]);
+    if (effectiveHeaderCfg?.monitoreado) headerPairs.push(["Monitoreado", header.monitoreado ?? ""]);
+    if (effectiveHeaderCfg?.condicion) headerPairs.push(["Condición", header.condicion ?? ""]);
+    if (effectiveHeaderCfg?.area) headerPairs.push(["Área", header.area ?? ""]);
+
+    if (headerPairs.length) {
+      drawSectionHeader("Encabezado");
+      drawKeyValueGrid(headerPairs);
+    }
+
+    if (effectiveHeaderCfg?.nivel_avance && nivelInfoDisplay.length) {
+      const nivelPairs: Array<[string, string]> = nivelInfoDisplay.map((x) => [
+        `Nivel ${x.nivel}`,
+        x.descripcion ?? "",
+      ]);
+      drawSectionHeader("Niveles de respuesta (Sí)");
+      drawKeyValueGrid(nivelPairs);
+    }
+
+    sections.forEach((s) => {
+      drawSectionHeader(s.titulo);
+      questions.filter((q) => q.section_id === s.id).forEach((q) => {
+        const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
+        const lines = doc.splitTextToSize(title, contentW);
+        ensureSpace(lines.length * lineH + 6);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(lines, M, y);
+        y += lines.length * lineH;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+
+        const p = answers[q.id] ?? {};
+        const parts: string[] = [];
+        if (q.tipo === "yes_no") parts.push(`Respuesta: ${p.yn ?? "-"}`);
+        if (q.tipo === "yes_no_nivel") {
+          const levelLabels = q.config_json?.levelLabels ?? [];
+          let nivelLabel = "-";
+          if (p.nivel) {
+            if (typeof p.nivel === "number") {
+              nivelLabel = levelLabels[p.nivel - 1] ?? String(p.nivel);
+            } else {
+              nivelLabel = String(p.nivel);
+            }
+          }
+          parts.push(`Respuesta: ${p.yn ?? "-"}`);
+          parts.push(`Nivel: ${nivelLabel}`);
+        }
+        if (q.tipo === "opciones") {
+          if (p.option) parts.push(`Opción: ${p.option}`);
+          if (p.options?.length) parts.push(`Opciones: ${p.options.join(", ")}`);
+          if (!p.option && !p.options?.length) parts.push("Opciones: -");
+        }
+        if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
+        if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
+        if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
+        parts.push(`Observación: ${p.obs ?? "-"}`);
+
+        if (parts.length) {
+          const detail = parts.join(" | ");
+          const detailLines = doc.splitTextToSize(detail, contentW);
+          doc.text(detailLines, M, y);
+          y += detailLines.length * smallLineH;
+        }
+        y += 4;
+        doc.setDrawColor(235);
+        doc.line(M, y, pageW - M, y);
+        y += 3;
+      });
+    });
+
+    const footerPairs: Array<[string, string]> = [];
+    if (effectiveFooterCfg?.observacion) footerPairs.push(["Observación general", footer.observacion ?? ""]);
+    if (effectiveFooterCfg?.compromiso) footerPairs.push(["Compromiso", footer.compromiso ?? ""]);
+    if (effectiveFooterCfg?.lugar) footerPairs.push(["Lugar", footer.lugar ?? ""]);
+    if (effectiveFooterCfg?.fecha) footerPairs.push(["Fecha", footer.fecha ?? ""]);
+    if (effectiveFooterCfg?.docente_nombre) footerPairs.push(["Monitoreado", footer.docente_nombre ?? ""]);
+    if (effectiveFooterCfg?.docente_dni) footerPairs.push(["DNI Monitoreado", footer.docente_dni ?? ""]);
+    if (effectiveFooterCfg?.monitor_nombre) footerPairs.push(["Monitor", footer.monitor_nombre ?? ""]);
+    if (effectiveFooterCfg?.monitor_dni) footerPairs.push(["DNI Monitor", footer.monitor_dni ?? ""]);
+
+    if (footerPairs.length) {
+      drawSectionHeader("Cierre");
+      drawKeyValueGrid(footerPairs);
+    }
+
+    if (y + 22 > pageH - 14) {
+      doc.addPage();
+      y = 18;
+    }
+    doc.setDrawColor(120);
+    doc.line(M, y + 12, M + 70, y + 12);
+    doc.line(pageW - M - 70, y + 12, pageW - M, y + 12);
+    doc.setFontSize(8);
+    doc.text("Firma docente monitoreado", M, y + 16);
+    doc.text("Firma monitor", pageW - M - 70, y + 16);
+
+    doc.save(`ficha_${template.codigo}.pdf`);
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
+        Cargando ficha...
+      </div>
+    );
+  }
+
+  if (!template) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
+        Ficha dinámica no disponible.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 text-white">
+      {toast && (
+        <div className="fixed right-6 top-6 z-50 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-100 shadow-lg">
+          {toast}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+          {error}
+        </div>
+      )}
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm text-white/60">Ficha din?mica</div>
+            <div className="mt-1 text-2xl font-semibold">{template.titulo}</div>
+            {template.subtitulo ? (
+              <div className="text-sm text-white/70">{template.subtitulo}</div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={handleBack}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+
+      <div className="sticky top-20 z-30 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-zinc-950/80 p-2 backdrop-blur">
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+            onClick={() => {
+              const el = document.getElementById(`section-${s.id}`);
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          >
+            {s.titulo}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div className="text-sm font-semibold">Encabezado</div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {effectiveHeaderCfg?.institucion && (
+            <label className="text-sm">
+              <span className="text-white/70">Institución Educativa</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.institucion}
+                onChange={(e) => {
+                  const value = toUpper(e.target.value);
+                  setHeader((s) => ({ ...s, institucion: value }));
+                  setIeQuery(value);
+                  setIeOpen(true);
+                }}
+                placeholder="Buscar institución educativa..."
+              />
+              {ieOpen && (ieOptions.length > 0 || ieLoading) && (
+                <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-white/10 bg-black/70">
+                  {ieLoading ? (
+                    <div className="p-3 text-xs text-white/60">Buscando...</div>
+                  ) : (
+                    ieOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className="flex w-full flex-col gap-0.5 border-b border-white/5 px-3 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                        onClick={() => {
+                          setHeader((s) => ({
+                            ...s,
+                            institucion: opt.nombre ?? "",
+                            codigo_modular: opt.codigo_modular ?? "",
+                            codigo_local: opt.codigo_local ?? "",
+                            rei: opt.rei ?? "",
+                          }));
+                          setIeQuery(opt.nombre ?? "");
+                          setIeOpen(false);
+                        }}
+                      >
+                        <span className="text-sm text-white">{opt.nombre}</span>
+                        <span className="text-[11px] text-white/60">
+                          {opt.codigo_modular} • {opt.codigo_local || "-"}
+                          {Array.isArray(opt.nivel)
+                            ? opt.nivel[0]?.nombre
+                              ? ` • ${opt.nivel[0].nombre}`
+                              : ""
+                            : opt.nivel?.nombre
+                            ? ` • ${opt.nivel.nombre}`
+                            : ""}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </label>
+          )}
+          {effectiveHeaderCfg?.codigo_modular && (
+            <label className="text-sm">
+              <span className="text-white/70">Código modular</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.codigo_modular}
+                onChange={(e) => setHeader((s) => ({ ...s, codigo_modular: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.codigo_local && (
+            <label className="text-sm">
+              <span className="text-white/70">Código local</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.codigo_local}
+                onChange={(e) => setHeader((s) => ({ ...s, codigo_local: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.distrito && (
+            <label className="text-sm">
+              <span className="text-white/70">Distrito / Lugar</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.distrito}
+                onChange={(e) => setHeader((s) => ({ ...s, distrito: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.rei && (
+            <label className="text-sm">
+              <span className="text-white/70">REI</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.rei}
+                onChange={(e) => setHeader((s) => ({ ...s, rei: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitor && (
+            <label className="text-sm">
+              <span className="text-white/70">Monitor</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitor}
+                onChange={(e) => setHeader((s) => ({ ...s, monitor: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitoreado && (
+            <label className="text-sm">
+              <span className="text-white/70">Monitoreado</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitoreado}
+                onChange={(e) => setHeader((s) => ({ ...s, monitoreado: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.condicion && (
+            <label className="text-sm">
+              <span className="text-white/70">Condición</span>
+              <select
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.condicion}
+                onChange={(e) => setHeader((s) => ({ ...s, condicion: e.target.value }))}
+              >
+                <option value="">Seleccione</option>
+                <option value="NOMBRADO">Nombrado</option>
+                <option value="CONTRATADO">Contratado</option>
+              </select>
+            </label>
+          )}
+          {effectiveHeaderCfg?.area && (
+            <label className="text-sm">
+              <span className="text-white/70">Área que monitorea</span>
+              {areaOptions.length ? (
+                <select
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                  value={header.area}
+                  onChange={(e) => setHeader((s) => ({ ...s, area: e.target.value }))}
+                >
+                  <option value="">Seleccione</option>
+                  {areaOptions.map((opt: string) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                  value={header.area}
+                  onChange={(e) => setHeader((s) => ({ ...s, area: toUpper(e.target.value) }))}
+                />
+              )}
+            </label>
+          )}
+        </div>
+      </div>
+
+      {effectiveHeaderCfg?.nivel_avance && nivelInfoDisplay.length ? (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-sm font-semibold">Niveles de respuesta (Sí)</div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            {nivelInfoDisplay.map((x, idx) => (
+              <div
+                key={`${x.nivel}-${idx}`}
+                className={`rounded-xl border p-3 ${toneClasses(levelTone(x.nivel))}`}
+              >
+                <div className="text-xs text-white/60">Nivel</div>
+                <div className="mt-1 text-lg font-semibold">{x.nivel}</div>
+                <div className="mt-2 text-xs text-white/80">{x.descripcion}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {sections.map((s) => (
+        <div key={s.id} id={`section-${s.id}`} className="rounded-2xl border border-white/10 bg-white/5 p-6">
+          <div className="text-sm font-semibold">{s.titulo}</div>
+          <div className="mt-4 space-y-5">
+            {questions
+              .filter((q) => q.section_id === s.id)
+              .map((q) => {
+                const value = answers[q.id] ?? {};
+                return (
+                  <div key={q.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="text-sm font-semibold">{q.texto}</div>
+                    <div className="mt-3 space-y-3 text-sm text-white/80">
+                      {q.tipo === "yes_no" && (
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              checked={value.yn === "SI"}
+                              onChange={() =>
+                                setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "SI" } }))
+                              }
+                            />
+                            Sí
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              checked={value.yn === "NO"}
+                              onChange={() =>
+                                setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "NO", nivel: undefined } }))
+                              }
+                            />
+                            No
+                          </label>
+                        </div>
+                      )}
+
+                      {q.tipo === "yes_no_nivel" && (
+                        <>
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name={`yn-${q.id}`}
+                                checked={value.yn === "SI"}
+                                onChange={() =>
+                                  setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "SI" } }))
+                                }
+                              />
+                              Sí
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name={`yn-${q.id}`}
+                                checked={value.yn === "NO"}
+                                onChange={() =>
+                                  setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "NO", nivel: undefined } }))
+                                }
+                              />
+                              No
+                            </label>
+                          </div>
+                          {value.yn === "SI" ? (
+                            <div className="flex flex-wrap gap-2">
+                              {(q.config_json?.levelLabels?.length ? q.config_json.levelLabels : ["Bajo", "Medio", "Alto"]).map(
+                                (opt: string) => (
+                                  <label
+                                    key={opt}
+                                    className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs"
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`nivel-${q.id}`}
+                                      checked={value.nivel === opt}
+                                      onChange={() =>
+                                        setAnswers((s) => ({ ...s, [q.id]: { ...value, nivel: opt } }))
+                                      }
+                                    />
+                                    {opt}
+                                  </label>
+                                )
+                              )}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+
+                      {q.tipo === "opciones" && (
+                        <div className="flex flex-col gap-2">
+                          {(q.config_json?.options ?? []).map((opt: string) => (
+                            <label key={opt} className="flex items-center gap-2">
+                              <input
+                                type={q.config_json?.multi ? "checkbox" : "radio"}
+                                checked={
+                                  q.config_json?.multi
+                                    ? (value.options ?? []).includes(opt)
+                                    : value.option === opt
+                                }
+                                onChange={(e) => {
+                                  if (q.config_json?.multi) {
+                                    const current = new Set(value.options ?? []);
+                                    if (e.target.checked) current.add(opt);
+                                    else current.delete(opt);
+                                    setAnswers((s) => ({
+                                      ...s,
+                                      [q.id]: { ...value, options: Array.from(current) },
+                                    }));
+                                  } else {
+                                    setAnswers((s) => ({ ...s, [q.id]: { ...value, option: opt } }));
+                                  }
+                                }}
+                              />
+                              {opt}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {q.tipo === "texto" && (
+                        <textarea
+                          className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                          rows={3}
+                          value={value.text ?? ""}
+                          onChange={(e) =>
+                            setAnswers((s) => ({ ...s, [q.id]: { ...value, text: e.target.value } }))
+                          }
+                        />
+                      )}
+
+                      {q.tipo === "numero" && (
+                        <input
+                          className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                          value={value.number ?? ""}
+                          onChange={(e) =>
+                            setAnswers((s) => ({ ...s, [q.id]: { ...value, number: e.target.value } }))
+                          }
+                        />
+                      )}
+
+                      {q.tipo === "archivo_pdf" && (
+                        <div>
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            onChange={(e) =>
+                              setAnswers((s) => ({
+                                ...s,
+                                [q.id]: { ...value, fileName: e.target.files?.[0]?.name ?? "" },
+                              }))
+                            }
+                          />
+                          {value.fileName ? (
+                            <div className="mt-1 text-xs text-white/60">Archivo: {value.fileName}</div>
+                          ) : null}
+                        </div>
+                      )}
+
+                      <textarea
+                        className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                        rows={2}
+                        placeholder="Observaciones"
+                        value={value.obs ?? ""}
+                        onChange={(e) =>
+                          setAnswers((s) => ({ ...s, [q.id]: { ...value, obs: e.target.value } }))
+                        }
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      ))}
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div className="text-sm font-semibold">Cierre</div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {effectiveFooterCfg?.observacion && (
+            <label className="text-sm md:col-span-2">
+              <span className="text-white/70">Observación general</span>
+              <textarea
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                rows={3}
+                value={footer.observacion}
+                onChange={(e) => setFooter((s) => ({ ...s, observacion: e.target.value }))}
+              />
+            </label>
+          )}
+          {effectiveFooterCfg?.compromiso && (
+            <label className="text-sm md:col-span-2">
+              <span className="text-white/70">Compromiso</span>
+              <textarea
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                rows={3}
+                value={footer.compromiso}
+                onChange={(e) => setFooter((s) => ({ ...s, compromiso: e.target.value }))}
+              />
+            </label>
+          )}
+          {effectiveFooterCfg?.lugar && (
+            <label className="text-sm">
+              <span className="text-white/70">Lugar</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={footer.lugar}
+                onChange={(e) => setFooter((s) => ({ ...s, lugar: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveFooterCfg?.fecha && (
+            <label className="text-sm">
+              <span className="text-white/70">Fecha</span>
+              <input
+                type="date"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={footer.fecha}
+                onChange={(e) => setFooter((s) => ({ ...s, fecha: e.target.value }))}
+              />
+            </label>
+          )}
+          {effectiveFooterCfg?.docente_nombre && (
+            <label className="text-sm">
+              <span className="text-white/70">Monitoreado</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={footer.docente_nombre}
+                onChange={(e) => setFooter((s) => ({ ...s, docente_nombre: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveFooterCfg?.docente_dni && (
+            <label className="text-sm">
+              <span className="text-white/70">DNI Monitoreado</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={footer.docente_dni}
+                onChange={(e) => setFooter((s) => ({ ...s, docente_dni: e.target.value }))}
+              />
+            </label>
+          )}
+          {effectiveFooterCfg?.monitor_nombre && (
+            <label className="text-sm">
+              <span className="text-white/70">Monitor</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={footer.monitor_nombre}
+                onChange={(e) => setFooter((s) => ({ ...s, monitor_nombre: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveFooterCfg?.monitor_dni && (
+            <label className="text-sm">
+              <span className="text-white/70">DNI Monitor</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={footer.monitor_dni}
+                onChange={(e) => setFooter((s) => ({ ...s, monitor_dni: e.target.value }))}
+              />
+            </label>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => saveRun("borrador")}
+          disabled={saving}
+          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/20 disabled:opacity-60"
+        >
+          Guardar borrador
+        </button>
+        <button
+          type="button"
+          onClick={() => saveRun("draft")}
+          disabled={saving}
+          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-60"
+        >
+          Guardar en BD
+        </button>
+        <button
+          type="button"
+          onClick={clearDraft}
+          disabled={saving}
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10 disabled:opacity-60"
+        >
+          Limpiar ficha
+        </button>
+        <button
+          type="button"
+          onClick={exportPdf}
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
+        >
+          Exportar PDF
+        </button>
+      </div>
+
+      {showUp && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-20 right-5 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/80"
+        >
+          ↑ Arriba
+        </button>
+      )}
+      {showDown && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
+          className="fixed bottom-8 right-5 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/80"
+        >
+          ↓ Abajo
+        </button>
+      )}
+    </div>
+  );
+}

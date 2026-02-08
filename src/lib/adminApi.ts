@@ -26,6 +26,7 @@ export type ProfileRow = {
   comision: string | null;
   ugel: string | null;
   rei?: string | null;
+  can_create_monitoreo?: boolean | null;
   // OJO: en BD es "role", pero en el frontend usamos "rol"
   rol: "admin" | "user" | "jefe_area" | "director";
   created_at?: string;
@@ -46,6 +47,7 @@ export type AdminCreateUserInput = {
   comision?: string | null;
   ugel?: string | null;
   rei?: string | null;
+  can_create_monitoreo?: boolean | null;
   rol: "admin" | "user" | "jefe_area" | "director";
   password: string;
 };
