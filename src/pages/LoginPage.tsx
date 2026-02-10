@@ -199,6 +199,9 @@ export function LoginPage() {
             </button>
           </div>
         </div>
+        <div className="mt-4 text-center text-[11px] text-white/50">
+          v1.0 Propietario UGEL 06®
+        </div>
       </div>
     </div>
   );

@@ -3,10 +3,12 @@ import jsPDF from "jspdf";
 import logoUrl from "../assets/logoagebresf.png";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const GESTIONES = ["Pública", "Privada", "Pública de gestión directa", "Pública de gestión privada"];
 const MODALIDADES = ["EBR", "EBE", "EBA", "PRONOEI"];
 const TIPOS = ["Focalizado", "No focalizado"];
+const NIVELES = ["Inicial", "Primaria", "Secundaria"];
 
 const QUESTION_TYPES = [
   { value: "yes_no", label: "Sí / No" },
@@ -125,6 +127,10 @@ export function GestionMonitoreosPage() {
   const [savingConfig, setSavingConfig] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+  const [deleteMonOpen, setDeleteMonOpen] = useState(false);
+  const [deleteMonBusy, setDeleteMonBusy] = useState(false);
+  const [rebuildIeBusy, setRebuildIeBusy] = useState(false);
+  const [rebuildIeOpen, setRebuildIeOpen] = useState(false);
 
   const [items, setItems] = useState<Solicitud[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -139,10 +145,15 @@ export function GestionMonitoreosPage() {
   const [editFechaInicio, setEditFechaInicio] = useState("");
   const [editFechaFin, setEditFechaFin] = useState("");
   const [editCdd, setEditCdd] = useState(false);
+  const [editGestiones, setEditGestiones] = useState<string[]>([]);
+  const [editModalidades, setEditModalidades] = useState<string[]>([]);
+  const [editTipos, setEditTipos] = useState<string[]>([]);
+  const [editNiveles, setEditNiveles] = useState<string[]>([]);
 
   const [gestiones, setGestiones] = useState<string[]>([]);
   const [modalidades, setModalidades] = useState<string[]>([]);
   const [tipos, setTipos] = useState<string[]>([]);
+  const [niveles, setNiveles] = useState<string[]>([]);
 
   const [ieQuery, setIeQuery] = useState("");
   const [ieResults, setIeResults] = useState<InstitucionLite[]>([]);
@@ -255,6 +266,22 @@ export function GestionMonitoreosPage() {
     setEditFechaInicio(selected.fecha_inicio);
     setEditFechaFin(selected.fecha_fin);
     setEditCdd(!!selected.cdd);
+    (async () => {
+      const { data } = await supabase
+        .from("monitoreo_solicitud_filtro")
+        .select("gestion, modalidad, tipo, nivel")
+        .eq("solicitud_id", selected.id);
+      const rows = (data ?? []) as Array<{
+        gestion?: string | null;
+        modalidad?: string | null;
+        tipo?: string | null;
+        nivel?: string | null;
+      }>;
+      setEditGestiones(Array.from(new Set(rows.map((r) => r.gestion).filter(Boolean))) as string[]);
+      setEditModalidades(Array.from(new Set(rows.map((r) => r.modalidad).filter(Boolean))) as string[]);
+      setEditTipos(Array.from(new Set(rows.map((r) => r.tipo).filter(Boolean))) as string[]);
+      setEditNiveles(Array.from(new Set(rows.map((r) => r.nivel).filter(Boolean))) as string[]);
+    })();
   }, [selected]);
 
   useEffect(() => {
@@ -332,6 +359,7 @@ export function GestionMonitoreosPage() {
     setGestiones([]);
     setModalidades([]);
     setTipos([]);
+    setNiveles([]);
     setIeSelected([]);
   };
 
@@ -352,7 +380,30 @@ export function GestionMonitoreosPage() {
     if (error) {
       setError(error.message);
     } else {
+      const { error: delErr } = await supabase
+        .from("monitoreo_solicitud_filtro")
+        .delete()
+        .eq("solicitud_id", selected.id);
+      if (delErr) {
+        setError(delErr.message);
+        setSaving(false);
+        return;
+      }
+      const rows: any[] = [];
+      editGestiones.forEach((g) => rows.push({ solicitud_id: selected.id, gestion: g }));
+      editModalidades.forEach((m) => rows.push({ solicitud_id: selected.id, modalidad: m }));
+      editTipos.forEach((t) => rows.push({ solicitud_id: selected.id, tipo: t }));
+      editNiveles.forEach((n) => rows.push({ solicitud_id: selected.id, nivel: n }));
+      if (rows.length) {
+        const { error: insErr } = await supabase.from("monitoreo_solicitud_filtro").insert(rows);
+        if (insErr) {
+          setError(insErr.message);
+          setSaving(false);
+          return;
+        }
+      }
       await loadSolicitudes();
+      setToast({ type: "ok", msg: "Solicitud actualizada." });
     }
     setSaving(false);
   };
@@ -391,11 +442,12 @@ export function GestionMonitoreosPage() {
 
     const solicitudId = (data as any)?.id as string;
 
-    if (gestiones.length || modalidades.length || tipos.length) {
+    if (gestiones.length || modalidades.length || tipos.length || niveles.length) {
       const rows: any[] = [];
       gestiones.forEach((g) => rows.push({ solicitud_id: solicitudId, gestion: g }));
       modalidades.forEach((m) => rows.push({ solicitud_id: solicitudId, modalidad: m }));
       tipos.forEach((t) => rows.push({ solicitud_id: solicitudId, tipo: t }));
+      niveles.forEach((n) => rows.push({ solicitud_id: solicitudId, nivel: n }));
       if (rows.length) await supabase.from("monitoreo_solicitud_filtro").insert(rows);
     }
 
@@ -444,7 +496,7 @@ export function GestionMonitoreosPage() {
         const codigo = `SOL-${solicitudId.slice(0, 8).toUpperCase()}`;
         const { data: mon } = await supabase
           .from("monitoreo_catalog")
-          .select("id")
+          .select("id, solicitud_id")
           .eq("codigo", codigo)
           .maybeSingle();
         let monitoreoId = mon?.id as string | undefined;
@@ -459,11 +511,17 @@ export function GestionMonitoreosPage() {
               is_active: true,
               fecha_inicio: sol.fecha_inicio,
               fecha_fin: sol.fecha_fin,
+              solicitud_id: solicitudId,
             })
             .select("id")
             .single();
           if (insErr) throw new Error(insErr.message);
           monitoreoId = inserted.id;
+        } else if (!mon?.solicitud_id) {
+          await supabase
+            .from("monitoreo_catalog")
+            .update({ solicitud_id: solicitudId })
+            .eq("id", monitoreoId);
         }
 
         const { data: tpls, error: tplErr } = await supabase
@@ -484,6 +542,18 @@ export function GestionMonitoreosPage() {
           })) || [];
         if (rows.length) {
           await supabase.from("ficha_catalog").insert(rows);
+        }
+
+        // Poblar IE por filtros si no hay focalizadas guardadas
+        const { count: ieCount } = await supabase
+          .from("monitoreo_solicitud_ie")
+          .select("id", { count: "exact", head: true })
+          .eq("solicitud_id", solicitudId);
+        if (!ieCount || ieCount === 0) {
+          const { error: popErr } = await supabase.rpc("populate_solicitud_ie", {
+            p_solicitud_id: solicitudId,
+          });
+          if (popErr) throw new Error(popErr.message);
         }
       }
     } catch (e: any) {
@@ -506,12 +576,86 @@ export function GestionMonitoreosPage() {
     loadSolicitudes();
   };
 
-  const inactivateSolicitud = async (solicitudId: string) => {
+  const inactivateMonitoreo = async (solicitudId: string) => {
+    const { data: mon, error: monErr } = await supabase
+      .from("monitoreo_catalog")
+      .select("id")
+      .eq("solicitud_id", solicitudId)
+      .maybeSingle();
+    if (monErr) {
+      setError(monErr.message);
+      return;
+    }
+    if (mon?.id) {
+      const { error: updErr } = await supabase
+        .from("monitoreo_catalog")
+        .update({ is_active: false })
+        .eq("id", mon.id);
+      if (updErr) {
+        setError(updErr.message);
+        return;
+      }
+    }
     await supabase
       .from("monitoreo_solicitud")
       .update({ status: "inactive", inactive_at: new Date().toISOString() })
       .eq("id", solicitudId);
     loadSolicitudes();
+  };
+
+  const deleteMonitoreoFull = async (solicitudId: string) => {
+    setDeleteMonBusy(true);
+    const { data: mon, error: monErr } = await supabase
+      .from("monitoreo_catalog")
+      .select("id")
+      .eq("solicitud_id", solicitudId)
+      .maybeSingle();
+    if (monErr) {
+      setError(monErr.message);
+      setDeleteMonBusy(false);
+      return;
+    }
+    if (!mon?.id) {
+      setError("No se encontró el monitoreo publicado.");
+      setDeleteMonBusy(false);
+      return;
+    }
+    const { error } = await supabase.rpc("delete_monitoreo_full", {
+      p_monitoreo_id: mon.id,
+    });
+    if (error) {
+      setError(error.message);
+      setDeleteMonBusy(false);
+      return;
+    }
+    if (selectedId === solicitudId) setSelectedId(null);
+    loadSolicitudes();
+    setDeleteMonBusy(false);
+    setDeleteMonOpen(false);
+  };
+
+  const rebuildIeFromFilters = async (solicitudId: string) => {
+    setRebuildIeBusy(true);
+    const { error: delErr } = await supabase
+      .from("monitoreo_solicitud_ie")
+      .delete()
+      .eq("solicitud_id", solicitudId);
+    if (delErr) {
+      setToast({ type: "err", msg: delErr.message });
+      setRebuildIeBusy(false);
+      return;
+    }
+    const { error: popErr } = await supabase.rpc("populate_solicitud_ie", {
+      p_solicitud_id: solicitudId,
+    });
+    if (popErr) {
+      setToast({ type: "err", msg: popErr.message });
+      setRebuildIeBusy(false);
+      return;
+    }
+    setToast({ type: "ok", msg: "IE regeneradas por filtros." });
+    setRebuildIeBusy(false);
+    setRebuildIeOpen(false);
   };
 
   const deleteSolicitud = async (solicitudId: string) => {
@@ -1076,6 +1220,9 @@ export function GestionMonitoreosPage() {
                 <div className="mt-1 text-xs text-white/60">
                   {s.fecha_inicio} → {s.fecha_fin}
                 </div>
+                <div className="mt-1 text-xs text-white/50">
+                  Código: SOL-{s.id.slice(0, 8).toUpperCase()}
+                </div>
                 {s.motivo_rechazo && (
                   <div className="mt-2 text-xs text-red-100">Rechazo: {s.motivo_rechazo}</div>
                 )}
@@ -1130,7 +1277,7 @@ export function GestionMonitoreosPage() {
 
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="text-xs text-white/60">Filtros</div>
-                <div className="mt-2 grid gap-3 md:grid-cols-3">
+                <div className="mt-2 grid gap-3 md:grid-cols-4">
                   <div>
                     <div className="text-xs text-white/60">Gestión</div>
                     {GESTIONES.map((g) => (
@@ -1170,6 +1317,20 @@ export function GestionMonitoreosPage() {
                           disabled={!canCreate}
                         />
                         {t}
+                      </label>
+                    ))}
+                  </div>
+                  <div>
+                    <div className="text-xs text-white/60">Nivel</div>
+                    {NIVELES.map((n) => (
+                      <label key={n} className="mt-1 flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={niveles.includes(n)}
+                          onChange={() => setNiveles((v) => toggleValue(v, n))}
+                          disabled={!canCreate}
+                        />
+                        {n}
                       </label>
                     ))}
                   </div>
@@ -1273,10 +1434,29 @@ export function GestionMonitoreosPage() {
                   {isAdmin && selected.status === "approved" && (
                     <button
                       type="button"
-                      onClick={() => inactivateSolicitud(selected.id)}
+                      onClick={() => inactivateMonitoreo(selected.id)}
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
                     >
-                      Inactivar
+                      Inactivar monitoreo
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setRebuildIeOpen(true)}
+                      disabled={rebuildIeBusy}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                    >
+                      {rebuildIeBusy ? "Reaplicando..." : "Reaplicar filtros IE"}
+                    </button>
+                  )}
+                  {isAdmin && selected.status === "approved" && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteMonOpen(true)}
+                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
+                    >
+                      Eliminar monitoreo
                     </button>
                   )}
                   {isAdmin && (selected.status === "pending" || selected.status === "rejected") && (
@@ -1321,17 +1501,74 @@ export function GestionMonitoreosPage() {
                       />
                       Compromiso de Desempeño (CdD)
                     </label>
-                    <textarea
-                      className="min-h-[70px] rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm md:col-span-2"
-                      placeholder="Detalle del monitoreo"
-                      value={editDetalle}
-                      onChange={(e) => setEditDetalle(e.target.value)}
-                    />
+                  <textarea
+                    className="min-h-[70px] rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm md:col-span-2"
+                    placeholder="Detalle del monitoreo"
+                    value={editDetalle}
+                    onChange={(e) => setEditDetalle(e.target.value)}
+                  />
+                </div>
+                <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="text-xs text-white/60">Filtros</div>
+                  <div className="mt-2 grid gap-3 md:grid-cols-4">
+                    <div>
+                      <div className="text-xs text-white/60">Gestión</div>
+                      {GESTIONES.map((g) => (
+                        <label key={g} className="mt-1 flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={editGestiones.includes(g)}
+                            onChange={() => setEditGestiones((v) => toggleValue(v, g))}
+                          />
+                          {g}
+                        </label>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/60">Modalidad</div>
+                      {MODALIDADES.map((m) => (
+                        <label key={m} className="mt-1 flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={editModalidades.includes(m)}
+                            onChange={() => setEditModalidades((v) => toggleValue(v, m))}
+                          />
+                          {m}
+                        </label>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/60">Tipo</div>
+                      {TIPOS.map((t) => (
+                        <label key={t} className="mt-1 flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={editTipos.includes(t)}
+                            onChange={() => setEditTipos((v) => toggleValue(v, t))}
+                          />
+                          {t}
+                        </label>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/60">Nivel</div>
+                      {NIVELES.map((n) => (
+                        <label key={n} className="mt-1 flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={editNiveles.includes(n)}
+                            onChange={() => setEditNiveles((v) => toggleValue(v, n))}
+                          />
+                          {n}
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                  <div className="mt-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={updateSolicitud}
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={updateSolicitud}
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                     >
                       Guardar cambios
@@ -1798,6 +2035,30 @@ export function GestionMonitoreosPage() {
               </div>
             </div>
           )}
+
+          <ConfirmDialog
+            open={rebuildIeOpen}
+            title="Reaplicar filtros"
+            description="¿Seguro que deseas regenerar las IE según filtros? Se perderán las IE focalizadas actuales."
+            confirmText="Reaplicar"
+            cancelText="Cancelar"
+            variant="default"
+            busy={rebuildIeBusy}
+            onClose={() => !rebuildIeBusy && setRebuildIeOpen(false)}
+            onConfirm={() => selected && rebuildIeFromFilters(selected.id)}
+          />
+
+          <ConfirmDialog
+            open={deleteMonOpen}
+            title="Eliminar monitoreo"
+            description="¿Seguro que deseas eliminar el monitoreo publicado y toda su información? Esta acción no se puede deshacer."
+            confirmText="Eliminar"
+            cancelText="Cancelar"
+            variant="danger"
+            busy={deleteMonBusy}
+            onClose={() => !deleteMonBusy && setDeleteMonOpen(false)}
+            onConfirm={() => selected && deleteMonitoreoFull(selected.id)}
+          />
         </section>
       </div>
       {previewOpen && (

@@ -121,6 +121,7 @@ export function AppShell() {
       <nav className="mt-4 space-y-1">
         <Item to="/app" label="Inicio" icon={<HomeIcon />} onClick={onItemClick} />
         <Item to="/app/monitoreo" label="Monitoreo" icon={<ClipboardIcon />} onClick={onItemClick} />
+        <Item to="/app/seguimiento" label="Seguimiento" icon={<TrackIcon />} onClick={onItemClick} />
         <Item
           to="/app/gestion-monitoreos"
           label={"Gesti\u00f3n de Monitoreos"}
@@ -144,6 +145,9 @@ export function AppShell() {
         >
           Cerrar sesión
         </button>
+      </div>
+      <div className="mt-4 text-center text-[11px] text-white/50">
+        v1.0 Propietario UGEL 06®
       </div>
     </>
   );
@@ -300,6 +304,17 @@ function UsersCheckIcon() {
     <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
       <path
         d="M7 12a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm10.5-1.5l1.5 1.5 3-3 1.5 1.5-4.5 4.5-3-3 1.5-1.5ZM2 20a5 5 0 0 1 10 0v1H2v-1Zm11-4a4 4 0 0 1 4-4h2v2h-2a2 2 0 0 0-2 2v2h-2v-2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function TrackIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path
+        d="M4 18h16v2H4v-2Zm2-3h4v2H6v-2Zm6-4h4v2h-4v-2Zm6-4h2v2h-2V7ZM6 6h6v2H6V6Z"
         fill="currentColor"
       />
     </svg>
