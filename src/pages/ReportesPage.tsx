@@ -737,7 +737,7 @@ export function ReportesPage() {
         creator?.email ||
         "Usuario";
       rows.push([
-        mon?.codigo || "",
+        mon?.nombre || "",
         fichaCodigo,
         fmtDateShort(r.created_at),
         statusLabel(r.status),
@@ -896,10 +896,9 @@ export function ReportesPage() {
               className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
             >
               <option value="ALL">Todos</option>
-              <option value="borrador">borrador</option>
               {monitoreos.map((m) => (
                 <option key={m.codigo} value={m.codigo}>
-                  {m.codigo} - {m.nombre}
+                  {m.nombre}
                 </option>
               ))}
             </select>
@@ -980,7 +979,7 @@ export function ReportesPage() {
               <div key={r.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-semibold">
-                    {mon?.codigo || "MON"} / {fichaCodigo}
+                    {mon?.nombre || "Monitoreo"} / {fichaCodigo}
                   </div>
                   <div
                     className={cls(
@@ -1100,7 +1099,7 @@ export function ReportesPage() {
 
                   return (
                     <tr key={r.id} className="border-t border-white/10 text-sm">
-                      <td className="px-4 py-3">{mon?.codigo || "-"}</td>
+                      <td className="px-4 py-3">{mon?.nombre || "-"}</td>
                       <td className="px-4 py-3">{fichaCodigo}</td>
                       <td className="px-4 py-3 text-white/70">{fmtDateShort(r.created_at)}</td>
                       {canSeeAll && (

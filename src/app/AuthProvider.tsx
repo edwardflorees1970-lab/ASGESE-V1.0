@@ -95,6 +95,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    if (!user?.id) return;
+    const onFocus = () => refreshProfile();
+    window.addEventListener("focus", onFocus);
+    const t = window.setTimeout(() => refreshProfile(), 500);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearTimeout(t);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
     alive.current = true;
 
     (async () => {

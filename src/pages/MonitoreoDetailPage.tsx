@@ -124,7 +124,7 @@ export function MonitoreoDetailPage() {
         </button>
         <div>
           <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-            Monitoreo: {monitoreo?.codigo || monitoreoCodigo}
+            Monitoreo: {monitoreo?.nombre || monitoreoCodigo}
           </h1>
           <p className="mt-1 text-sm text-white/60">
             Elige la ficha/formulario a registrar.

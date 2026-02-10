@@ -69,7 +69,7 @@ export function MonitoreoPage() {
           id: m.id,
           key: m.codigo,
           title: m.nombre,
-          subtitle: m.descripcion?.trim() || `${m.anio} • ${m.codigo}`,
+          subtitle: m.descripcion?.trim() || `${m.anio}`,
           to: `/app/monitoreo/${m.codigo}`,
         })) as MonitoreoCard[];
 

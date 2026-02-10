@@ -269,7 +269,7 @@ export function HomePage() {
     const byMonitoreo = runs.reduce<Record<string, number>>((acc, r) => {
       const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
       const mon = ficha ? monById[ficha.monitoreo_id] : null;
-      const key = mon?.codigo || "SIN_MON";
+      const key = mon?.nombre || "SIN_MON";
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
@@ -353,7 +353,7 @@ export function HomePage() {
               <option value="ALL">Todos</option>
               {monitoreos.map((m) => (
                 <option key={m.codigo} value={m.codigo}>
-                  {m.codigo} - {m.nombre}
+                  {m.nombre}
                 </option>
               ))}
             </select>
@@ -454,7 +454,7 @@ export function HomePage() {
             return (
               <div key={r.id} className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-white/80">
-                  {mon?.codigo || "MON"} / {ficha?.codigo || "FICHA"}
+                  {mon?.nombre || "Monitoreo"} / {ficha?.codigo || "FICHA"}
                 </div>
                 <div className="text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
                 <div
