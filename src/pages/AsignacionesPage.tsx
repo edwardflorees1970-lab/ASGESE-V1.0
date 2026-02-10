@@ -248,7 +248,7 @@ export function AsignacionesPage() {
           >
             {monitoreos.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.codigo} - {m.nombre}
+                {m.nombre}
               </option>
             ))}
           </select>

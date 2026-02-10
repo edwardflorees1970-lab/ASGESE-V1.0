@@ -18,6 +18,9 @@ const HomePage = lazy(() => import("./pages/HomePage").then((m) => ({ default: m
 const ReportesPage = lazy(() =>
   import("./pages/ReportesPage").then((m) => ({ default: m.ReportesPage }))
 );
+const SeguimientoPage = lazy(() =>
+  import("./pages/SeguimientoPage").then((m) => ({ default: m.SeguimientoPage }))
+);
 const AsignacionesPage = lazy(() =>
   import("./pages/AsignacionesPage").then((m) => ({ default: m.AsignacionesPage }))
 );
@@ -55,6 +58,7 @@ export default function App() {
             />
 
             <Route path="reportes" element={<ReportesPage />} />
+            <Route path="seguimiento" element={<SeguimientoPage />} />
             <Route path="instituciones" element={<InstitucionesPage />} />
             <Route path="gestion-monitoreos" element={<GestionMonitoreosPage />} />
 
