@@ -114,6 +114,10 @@ export function SeguimientoPage() {
   const [ieSearch, setIeSearch] = useState("");
   const [iePage, setIePage] = useState(1);
   const [iePageSize, setIePageSize] = useState(20);
+  const [monitorSearch, setMonitorSearch] = useState("");
+  const [monitorOnlyZeroValidated, setMonitorOnlyZeroValidated] = useState(false);
+  const [monitorPage, setMonitorPage] = useState(1);
+  const [monitorPageSize, setMonitorPageSize] = useState(10);
 
   useEffect(() => {
     let alive = true;
@@ -175,6 +179,9 @@ export function SeguimientoPage() {
         setIePickerSearch("");
         setIeSearch("");
         setIePage(1);
+        setMonitorSearch("");
+        setMonitorOnlyZeroValidated(false);
+        setMonitorPage(1);
         const { data: monData } = await supabase
           .from("monitoreo_catalog")
           .select("id, codigo, nombre, solicitud_id")
@@ -408,6 +415,63 @@ export function SeguimientoPage() {
   const totalPages = Math.max(1, Math.ceil(filteredIes.length / iePageSize));
   const pageIes = filteredIes.slice((iePage - 1) * iePageSize, iePage * iePageSize);
 
+  const monitorSummaryRows = useMemo(() => {
+    return monitores.map((m) => {
+      const iesMonitor = ies.filter((ie) => asigByIe[ie.id]?.user_id === m.id);
+      const latestValByIe: Record<string, ValidacionRow> = {};
+      validaciones.forEach((v) => {
+        if (v.user_id !== m.id) return;
+        const prev = latestValByIe[v.institucion_id];
+        if (!prev || new Date(v.validado_at).getTime() > new Date(prev.validado_at).getTime()) {
+          latestValByIe[v.institucion_id] = v;
+        }
+      });
+      const validatedIes = iesMonitor.filter((ie) => Boolean(latestValByIe[ie.id]));
+      const pendingIes = iesMonitor.filter((ie) => !latestValByIe[ie.id]);
+      const avgValidated =
+        validatedIes.length === 0
+          ? 0
+          : Math.round(
+              validatedIes.reduce(
+                (acc, ie) => acc + (latestValByIe[ie.id]?.porcentaje ?? 0),
+                0
+              ) / validatedIes.length
+            );
+      const avgPendingValidation =
+        pendingIes.length === 0
+          ? 0
+          : Math.round(
+              pendingIes.reduce((acc, ie) => acc + (progressByIe[ie.id] ?? 0), 0) /
+                pendingIes.length
+            );
+      return {
+        monitor: m,
+        assignedCount: iesMonitor.length,
+        validatedCount: validatedIes.length,
+        pendingCount: pendingIes.length,
+        avgValidated,
+        avgPendingValidation,
+      };
+    });
+  }, [monitores, ies, asigByIe, validaciones, progressByIe]);
+
+  const filteredMonitorRows = useMemo(() => {
+    const term = monitorSearch.trim().toLowerCase();
+    return monitorSummaryRows.filter((row) => {
+      if (monitorOnlyZeroValidated && row.avgValidated !== 0) return false;
+      if (!term) return true;
+      const name = displayName(row.monitor).toLowerCase();
+      const rei = (row.monitor.rei || "").toLowerCase();
+      return name.includes(term) || rei.includes(term);
+    });
+  }, [monitorSummaryRows, monitorSearch, monitorOnlyZeroValidated]);
+
+  const monitorTotalPages = Math.max(1, Math.ceil(filteredMonitorRows.length / monitorPageSize));
+  const pageMonitorRows = filteredMonitorRows.slice(
+    (monitorPage - 1) * monitorPageSize,
+    monitorPage * monitorPageSize
+  );
+
   const toggleAvance = async (ieId: string, actId: string, tipo: "global" | "extra") => {
     if (!profile?.id) return;
     const existing = avances.find(
@@ -576,7 +640,7 @@ export function SeguimientoPage() {
   }
 
   return (
-    <div className="space-y-5 text-white">
+    <div className="max-w-full space-y-5 overflow-x-hidden text-white">
       {toast && (
         <div className="fixed right-4 top-4 z-50 rounded-xl border border-white/10 bg-black/70 px-4 py-2 text-xs text-white">
           {toast.msg}
@@ -590,7 +654,7 @@ export function SeguimientoPage() {
             Asignación de IE y avance por actividades.
           </p>
         </div>
-        <div className="min-w-[220px]">
+        <div className="w-full min-w-0 sm:min-w-[220px] sm:max-w-[320px]">
           <div className="mb-2 text-xs text-white/60">Monitoreo</div>
           <select
             className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
@@ -640,7 +704,7 @@ export function SeguimientoPage() {
               </datalist>
             </div>
             <select
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
               value={selectedMonitor}
               onChange={(e) => setSelectedMonitor(e.target.value)}
             >
@@ -655,7 +719,7 @@ export function SeguimientoPage() {
               type="button"
               onClick={handleAssign}
               disabled={busyAssign || !selectedIe || !selectedMonitor}
-              className="rounded-lg border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15"
+              className="w-full rounded-lg border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 md:w-auto"
             >
               {busyAssign ? "Guardando..." : "Asignar"}
             </button>
@@ -707,24 +771,24 @@ export function SeguimientoPage() {
               const pct = progressByIe[ie.id] ?? 0;
               const val = latestValidByIe[ie.id];
               return (
-                <div key={ie.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                  <div>
-                    <div className="font-medium">{ie.nombre}</div>
+                <div key={ie.id} className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="break-words font-medium">{ie.nombre}</div>
                     <div className="text-xs text-white/50">
                       {ie.codigo_modular || "-"} · REI {ie.rei || "SIN"}
                     </div>
-                    <div className="text-xs text-white/50">
+                    <div className="break-words text-xs text-white/50">
                       Monitor: {monitor ? displayName(monitor) : "Sin asignar"}
                     </div>
                     {val && (
-                      <div className="text-xs text-white/50">
+                      <div className="break-words text-xs text-white/50">
                         Validado: {val.porcentaje}% · {new Date(val.validado_at).toLocaleDateString("es-PE")}
                       </div>
                     )}
                   </div>
                   <div className="text-xs text-white/60">Avance: {pct}%</div>
                   {canManage && asig && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                       <button
                         className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs"
                         onClick={() => handleUnassign(ie.id)}
@@ -752,7 +816,7 @@ export function SeguimientoPage() {
               <div className="text-xs text-white/50">Sin instituciones para mostrar.</div>
             )}
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-white/60">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
             <div>
               Página {iePage} de {totalPages}
             </div>
@@ -830,29 +894,91 @@ export function SeguimientoPage() {
       {canManage && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-sm font-semibold">Resumen por monitor</div>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+            <label className="text-xs text-white/60">
+              Buscar monitor
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                placeholder="Nombre o REI"
+                value={monitorSearch}
+                onChange={(e) => {
+                  setMonitorSearch(e.target.value);
+                  setMonitorPage(1);
+                }}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-white/70">
+              <input
+                type="checkbox"
+                checked={monitorOnlyZeroValidated}
+                onChange={(e) => {
+                  setMonitorOnlyZeroValidated(e.target.checked);
+                  setMonitorPage(1);
+                }}
+              />
+              Solo 0% validado
+            </label>
+            <label className="text-xs text-white/60">
+              Ver
+              <select
+                className="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                value={monitorPageSize}
+                onChange={(e) => {
+                  setMonitorPageSize(Number(e.target.value));
+                  setMonitorPage(1);
+                }}
+              >
+                {[10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="text-xs text-white/50">{filteredMonitorRows.length} resultados</div>
+          </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {monitores.map((m) => {
-              const iesMonitor = ies.filter((ie) => asigByIe[ie.id]?.user_id === m.id);
-              const avg =
-                iesMonitor.length === 0
-                  ? 0
-                  : Math.round(
-                      iesMonitor.reduce((acc, ie) => acc + (progressByIe[ie.id] ?? 0), 0) /
-                        iesMonitor.length
-                    );
+            {pageMonitorRows.map((row) => {
               return (
-                <div key={m.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div className="font-medium">{displayName(m)}</div>
-                  <div className="text-xs text-white/50">REI {m.rei || "SIN"}</div>
+                <div key={row.monitor.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="font-medium">{displayName(row.monitor)}</div>
+                  <div className="text-xs text-white/50">REI {row.monitor.rei || "SIN"}</div>
                   <div className="mt-2 text-xs text-white/60">
-                    IE asignadas: {iesMonitor.length} · Avance promedio: {avg}%
+                    IE asignadas: {row.assignedCount}
+                  </div>
+                  <div className="mt-1 text-xs text-emerald-300">
+                    Avance validado: {row.avgValidated}% ({row.validatedCount} IE)
+                  </div>
+                  <div className="mt-1 text-xs text-amber-300">
+                    Avance sin validar: {row.avgPendingValidation}% ({row.pendingCount} IE)
                   </div>
                 </div>
               );
             })}
-            {!monitores.length && (
+            {!pageMonitorRows.length && (
               <div className="text-xs text-white/50">Sin monitores asignados.</div>
             )}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
+            <div>
+              Pagina {monitorPage} de {monitorTotalPages}
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
+                onClick={() => setMonitorPage((p) => Math.max(1, p - 1))}
+                disabled={monitorPage <= 1}
+              >
+                Anterior
+              </button>
+              <button
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
+                onClick={() => setMonitorPage((p) => Math.min(monitorTotalPages, p + 1))}
+                disabled={monitorPage >= monitorTotalPages}
+              >
+                Siguiente
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -868,7 +994,7 @@ export function SeguimientoPage() {
           <div className="mt-4 space-y-4">
             {myAssignedIes.map((ie) => (
               <div key={ie.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="font-medium">{ie.nombre}</div>
+                <div className="break-words font-medium">{ie.nombre}</div>
                 <div className="text-xs text-white/50">
                   {ie.codigo_modular || "-"} · REI {ie.rei || "SIN"}
                 </div>
@@ -883,13 +1009,13 @@ export function SeguimientoPage() {
                         av.realizado
                     );
                     return (
-                      <label key={a.id} className="flex items-center gap-2 text-sm">
+                      <label key={a.id} className="flex items-start gap-2 text-sm">
                         <input
                           type="checkbox"
                           checked={done}
                           onChange={() => toggleAvance(ie.id, a.id, "global")}
                         />
-                        {a.titulo}
+                        <span className="break-words">{a.titulo}</span>
                         {a.obligatorio && (
                           <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100">
                             Obligatoria
@@ -912,13 +1038,13 @@ export function SeguimientoPage() {
                           av.realizado
                       );
                       return (
-                        <label key={ex.id} className="flex items-center gap-2 text-sm">
+                        <label key={ex.id} className="flex items-start gap-2 text-sm">
                           <input
                             type="checkbox"
                             checked={done}
                             onChange={() => toggleAvance(ie.id, ex.id, "extra")}
                           />
-                          {ex.titulo}
+                          <span className="break-words">{ex.titulo}</span>
                         </label>
                       );
                     })}

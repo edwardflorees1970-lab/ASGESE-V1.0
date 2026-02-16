@@ -44,8 +44,6 @@ export function LoginPage() {
       // ✅ solo limpia legado, NO borra la sesión real
       clearLegacyAuthStorage();
 
-      console.log("LOGIN start:", { mode, email });
-
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
@@ -58,14 +56,11 @@ export function LoginPage() {
 
       if (!data?.session?.user) throw new Error("Login OK pero no se recibió sesión.");
 
-      console.log("LOGIN OK user:", {
-        id: data.session.user.id,
-        email: data.session.user.email,
-      });
-
       navigate("/app", { replace: true });
     } catch (err: any) {
-      console.warn("LOGIN FAIL:", err?.message || err);
+      if (import.meta.env.DEV) {
+        console.warn("LOGIN FAIL:", err?.message || err);
+      }
       setErrorMsg(err?.message || "Error al iniciar sesión");
     } finally {
       setLoading(false);

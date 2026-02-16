@@ -211,7 +211,7 @@ export function AppShell() {
               onClick={() => setMobileOpen(false)}
               aria-hidden="true"
             />
-            <aside className="absolute left-0 top-0 h-full w-[280px] border-r border-white/10 bg-zinc-950 p-4">
+            <aside className="absolute left-0 top-0 h-full w-[280px] overflow-y-auto border-r border-white/10 bg-zinc-950 p-4 pb-6">
               <div className="mb-3 flex items-center justify-between">
                 <div className="text-sm font-semibold">Menú</div>
                 <button
