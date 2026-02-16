@@ -158,6 +158,10 @@ export function GestionMonitoreosPage() {
   const [ieQuery, setIeQuery] = useState("");
   const [ieResults, setIeResults] = useState<InstitucionLite[]>([]);
   const [ieSelected, setIeSelected] = useState<InstitucionLite[]>([]);
+  const [solSearch, setSolSearch] = useState("");
+  const [solStatusFilter, setSolStatusFilter] = useState("ALL");
+  const [solPage, setSolPage] = useState(1);
+  const [solPageSize, setSolPageSize] = useState(10);
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateTitle, setTemplateTitle] = useState("");
@@ -194,6 +198,21 @@ export function GestionMonitoreosPage() {
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === selectedTemplateId) ?? null,
     [templates, selectedTemplateId]
+  );
+  const filteredSolicitudes = useMemo(() => {
+    const term = solSearch.trim().toLowerCase();
+    return items.filter((s) => {
+      if (solStatusFilter !== "ALL" && s.status !== solStatusFilter) return false;
+      if (!term) return true;
+      const code = `sol-${s.id.slice(0, 8)}`.toLowerCase();
+      const name = (s.nombre || "").toLowerCase();
+      return name.includes(term) || code.includes(term);
+    });
+  }, [items, solSearch, solStatusFilter]);
+  const solTotalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / solPageSize));
+  const pageSolicitudes = filteredSolicitudes.slice(
+    (solPage - 1) * solPageSize,
+    solPage * solPageSize
   );
   const canEditSolicitud = useMemo(() => {
     if (!selected) return false;
@@ -1195,8 +1214,59 @@ export function GestionMonitoreosPage() {
           {loading && <div className="mt-4 text-sm text-white/60">Cargando...</div>}
           {error && <div className="mt-4 text-sm text-red-100">{error}</div>}
 
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="text-xs text-white/60">
+              Buscar
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                placeholder="Nombre o código SOL-XXXXXXX"
+                value={solSearch}
+                onChange={(e) => {
+                  setSolSearch(e.target.value);
+                  setSolPage(1);
+                }}
+              />
+            </label>
+            <label className="text-xs text-white/60">
+              Estado
+              <select
+                className="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                value={solStatusFilter}
+                onChange={(e) => {
+                  setSolStatusFilter(e.target.value);
+                  setSolPage(1);
+                }}
+              >
+                <option value="ALL">Todos</option>
+                <option value="pending">Pendiente</option>
+                <option value="approved_lv1">Aprobado por jefe</option>
+                <option value="approved">Aprobado</option>
+                <option value="rejected">Rechazado</option>
+                <option value="inactive">Inactivo</option>
+              </select>
+            </label>
+            <label className="text-xs text-white/60">
+              Ver
+              <select
+                className="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                value={solPageSize}
+                onChange={(e) => {
+                  setSolPageSize(Number(e.target.value));
+                  setSolPage(1);
+                }}
+              >
+                {[10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="text-xs text-white/50">{filteredSolicitudes.length} resultados</div>
+          </div>
+
           <div className="mt-4 space-y-3">
-            {items.map((s) => (
+            {pageSolicitudes.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSelectedId(s.id)}
@@ -1228,6 +1298,33 @@ export function GestionMonitoreosPage() {
                 )}
               </button>
             ))}
+            {!pageSolicitudes.length && (
+              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
+                Sin resultados.
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
+            <div>
+              Página {solPage} de {solTotalPages}
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
+                onClick={() => setSolPage((p) => Math.max(1, p - 1))}
+                disabled={solPage <= 1}
+              >
+                Anterior
+              </button>
+              <button
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
+                onClick={() => setSolPage((p) => Math.min(solTotalPages, p + 1))}
+                disabled={solPage >= solTotalPages}
+              >
+                Siguiente
+              </button>
+            </div>
           </div>
         </section>
 
