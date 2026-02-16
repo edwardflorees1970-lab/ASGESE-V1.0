@@ -683,7 +683,7 @@ export function SeguimientoPage() {
               {busyAuto ? "Asignando..." : "Asignar automáticamente por REI"}
             </button>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_1fr_auto]">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_auto]">
             <div className="space-y-2">
               <input
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
@@ -850,7 +850,7 @@ export function SeguimientoPage() {
               </span>
             )}
           </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-[1.5fr_auto_auto]">
+          <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-[1.5fr_auto_auto]">
             <input
               className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
               placeholder="Nombre de actividad"
