@@ -5,10 +5,20 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
-const GESTIONES = ["Pública", "Privada", "Pública de gestión directa", "Pública de gestión privada"];
+const GESTION_PUBLICA = "Pública";
+const GESTION_PRIVADA = "Privada";
+const GESTION_PUBLICA_DIRECTA = "Pública de gestión directa";
+const GESTION_PUBLICA_PRIVADA = "Pública de gestión privada";
+const GESTIONES = [GESTION_PUBLICA, GESTION_PRIVADA, GESTION_PUBLICA_DIRECTA, GESTION_PUBLICA_PRIVADA];
 const MODALIDADES = ["EBR", "EBE", "EBA", "PRONOEI"];
 const TIPOS = ["Focalizado", "No focalizado"];
-const NIVELES = ["Inicial", "Primaria", "Secundaria"];
+const NIVELES_BY_MODALIDAD: Record<string, string[]> = {
+  EBR: ["Inicial", "Primaria", "Secundaria"],
+  EBE: ["Inicial", "Primaria", "Secundaria"],
+  EBA: ["Inicial", "Intermedio", "Avanzado"],
+  PRONOEI: ["Inicial"],
+};
+const ALL_NIVELES = Array.from(new Set(Object.values(NIVELES_BY_MODALIDAD).flat()));
 
 const QUESTION_TYPES = [
   { value: "yes_no", label: "Sí / No" },
@@ -114,6 +124,40 @@ function statusTone(status: string) {
   return "border-white/10 bg-white/5 text-white/80";
 }
 
+function normalizeGestionesForDb(values: string[]) {
+  const set = new Set(values);
+  const out = new Set<string>();
+  if (
+    set.has(GESTION_PUBLICA) ||
+    set.has(GESTION_PUBLICA_DIRECTA) ||
+    set.has(GESTION_PUBLICA_PRIVADA)
+  ) {
+    out.add(GESTION_PUBLICA_DIRECTA);
+    out.add(GESTION_PUBLICA_PRIVADA);
+  }
+  if (set.has(GESTION_PRIVADA)) out.add(GESTION_PRIVADA);
+  return Array.from(out);
+}
+
+function toGestionesUi(values: string[]) {
+  const set = new Set(values);
+  const out = new Set<string>();
+  if (set.has(GESTION_PUBLICA_DIRECTA) || set.has(GESTION_PUBLICA_PRIVADA)) {
+    out.add(GESTION_PUBLICA);
+  }
+  if (set.has(GESTION_PUBLICA_DIRECTA)) out.add(GESTION_PUBLICA_DIRECTA);
+  if (set.has(GESTION_PUBLICA_PRIVADA)) out.add(GESTION_PUBLICA_PRIVADA);
+  if (set.has(GESTION_PRIVADA)) out.add(GESTION_PRIVADA);
+  return Array.from(out);
+}
+
+function getNivelesByModalidades(mods: string[]) {
+  if (!mods.length) return ALL_NIVELES;
+  const set = new Set<string>();
+  mods.forEach((m) => (NIVELES_BY_MODALIDAD[m] ?? []).forEach((n) => set.add(n)));
+  return Array.from(set);
+}
+
 export function GestionMonitoreosPage() {
   const { profile, user } = useAuth();
   const role = profile?.role ?? "user";
@@ -198,6 +242,11 @@ export function GestionMonitoreosPage() {
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === selectedTemplateId) ?? null,
     [templates, selectedTemplateId]
+  );
+  const availableNiveles = useMemo(() => getNivelesByModalidades(modalidades), [modalidades]);
+  const editAvailableNiveles = useMemo(
+    () => getNivelesByModalidades(editModalidades),
+    [editModalidades]
   );
   const filteredSolicitudes = useMemo(() => {
     const term = solSearch.trim().toLowerCase();
@@ -296,12 +345,22 @@ export function GestionMonitoreosPage() {
         tipo?: string | null;
         nivel?: string | null;
       }>;
-      setEditGestiones(Array.from(new Set(rows.map((r) => r.gestion).filter(Boolean))) as string[]);
+      setEditGestiones(
+        toGestionesUi(Array.from(new Set(rows.map((r) => r.gestion).filter(Boolean))) as string[])
+      );
       setEditModalidades(Array.from(new Set(rows.map((r) => r.modalidad).filter(Boolean))) as string[]);
       setEditTipos(Array.from(new Set(rows.map((r) => r.tipo).filter(Boolean))) as string[]);
       setEditNiveles(Array.from(new Set(rows.map((r) => r.nivel).filter(Boolean))) as string[]);
     })();
   }, [selected]);
+
+  useEffect(() => {
+    setNiveles((v) => v.filter((n) => availableNiveles.includes(n)));
+  }, [availableNiveles]);
+
+  useEffect(() => {
+    setEditNiveles((v) => v.filter((n) => editAvailableNiveles.includes(n)));
+  }, [editAvailableNiveles]);
 
   useEffect(() => {
     if (!selectedTemplateId) return;
@@ -409,7 +468,9 @@ export function GestionMonitoreosPage() {
         return;
       }
       const rows: any[] = [];
-      editGestiones.forEach((g) => rows.push({ solicitud_id: selected.id, gestion: g }));
+      normalizeGestionesForDb(editGestiones).forEach((g) =>
+        rows.push({ solicitud_id: selected.id, gestion: g })
+      );
       editModalidades.forEach((m) => rows.push({ solicitud_id: selected.id, modalidad: m }));
       editTipos.forEach((t) => rows.push({ solicitud_id: selected.id, tipo: t }));
       editNiveles.forEach((n) => rows.push({ solicitud_id: selected.id, nivel: n }));
@@ -429,6 +490,35 @@ export function GestionMonitoreosPage() {
 
   const toggleValue = (arr: string[], value: string) =>
     arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
+
+  const toggleGestion = (arr: string[], value: string) => {
+    const set = new Set(arr);
+    if (value === GESTION_PUBLICA) {
+      if (set.has(GESTION_PUBLICA)) {
+        set.delete(GESTION_PUBLICA);
+        set.delete(GESTION_PUBLICA_DIRECTA);
+        set.delete(GESTION_PUBLICA_PRIVADA);
+      } else {
+        set.add(GESTION_PUBLICA);
+        set.add(GESTION_PUBLICA_DIRECTA);
+        set.add(GESTION_PUBLICA_PRIVADA);
+      }
+      return Array.from(set);
+    }
+    if (value === GESTION_PUBLICA_DIRECTA || value === GESTION_PUBLICA_PRIVADA) {
+      if (set.has(value)) set.delete(value);
+      else set.add(value);
+      if (set.has(GESTION_PUBLICA_DIRECTA) && set.has(GESTION_PUBLICA_PRIVADA)) {
+        set.add(GESTION_PUBLICA);
+      } else {
+        set.delete(GESTION_PUBLICA);
+      }
+      return Array.from(set);
+    }
+    if (set.has(value)) set.delete(value);
+    else set.add(value);
+    return Array.from(set);
+  };
 
   const submitSolicitud = async () => {
     if (!canCreate) return;
@@ -463,7 +553,9 @@ export function GestionMonitoreosPage() {
 
     if (gestiones.length || modalidades.length || tipos.length || niveles.length) {
       const rows: any[] = [];
-      gestiones.forEach((g) => rows.push({ solicitud_id: solicitudId, gestion: g }));
+      normalizeGestionesForDb(gestiones).forEach((g) =>
+        rows.push({ solicitud_id: solicitudId, gestion: g })
+      );
       modalidades.forEach((m) => rows.push({ solicitud_id: solicitudId, modalidad: m }));
       tipos.forEach((t) => rows.push({ solicitud_id: solicitudId, tipo: t }));
       niveles.forEach((n) => rows.push({ solicitud_id: solicitudId, nivel: n }));
@@ -1382,7 +1474,7 @@ export function GestionMonitoreosPage() {
                         <input
                           type="checkbox"
                           checked={gestiones.includes(g)}
-                          onChange={() => setGestiones((v) => toggleValue(v, g))}
+                          onChange={() => setGestiones((v) => toggleGestion(v, g))}
                           disabled={!canCreate}
                         />
                         {g}
@@ -1419,7 +1511,7 @@ export function GestionMonitoreosPage() {
                   </div>
                   <div>
                     <div className="text-xs text-white/60">Nivel</div>
-                    {NIVELES.map((n) => (
+                    {availableNiveles.map((n) => (
                       <label key={n} className="mt-1 flex items-center gap-2 text-xs">
                         <input
                           type="checkbox"
@@ -1610,12 +1702,12 @@ export function GestionMonitoreosPage() {
                   <div className="mt-2 grid gap-3 md:grid-cols-4">
                     <div>
                       <div className="text-xs text-white/60">Gestión</div>
-                      {GESTIONES.map((g) => (
+                    {GESTIONES.map((g) => (
                         <label key={g} className="mt-1 flex items-center gap-2 text-xs">
                           <input
                             type="checkbox"
                             checked={editGestiones.includes(g)}
-                            onChange={() => setEditGestiones((v) => toggleValue(v, g))}
+                            onChange={() => setEditGestiones((v) => toggleGestion(v, g))}
                           />
                           {g}
                         </label>
@@ -1649,7 +1741,7 @@ export function GestionMonitoreosPage() {
                     </div>
                     <div>
                       <div className="text-xs text-white/60">Nivel</div>
-                      {NIVELES.map((n) => (
+                      {editAvailableNiveles.map((n) => (
                         <label key={n} className="mt-1 flex items-center gap-2 text-xs">
                           <input
                             type="checkbox"
@@ -1695,7 +1787,7 @@ export function GestionMonitoreosPage() {
                 </div>
 
                 {canEditSolicitud && (
-                  <div className="mt-3 grid gap-2 md:grid-cols-[1fr_140px_140px_120px]">
+                  <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
                     <input
                       className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                       placeholder="Título de ficha"
@@ -1744,7 +1836,7 @@ export function GestionMonitoreosPage() {
                   <div>
                     <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
                       {canEditSolicitud && (
-                        <div className="mb-3 grid gap-2 md:grid-cols-[1fr_140px_140px_120px]">
+                        <div className="mb-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
                           <input
                             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                             placeholder="Título de ficha"

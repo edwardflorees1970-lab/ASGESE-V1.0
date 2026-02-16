@@ -155,7 +155,7 @@ export function AppShell() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen w-full overflow-x-hidden bg-zinc-950 text-white">
       {/* Mobile top bar */}
       <div className="md:hidden sticky top-0 z-40 border-b border-white/10 bg-zinc-950/95 backdrop-blur">
         <div className="flex items-center justify-between px-4 py-3">
@@ -190,7 +190,7 @@ export function AppShell() {
         </div>
       </div>
 
-      <div className="flex">
+      <div className="flex min-w-0">
         {/* Desktop sidebar */}
         <aside
           className={cls(
@@ -227,7 +227,7 @@ export function AppShell() {
           </div>
         )}
 
-        <main className="flex-1 p-4 md:p-6">
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-6">
           {sidebarHidden && (
             <div className="mb-3 hidden md:flex items-center">
               <button
@@ -239,7 +239,7 @@ export function AppShell() {
               </button>
             </div>
           )}
-          <div className="mx-auto max-w-5xl fade-in-up">
+          <div className="mx-auto min-w-0 max-w-5xl fade-in-up">
             <Outlet />
           </div>
         </main>

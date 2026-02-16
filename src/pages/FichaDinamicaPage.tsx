@@ -61,8 +61,10 @@ type FooterState = {
   lugar: string;
   fecha: string;
   docente_nombre: string;
+  docente_doc_tipo: "DNI" | "CE";
   docente_dni: string;
   monitor_nombre: string;
+  monitor_doc_tipo: "DNI" | "CE";
   monitor_dni: string;
 };
 
@@ -94,6 +96,10 @@ function toUpper(value: string) {
   return value.toUpperCase();
 }
 
+function onlyDigits(value: string, max: number) {
+  return value.replace(/\D/g, "").slice(0, max);
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -119,6 +125,7 @@ export function FichaDinamicaPage() {
   const [searchParams] = useSearchParams();
   const runIdParam = searchParams.get("runId");
   const returnTo = searchParams.get("returnTo");
+  const midParam = searchParams.get("mid");
   const { user } = useAuth();
   const { isTestMode } = useAppConfig();
 
@@ -146,8 +153,10 @@ export function FichaDinamicaPage() {
     lugar: "",
     fecha: "",
     docente_nombre: "",
+    docente_doc_tipo: "DNI",
     docente_dni: "",
     monitor_nombre: "",
+    monitor_doc_tipo: "DNI",
     monitor_dni: "",
   });
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -162,6 +171,7 @@ export function FichaDinamicaPage() {
   const [ieOpen, setIeOpen] = useState(false);
   const [ieOptions, setIeOptions] = useState<InstitucionLite[]>([]);
   const [ieLoading, setIeLoading] = useState(false);
+  const [solicitudId, setSolicitudId] = useState<string | null>(null);
 
   const defaultHeader = {
     institucion: true,
@@ -239,8 +249,10 @@ export function FichaDinamicaPage() {
       lugar: "",
       fecha: "",
       docente_nombre: "",
+      docente_doc_tipo: "DNI",
       docente_dni: "",
       monitor_nombre: "",
+      monitor_doc_tipo: "DNI",
       monitor_dni: "",
     });
     setAnswers({});
@@ -257,24 +269,37 @@ export function FichaDinamicaPage() {
       setLoading(true);
       setError(null);
       try {
-        const { data: mon } = await supabase
+        const monQuery = supabase
           .from("monitoreo_catalog")
-          .select("id, codigo, is_active")
-          .eq("codigo", monitoreoCodigo)
+          .select("id, codigo, is_active, solicitud_id")
           .eq("is_active", true)
-          .order("anio", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!mon?.id) throw new Error("Monitoreo no encontrado.");
+          .eq("codigo", monitoreoCodigo);
+        const { data: mon } = midParam
+          ? await monQuery.eq("id", midParam).maybeSingle()
+          : await monQuery.order("anio", { ascending: false }).limit(1).maybeSingle();
+        if (!mon?.id) {
+          throw new Error(
+            `Monitoreo no encontrado para codigo=${(monitoreoCodigo || "").toUpperCase()} mid=${midParam || "-"}`
+          );
+        }
+        setSolicitudId((mon as any).solicitud_id ?? null);
 
         const { data: ficha, error: fichaErr } = await supabase
           .from("ficha_catalog")
           .select("id, codigo, titulo, form_template_id")
           .eq("monitoreo_id", mon.id)
           .eq("codigo", (fichaCodigo || "").toUpperCase())
+          .eq("is_active", true)
+          .not("form_template_id", "is", null)
+          .order("version", { ascending: false })
+          .limit(1)
           .maybeSingle();
         if (fichaErr) throw new Error(fichaErr.message);
-        if (!ficha?.form_template_id) throw new Error("Ficha dinámica no configurada.");
+        if (!ficha?.form_template_id) {
+          throw new Error(
+            `No existe ficha dinamica activa para codigo=${(fichaCodigo || "").toUpperCase()} en monitoreo=${mon.id}`
+          );
+        }
 
         const { data: tpl, error: tplErr } = await supabase
           .from("form_template")
@@ -316,7 +341,7 @@ export function FichaDinamicaPage() {
     return () => {
       alive = false;
     };
-  }, [monitoreoCodigo, fichaCodigo]);
+  }, [fichaCodigo, midParam, monitoreoCodigo]);
 
   useEffect(() => {
     if (!template?.id || !user?.id) return;
@@ -387,11 +412,29 @@ export function FichaDinamicaPage() {
       setIeOptions([]);
       return;
     }
+    if (!solicitudId) {
+      setIeOptions([]);
+      return;
+    }
     setIeLoading(true);
     const handle = setTimeout(async () => {
+      const { data: linkRows } = await supabase
+        .from("monitoreo_solicitud_ie")
+        .select("institucion_id")
+        .eq("solicitud_id", solicitudId)
+        .limit(5000);
+
+      const ids = (linkRows ?? []).map((r: any) => r.institucion_id).filter(Boolean);
+      if (!ids.length) {
+        setIeOptions([]);
+        setIeLoading(false);
+        return;
+      }
+
       const { data } = await supabase
         .from("institucion_educativa")
         .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre)")
+        .in("id", ids)
         .or(`nombre.ilike.%${term}%,codigo_modular.ilike.%${term}%,codigo_local.ilike.%${term}%`)
         .order("nombre", { ascending: true })
         .limit(20);
@@ -399,7 +442,7 @@ export function FichaDinamicaPage() {
       setIeLoading(false);
     }, 300);
     return () => clearTimeout(handle);
-  }, [ieQuery]);
+  }, [ieQuery, solicitudId]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -509,6 +552,20 @@ export function FichaDinamicaPage() {
 
     if (effectiveFooterCfg.lugar && !footer.lugar.trim()) return "Falta Lugar.";
     if (effectiveFooterCfg.fecha && !footer.fecha) return "Falta Fecha.";
+    if (effectiveFooterCfg.docente_dni && footer.docente_dni) {
+      const req = footer.docente_doc_tipo === "CE" ? 9 : 8;
+      if (!/^\d+$/.test(footer.docente_dni)) return "Documento del monitoreado: solo numeros.";
+      if (footer.docente_dni.length !== req) {
+        return `Documento del monitoreado incompleto: ${footer.docente_doc_tipo} requiere ${req} digitos.`;
+      }
+    }
+    if (effectiveFooterCfg.monitor_dni && footer.monitor_dni) {
+      const req = footer.monitor_doc_tipo === "CE" ? 9 : 8;
+      if (!/^\d+$/.test(footer.monitor_dni)) return "Documento del monitor: solo numeros.";
+      if (footer.monitor_dni.length !== req) {
+        return `Documento del monitor incompleto: ${footer.monitor_doc_tipo} requiere ${req} digitos.`;
+      }
+    }
     return null;
   };
 
@@ -765,9 +822,19 @@ export function FichaDinamicaPage() {
     if (effectiveFooterCfg?.lugar) footerPairs.push(["Lugar", footer.lugar ?? ""]);
     if (effectiveFooterCfg?.fecha) footerPairs.push(["Fecha", footer.fecha ?? ""]);
     if (effectiveFooterCfg?.docente_nombre) footerPairs.push(["Monitoreado", footer.docente_nombre ?? ""]);
-    if (effectiveFooterCfg?.docente_dni) footerPairs.push(["DNI Monitoreado", footer.docente_dni ?? ""]);
+    if (effectiveFooterCfg?.docente_dni) {
+      footerPairs.push([
+        `${footer.docente_doc_tipo || "DNI"} Monitoreado`,
+        footer.docente_dni ?? "",
+      ]);
+    }
     if (effectiveFooterCfg?.monitor_nombre) footerPairs.push(["Monitor", footer.monitor_nombre ?? ""]);
-    if (effectiveFooterCfg?.monitor_dni) footerPairs.push(["DNI Monitor", footer.monitor_dni ?? ""]);
+    if (effectiveFooterCfg?.monitor_dni) {
+      footerPairs.push([
+        `${footer.monitor_doc_tipo || "DNI"} Monitor`,
+        footer.monitor_dni ?? "",
+      ]);
+    }
 
     if (footerPairs.length) {
       drawSectionHeader("Cierre");
@@ -807,7 +874,7 @@ export function FichaDinamicaPage() {
   return (
     <div className="space-y-5 text-white">
       {toast && (
-        <div className="fixed right-6 top-6 z-50 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-100 shadow-lg">
+        <div className="fixed left-3 right-3 top-4 z-50 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-100 shadow-lg sm:left-auto sm:right-6 sm:top-6">
           {toast}
         </div>
       )}
@@ -1261,12 +1328,37 @@ export function FichaDinamicaPage() {
           )}
           {effectiveFooterCfg?.docente_dni && (
             <label className="text-sm">
-              <span className="text-white/70">DNI Monitoreado</span>
-              <input
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={footer.docente_dni}
-                onChange={(e) => setFooter((s) => ({ ...s, docente_dni: e.target.value }))}
-              />
+              <span className="text-white/70">Documento Monitoreado (DNI o CE)</span>
+              <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-[100px_1fr]">
+                <select
+                  className="rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-sm text-white"
+                  value={footer.docente_doc_tipo}
+                  onChange={(e) =>
+                    setFooter((s) => ({
+                      ...s,
+                      docente_doc_tipo: (e.target.value as "DNI" | "CE") || "DNI",
+                      docente_dni: "",
+                    }))
+                  }
+                >
+                  <option value="DNI">DNI</option>
+                  <option value="CE">CE</option>
+                </select>
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={footer.docente_doc_tipo === "CE" ? 9 : 8}
+                  placeholder={footer.docente_doc_tipo === "CE" ? "9 digitos" : "8 digitos"}
+                  value={footer.docente_dni}
+                  onChange={(e) =>
+                    setFooter((s) => ({
+                      ...s,
+                      docente_dni: onlyDigits(e.target.value, s.docente_doc_tipo === "CE" ? 9 : 8),
+                    }))
+                  }
+                />
+              </div>
             </label>
           )}
           {effectiveFooterCfg?.monitor_nombre && (
@@ -1281,12 +1373,37 @@ export function FichaDinamicaPage() {
           )}
           {effectiveFooterCfg?.monitor_dni && (
             <label className="text-sm">
-              <span className="text-white/70">DNI Monitor</span>
-              <input
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={footer.monitor_dni}
-                onChange={(e) => setFooter((s) => ({ ...s, monitor_dni: e.target.value }))}
-              />
+              <span className="text-white/70">Documento Monitor (DNI o CE)</span>
+              <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-[100px_1fr]">
+                <select
+                  className="rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-sm text-white"
+                  value={footer.monitor_doc_tipo}
+                  onChange={(e) =>
+                    setFooter((s) => ({
+                      ...s,
+                      monitor_doc_tipo: (e.target.value as "DNI" | "CE") || "DNI",
+                      monitor_dni: "",
+                    }))
+                  }
+                >
+                  <option value="DNI">DNI</option>
+                  <option value="CE">CE</option>
+                </select>
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={footer.monitor_doc_tipo === "CE" ? 9 : 8}
+                  placeholder={footer.monitor_doc_tipo === "CE" ? "9 digitos" : "8 digitos"}
+                  value={footer.monitor_dni}
+                  onChange={(e) =>
+                    setFooter((s) => ({
+                      ...s,
+                      monitor_dni: onlyDigits(e.target.value, s.monitor_doc_tipo === "CE" ? 9 : 8),
+                    }))
+                  }
+                />
+              </div>
             </label>
           )}
         </div>

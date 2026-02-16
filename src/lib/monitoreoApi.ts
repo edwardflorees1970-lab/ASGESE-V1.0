@@ -50,6 +50,7 @@ export async function getFichasByMonitoreo(monitoreoId: string) {
     .select("id, monitoreo_id, codigo, titulo, version, orden, is_active, form_template_id")
     .eq("monitoreo_id", monitoreoId)
     .eq("is_active", true)
+    .not("form_template_id", "is", null)
     .order("orden", { ascending: true })
     .order("codigo", { ascending: true });
 

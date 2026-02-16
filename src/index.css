@@ -39,6 +39,15 @@ html,
 body {
   background: var(--app-bg);
   color: var(--app-text);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 [data-theme="light"] .bg-zinc-950 {

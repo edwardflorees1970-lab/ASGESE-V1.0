@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { FichaDinamicaPage } from "./FichaDinamicaPage";
@@ -7,6 +7,8 @@ import { canSeeAllRole } from "../lib/roles";
 
 export function FichaRouterPage() {
   const { monitoreoCodigo, fichaCodigo } = useParams();
+  const [searchParams] = useSearchParams();
+  const midParam = searchParams.get("mid");
   const { profile, profileLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -35,16 +37,28 @@ export function FichaRouterPage() {
           return;
         }
 
-        const { data: mon, error: monError } = await supabase
-          .from("monitoreo_catalog")
-          .select("id, codigo, is_active")
-          .eq("codigo", m)
-          .eq("is_active", true)
-          .order("anio", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (monError) throw new Error(monError.message);
-        if (!mon?.id) {
+        let targetMonitoreoId = midParam;
+        if (!targetMonitoreoId) {
+          const { data: asigRows, error: asigRowsError } = await supabase
+            .from("monitoreo_asignacion")
+            .select("monitoreo_id")
+            .eq("user_id", profile.id);
+          if (asigRowsError) throw new Error(asigRowsError.message);
+          const assignedIds = (asigRows ?? []).map((r: any) => r.monitoreo_id);
+          if (assignedIds.length) {
+            const { data: monRows, error: monRowsError } = await supabase
+              .from("monitoreo_catalog")
+              .select("id, anio")
+              .eq("codigo", m)
+              .eq("is_active", true)
+              .in("id", assignedIds)
+              .order("anio", { ascending: false })
+              .limit(1);
+            if (monRowsError) throw new Error(monRowsError.message);
+            targetMonitoreoId = monRows?.[0]?.id ?? null;
+          }
+        }
+        if (!targetMonitoreoId) {
           if (!alive) return;
           setAllowed(false);
           setLoading(false);
@@ -54,7 +68,7 @@ export function FichaRouterPage() {
         const { data: asig, error: asigError } = await supabase
           .from("monitoreo_asignacion")
           .select("id")
-          .eq("monitoreo_id", mon.id)
+          .eq("monitoreo_id", targetMonitoreoId)
           .eq("user_id", profile.id)
           .limit(1);
         if (asigError) throw new Error(asigError.message);
@@ -72,7 +86,7 @@ export function FichaRouterPage() {
     return () => {
       alive = false;
     };
-  }, [m, profile?.id, profile?.role, profileLoading]);
+  }, [m, midParam, profile?.id, profile?.role, profileLoading]);
 
   if (loading) {
     return (

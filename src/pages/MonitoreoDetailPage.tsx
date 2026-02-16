@@ -81,11 +81,19 @@ export function MonitoreoDetailPage() {
 
         if (allow) {
           const rows = await getFichasByMonitoreo(mon.id);
-          const cards = rows.map((r) => ({
-            key: r.codigo,
-            title: `Ficha ${r.orden}: ${r.titulo}`,
-            subtitle: r.titulo,
-          }));
+          const seen = new Set<string>();
+          const cards = rows
+            .filter((r) => {
+              const k = (r.codigo || "").toUpperCase();
+              if (!k || seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            })
+            .map((r) => ({
+              key: r.codigo,
+              title: `Ficha ${r.orden}: ${r.titulo}`,
+              subtitle: r.titulo,
+            }));
           setFichas(cards);
         }
 
@@ -156,7 +164,11 @@ export function MonitoreoDetailPage() {
             <button
               key={f.key}
               type="button"
-              onClick={() => nav(`/app/monitoreo/${monitoreoCodigo}/ficha/${f.key}`)}
+              onClick={() =>
+                nav(
+                  `/app/monitoreo/${monitoreoCodigo}/ficha/${f.key}?mid=${encodeURIComponent(monitoreo.id)}`
+                )
+              }
               className={cls(
                 "text-left rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5",
                 "hover:bg-white/10 transition"
