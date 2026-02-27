@@ -15,7 +15,7 @@ function parseMode(value: unknown): boolean {
   return raw === "true" || raw === "1" || raw === "si" || raw === "sí";
 }
 
-async function fetchMode(): Promise<boolean> {
+async function fetchMode(): Promise<boolean | null> {
   const { data, error } = await supabase
     .from("app_config")
     .select("value")
@@ -24,7 +24,7 @@ async function fetchMode(): Promise<boolean> {
 
   if (error) {
     console.warn("app_config: no se pudo leer modo_test:", error.message);
-    return false;
+    return null;
   }
   return parseMode((data as any)?.value);
 }
@@ -37,7 +37,9 @@ export function AppConfigProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const v = await fetchMode();
-      setIsTestMode(v);
+      if (v !== null) {
+        setIsTestMode(v);
+      }
     } finally {
       setLoading(false);
     }
@@ -54,6 +56,18 @@ export function AppConfigProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh();
+
+    // Relee modo cuando se establece/actualiza sesión para evitar estado
+    // inicial incorrecto al entrar (ej. mostrar PROD hasta refrescar).
+    const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        refresh();
+      }
+    });
+
+    return () => {
+      authSub.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
