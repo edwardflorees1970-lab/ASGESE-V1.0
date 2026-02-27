@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
@@ -50,6 +50,40 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
+  const bodyOverflowRef = useRef<string | null>(null);
+  const bodyPositionRef = useRef<string | null>(null);
+  const bodyTopRef = useRef<string | null>(null);
+  const bodyWidthRef = useRef<string | null>(null);
+  const scrollYRef = useRef(0);
+  useEffect(() => {
+    if (bodyOverflowRef.current == null) {
+      bodyOverflowRef.current = document.body.style.overflow;
+      bodyPositionRef.current = document.body.style.position;
+      bodyTopRef.current = document.body.style.top;
+      bodyWidthRef.current = document.body.style.width;
+    }
+    if (mobileOpen) {
+      scrollYRef.current = window.scrollY;
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollYRef.current}px`;
+      document.body.style.width = "100%";
+    } else {
+      document.body.style.overflow = bodyOverflowRef.current || "";
+      document.body.style.position = bodyPositionRef.current || "";
+      document.body.style.top = bodyTopRef.current || "";
+      document.body.style.width = bodyWidthRef.current || "";
+      if (scrollYRef.current > 0) {
+        window.scrollTo(0, scrollYRef.current);
+      }
+    }
+    return () => {
+      document.body.style.overflow = bodyOverflowRef.current || "";
+      document.body.style.position = bodyPositionRef.current || "";
+      document.body.style.top = bodyTopRef.current || "";
+      document.body.style.width = bodyWidthRef.current || "";
+    };
+  }, [mobileOpen]);
 
   const nombre =
     [profile?.nombres, profile?.apellido_paterno, profile?.apellido_materno]
@@ -155,7 +189,7 @@ export function AppShell() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-zinc-950 text-white">
+    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-zinc-950 text-white">
       {/* Mobile top bar */}
       <div className="md:hidden sticky top-0 z-40 border-b border-white/10 bg-zinc-950/95 backdrop-blur">
         <div className="flex items-center justify-between px-4 py-3">
@@ -190,7 +224,7 @@ export function AppShell() {
         </div>
       </div>
 
-      <div className="flex min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-1">
         {/* Desktop sidebar */}
         <aside
           className={cls(
@@ -198,7 +232,7 @@ export function AppShell() {
             sidebarHidden ? "w-0 overflow-hidden p-0" : "w-[280px]"
           )}
         >
-          <div className="sticky top-0 max-h-screen overflow-y-auto p-4">
+          <div className="h-full overflow-y-auto overscroll-contain p-4">
             <SidebarContent onToggle={() => setSidebarHidden(true)} />
           </div>
         </aside>
@@ -211,7 +245,7 @@ export function AppShell() {
               onClick={() => setMobileOpen(false)}
               aria-hidden="true"
             />
-            <aside className="absolute left-0 top-0 h-full w-[280px] overflow-y-auto border-r border-white/10 bg-zinc-950 p-4 pb-6">
+            <aside className="absolute left-0 top-0 h-full w-[280px] overflow-y-auto overscroll-contain border-r border-white/10 bg-zinc-950 p-4 pb-6">
               <div className="mb-3 flex items-center justify-between">
                 <div className="text-sm font-semibold">Menú</div>
                 <button
@@ -227,7 +261,7 @@ export function AppShell() {
           </div>
         )}
 
-        <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-6">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 md:p-6">
           {sidebarHidden && (
             <div className="mb-3 hidden md:flex items-center">
               <button

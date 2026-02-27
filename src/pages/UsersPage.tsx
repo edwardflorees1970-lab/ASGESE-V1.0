@@ -602,9 +602,9 @@ export function UsersPage() {
             items.map((u) => (
               <div key={u.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{formatName(u)}</div>
-                    <div className="text-xs text-white/50">{u.correo}</div>
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{formatName(u)}</div>
+                    <div className="truncate text-xs text-white/50">{u.correo}</div>
                   </div>
                   <span
                     className={cls(
