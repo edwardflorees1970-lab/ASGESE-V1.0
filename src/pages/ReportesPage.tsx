@@ -978,7 +978,7 @@ export function ReportesPage() {
             return (
               <div key={r.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-sm font-semibold">
+                  <div className="min-w-0 text-sm font-semibold">
                     {mon?.nombre || "Monitoreo"} / {fichaCodigo}
                   </div>
                   <div
@@ -992,7 +992,7 @@ export function ReportesPage() {
                     {statusText}
                   </div>
                 </div>
-                <div className="mt-1 text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
+                <div className="mt-1 truncate text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
                 {canSeeAll && (
                   <div className="mt-1 text-xs text-white/60">
                     <div>Por: {creatorName}</div>
