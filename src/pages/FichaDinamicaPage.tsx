@@ -51,9 +51,20 @@ type HeaderState = {
   distrito: string;
   rei: string;
   monitor: string;
+  monitor_doc_tipo: "DNI" | "CE";
+  monitor_numero_doc: string;
   monitoreado: string;
+  monitoreado_doc_tipo: "DNI" | "CE";
+  monitoreado_numero_doc: string;
+  monitoreado_cargo: string;
+  monitoreado_telefono: string;
+  monitoreado_correo: string;
   condicion: string;
   area: string;
+  numero_visitas: string;
+  fecha_aplicacion: string;
+  hora_inicio: string;
+  hora_fin: string;
 };
 
 type FooterState = {
@@ -72,6 +83,12 @@ type FooterState = {
 type NivelInfo = {
   nivel: number;
   descripcion: string;
+};
+
+type ExtraFieldCfg = {
+  label: string;
+  mode: "registro" | "elaboracion";
+  default_value?: string | null;
 };
 
 type Tone = "red" | "amber" | "green";
@@ -101,6 +118,30 @@ function onlyDigits(value: string, max: number) {
   return value.replace(/\D/g, "").slice(0, max);
 }
 
+function fieldKey(label: string) {
+  return label.toLowerCase().trim().replace(/\s+/g, "_");
+}
+
+function normalizeExtraFields(input: any): ExtraFieldCfg[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => {
+      if (typeof item === "string") {
+        const label = item.trim();
+        return label ? ({ label, mode: "registro", default_value: "" } as ExtraFieldCfg) : null;
+      }
+      if (!item || typeof item !== "object") return null;
+      const label = String(item.label ?? "").trim();
+      if (!label) return null;
+      return {
+        label,
+        mode: item.mode === "elaboracion" ? "elaboracion" : "registro",
+        default_value: item.default_value ?? "",
+      } as ExtraFieldCfg;
+    })
+    .filter(Boolean) as ExtraFieldCfg[];
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -127,7 +168,7 @@ export function FichaDinamicaPage() {
   const runIdParam = searchParams.get("runId");
   const returnTo = searchParams.get("returnTo");
   const midParam = searchParams.get("mid");
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { isTestMode } = useAppConfig();
 
   const [loading, setLoading] = useState(true);
@@ -144,9 +185,20 @@ export function FichaDinamicaPage() {
     distrito: "",
     rei: "",
     monitor: "",
+    monitor_doc_tipo: "DNI",
+    monitor_numero_doc: "",
     monitoreado: "",
+    monitoreado_doc_tipo: "DNI",
+    monitoreado_numero_doc: "",
+    monitoreado_cargo: "",
+    monitoreado_telefono: "",
+    monitoreado_correo: "",
     condicion: "",
     area: "",
+    numero_visitas: "",
+    fecha_aplicacion: "",
+    hora_inicio: "",
+    hora_fin: "",
   });
   const [footer, setFooter] = useState<FooterState>({
     observacion: "",
@@ -167,6 +219,7 @@ export function FichaDinamicaPage() {
   const [showUp, setShowUp] = useState(false);
   const [showDown, setShowDown] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const monitorReadOnly = profile?.role === "user";
 
   const [ieQuery, setIeQuery] = useState("");
   const [ieOpen, setIeOpen] = useState(false);
@@ -181,9 +234,20 @@ export function FichaDinamicaPage() {
     distrito: true,
     rei: true,
     monitor: true,
+    monitor_doc_tipo: false,
+    monitor_numero_doc: false,
     monitoreado: true,
+    monitoreado_doc_tipo: false,
+    monitoreado_numero_doc: false,
+    monitoreado_cargo: false,
+    monitoreado_telefono: false,
+    monitoreado_correo: false,
     condicion: true,
     area: true,
+    numero_visitas: false,
+    fecha_aplicacion: false,
+    hora_inicio: false,
+    hora_fin: false,
     area_options: [],
     nivel_avance: false,
     nivel_avance_info: [],
@@ -240,9 +304,20 @@ export function FichaDinamicaPage() {
       distrito: "",
       rei: "",
       monitor: "",
+      monitor_doc_tipo: "DNI",
+      monitor_numero_doc: "",
       monitoreado: "",
+      monitoreado_doc_tipo: "DNI",
+      monitoreado_numero_doc: "",
+      monitoreado_cargo: "",
+      monitoreado_telefono: "",
+      monitoreado_correo: "",
       condicion: "",
       area: "",
+      numero_visitas: "",
+      fecha_aplicacion: "",
+      hora_inicio: "",
+      hora_fin: "",
     });
     setFooter({
       observacion: "",
@@ -411,6 +486,23 @@ export function FichaDinamicaPage() {
   }, [template?.id, user?.id, isTestMode, runIdParam]);
 
   useEffect(() => {
+    if (!profile) return;
+    const fullName = [profile.apellido_paterno, profile.apellido_materno, profile.nombres]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    setHeader((s) => ({
+      ...s,
+      monitor: fullName || s.monitor,
+      monitor_doc_tipo:
+        profile.tipo_documento === "CE" || profile.tipo_documento === "DNI"
+          ? profile.tipo_documento
+          : s.monitor_doc_tipo,
+      monitor_numero_doc: profile.numero_documento || s.monitor_numero_doc,
+    }));
+  }, [profile?.tipo_documento, profile?.numero_documento]);
+
+  useEffect(() => {
     const term = ieQuery.trim();
     if (term.length < 2) {
       setIeOptions([]);
@@ -530,6 +622,46 @@ export function FichaDinamicaPage() {
     if (effectiveHeaderCfg.monitoreado && !header.monitoreado.trim()) return "Falta nombre del monitoreado.";
     if (effectiveHeaderCfg.condicion && !header.condicion.trim()) return "Falta condición.";
     if (effectiveHeaderCfg.area && !header.area.trim()) return "Falta área.";
+    if (effectiveHeaderCfg.monitor_doc_tipo && !header.monitor_doc_tipo) return "Falta tipo documento del monitor.";
+    if (effectiveHeaderCfg.monitor_numero_doc && !header.monitor_numero_doc.trim())
+      return "Falta numero de documento del monitor.";
+    if (effectiveHeaderCfg.monitoreado_doc_tipo && !header.monitoreado_doc_tipo)
+      return "Falta tipo documento del monitoreado.";
+    if (effectiveHeaderCfg.monitoreado_numero_doc && !header.monitoreado_numero_doc.trim())
+      return "Falta numero de documento del monitoreado.";
+    if (effectiveHeaderCfg.monitoreado_cargo && !header.monitoreado_cargo.trim())
+      return "Falta cargo del monitoreado.";
+    if (effectiveHeaderCfg.monitoreado_telefono && !header.monitoreado_telefono.trim())
+      return "Falta telefono del monitoreado.";
+    if (effectiveHeaderCfg.monitoreado_correo && !header.monitoreado_correo.trim())
+      return "Falta correo del monitoreado.";
+    if (effectiveHeaderCfg.numero_visitas && !header.numero_visitas.trim()) return "Falta numero de visitas a la IE.";
+    if (effectiveHeaderCfg.fecha_aplicacion && !header.fecha_aplicacion) return "Falta fecha de aplicacion.";
+    if (effectiveHeaderCfg.hora_inicio && !header.hora_inicio) return "Falta hora de inicio.";
+    if (effectiveHeaderCfg.hora_fin && !header.hora_fin) return "Falta hora de fin.";
+
+    if (effectiveHeaderCfg.monitor_numero_doc && header.monitor_numero_doc) {
+      const req = header.monitor_doc_tipo === "CE" ? 9 : 8;
+      if (!/^\d+$/.test(header.monitor_numero_doc)) return "Documento del monitor: solo numeros.";
+      if (header.monitor_numero_doc.length !== req) {
+        return `Documento del monitor incompleto: ${header.monitor_doc_tipo} requiere ${req} digitos.`;
+      }
+    }
+    if (effectiveHeaderCfg.monitoreado_numero_doc && header.monitoreado_numero_doc) {
+      const req = header.monitoreado_doc_tipo === "CE" ? 9 : 8;
+      if (!/^\d+$/.test(header.monitoreado_numero_doc)) return "Documento del monitoreado: solo numeros.";
+      if (header.monitoreado_numero_doc.length !== req) {
+        return `Documento del monitoreado incompleto: ${header.monitoreado_doc_tipo} requiere ${req} digitos.`;
+      }
+    }
+    if (effectiveHeaderCfg.monitoreado_telefono && header.monitoreado_telefono) {
+      if (!/^\d+$/.test(header.monitoreado_telefono)) return "Telefono del monitoreado: solo numeros.";
+    }
+    if (effectiveHeaderCfg.monitoreado_correo && header.monitoreado_correo) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(header.monitoreado_correo.trim())) {
+        return "Correo del monitoreado invalido.";
+      }
+    }
 
     for (const q of questions) {
       if (!q.required) continue;
@@ -750,9 +882,28 @@ export function FichaDinamicaPage() {
     if (effectiveHeaderCfg?.distrito) headerPairs.push(["Distrito / Lugar", header.distrito ?? ""]);
     if (effectiveHeaderCfg?.rei) headerPairs.push(["REI", header.rei ?? ""]);
     if (effectiveHeaderCfg?.monitor) headerPairs.push(["Monitor", header.monitor ?? ""]);
+    if (effectiveHeaderCfg?.monitor_doc_tipo) headerPairs.push(["Tipo doc. monitor", header.monitor_doc_tipo ?? ""]);
+    if (effectiveHeaderCfg?.monitor_numero_doc)
+      headerPairs.push(["Numero doc. monitor", header.monitor_numero_doc ?? ""]);
     if (effectiveHeaderCfg?.monitoreado) headerPairs.push(["Monitoreado", header.monitoreado ?? ""]);
+    if (effectiveHeaderCfg?.monitoreado_doc_tipo)
+      headerPairs.push(["Tipo doc. monitoreado", header.monitoreado_doc_tipo ?? ""]);
+    if (effectiveHeaderCfg?.monitoreado_numero_doc)
+      headerPairs.push(["Numero doc. monitoreado", header.monitoreado_numero_doc ?? ""]);
+    if (effectiveHeaderCfg?.monitoreado_cargo)
+      headerPairs.push(["Cargo monitoreado", header.monitoreado_cargo ?? ""]);
+    if (effectiveHeaderCfg?.monitoreado_telefono)
+      headerPairs.push(["Telefono monitoreado", header.monitoreado_telefono ?? ""]);
+    if (effectiveHeaderCfg?.monitoreado_correo)
+      headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
     if (effectiveHeaderCfg?.condicion) headerPairs.push(["Condición", header.condicion ?? ""]);
     if (effectiveHeaderCfg?.area) headerPairs.push(["Área", header.area ?? ""]);
+    if (effectiveHeaderCfg?.numero_visitas)
+      headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
+    if (effectiveHeaderCfg?.fecha_aplicacion)
+      headerPairs.push(["Fecha de aplicacion", header.fecha_aplicacion ?? ""]);
+    if (effectiveHeaderCfg?.hora_inicio) headerPairs.push(["Hora de inicio", header.hora_inicio ?? ""]);
+    if (effectiveHeaderCfg?.hora_fin) headerPairs.push(["Hora de fin", header.hora_fin ?? ""]);
 
     if (headerPairs.length) {
       drawSectionHeader("Encabezado");
@@ -806,6 +957,16 @@ export function FichaDinamicaPage() {
         if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
         if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
         parts.push(`Observación: ${p.obs ?? "-"}`);
+        const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
+        extraFields.forEach((field) => {
+          const key = fieldKey(field.label);
+          const val =
+            field.mode === "elaboracion"
+              ? field.default_value ?? ""
+              : p?.extra?.[key] ??
+                (key === "evidencia" ? p.evidencia : key === "recomendacion" ? p.recomendacion : "");
+          parts.push(`${field.label}: ${val ?? "-"}`);
+        });
 
         if (parts.length) {
           const detail = parts.join(" | ");
@@ -1025,7 +1186,28 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.monitor}
+                readOnly={monitorReadOnly}
                 onChange={(e) => setHeader((s) => ({ ...s, monitor: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitor_doc_tipo && (
+            <label className="text-sm">
+              <span className="text-white/70">Tipo de documento del monitor</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitor_doc_tipo}
+                readOnly
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitor_numero_doc && (
+            <label className="text-sm">
+              <span className="text-white/70">Numero de documento del monitor</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitor_numero_doc}
+                readOnly
               />
             </label>
           )}
@@ -1036,6 +1218,78 @@ export function FichaDinamicaPage() {
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.monitoreado}
                 onChange={(e) => setHeader((s) => ({ ...s, monitoreado: toUpper(e.target.value) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitoreado_doc_tipo && (
+            <label className="text-sm">
+              <span className="text-white/70">Tipo de documento del monitoreado</span>
+              <select
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitoreado_doc_tipo}
+                onChange={(e) =>
+                  setHeader((s) => ({
+                    ...s,
+                    monitoreado_doc_tipo: (e.target.value as "DNI" | "CE") || "DNI",
+                    monitoreado_numero_doc: "",
+                  }))
+                }
+              >
+                <option value="DNI">DNI</option>
+                <option value="CE">CE</option>
+              </select>
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitoreado_numero_doc && (
+            <label className="text-sm">
+              <span className="text-white/70">Numero de documento del monitoreado</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                maxLength={header.monitoreado_doc_tipo === "CE" ? 9 : 8}
+                value={header.monitoreado_numero_doc}
+                onChange={(e) =>
+                  setHeader((s) => ({
+                    ...s,
+                    monitoreado_numero_doc: onlyDigits(e.target.value, s.monitoreado_doc_tipo === "CE" ? 9 : 8),
+                  }))
+                }
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitoreado_cargo && (
+            <label className="text-sm">
+              <span className="text-white/70">Cargo del monitoreado</span>
+              <select
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitoreado_cargo}
+                onChange={(e) => setHeader((s) => ({ ...s, monitoreado_cargo: e.target.value }))}
+              >
+                <option value="">Seleccione</option>
+                <option value="DIRECTOR">Director</option>
+                <option value="SUBDIRECTOR">Sub director</option>
+                <option value="DOCENTE">Docente</option>
+                <option value="OTROS">Otros</option>
+              </select>
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitoreado_telefono && (
+            <label className="text-sm">
+              <span className="text-white/70">Telefono del monitoreado</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitoreado_telefono}
+                onChange={(e) => setHeader((s) => ({ ...s, monitoreado_telefono: onlyDigits(e.target.value, 15) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.monitoreado_correo && (
+            <label className="text-sm">
+              <span className="text-white/70">Correo del monitoreado</span>
+              <input
+                type="email"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.monitoreado_correo}
+                onChange={(e) => setHeader((s) => ({ ...s, monitoreado_correo: e.target.value.trim() }))}
               />
             </label>
           )}
@@ -1078,6 +1332,49 @@ export function FichaDinamicaPage() {
               )}
             </label>
           )}
+          {effectiveHeaderCfg?.numero_visitas && (
+            <label className="text-sm">
+              <span className="text-white/70">Numero de visitas a la IE</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.numero_visitas}
+                onChange={(e) => setHeader((s) => ({ ...s, numero_visitas: onlyDigits(e.target.value, 3) }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.fecha_aplicacion && (
+            <label className="text-sm">
+              <span className="text-white/70">Fecha de aplicacion</span>
+              <input
+                type="date"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.fecha_aplicacion}
+                onChange={(e) => setHeader((s) => ({ ...s, fecha_aplicacion: e.target.value }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.hora_inicio && (
+            <label className="text-sm">
+              <span className="text-white/70">Hora de inicio</span>
+              <input
+                type="time"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.hora_inicio}
+                onChange={(e) => setHeader((s) => ({ ...s, hora_inicio: e.target.value }))}
+              />
+            </label>
+          )}
+          {effectiveHeaderCfg?.hora_fin && (
+            <label className="text-sm">
+              <span className="text-white/70">Hora de fin</span>
+              <input
+                type="time"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={header.hora_fin}
+                onChange={(e) => setHeader((s) => ({ ...s, hora_fin: e.target.value }))}
+              />
+            </label>
+          )}
         </div>
       </div>
 
@@ -1107,6 +1404,7 @@ export function FichaDinamicaPage() {
               .filter((q) => q.section_id === s.id)
               .map((q) => {
                 const value = answers[q.id] ?? {};
+                const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
                 return (
                   <div key={q.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <div className="text-sm font-semibold">{q.texto}</div>
@@ -1266,6 +1564,45 @@ export function FichaDinamicaPage() {
                           setAnswers((s) => ({ ...s, [q.id]: { ...value, obs: e.target.value } }))
                         }
                       />
+                      {extraFields.map((field) => {
+                        const key = fieldKey(field.label);
+                        const current =
+                          value?.extra?.[key] ??
+                          (key === "evidencia" ? value.evidencia : key === "recomendacion" ? value.recomendacion : "");
+                        if (field.mode === "elaboracion") {
+                          return (
+                            <div key={`${q.id}-extra-${key}`} className="space-y-1">
+                              <div className="text-xs text-white/60">{field.label}</div>
+                              <textarea
+                                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                                rows={2}
+                                value={field.default_value ?? ""}
+                                readOnly
+                              />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={`${q.id}-extra-${key}`} className="space-y-1">
+                            <div className="text-xs text-white/60">{field.label}</div>
+                            <textarea
+                              className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                              rows={2}
+                              placeholder={field.label}
+                              value={current ?? ""}
+                              onChange={(e) =>
+                                setAnswers((s) => ({
+                                  ...s,
+                                  [q.id]: {
+                                    ...value,
+                                    extra: { ...(value.extra ?? {}), [key]: e.target.value },
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

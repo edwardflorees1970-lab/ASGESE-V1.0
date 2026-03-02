@@ -102,6 +102,33 @@ type DeleteMonSummary = {
   totalAsignacionesIe: number;
 };
 
+type ExtraFieldCfg = {
+  label: string;
+  mode: "registro" | "elaboracion";
+  default_value?: string | null;
+};
+
+function normalizeExtraFields(input: any): ExtraFieldCfg[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => {
+      if (typeof item === "string") {
+        const label = item.trim();
+        return label ? ({ label, mode: "registro", default_value: "" } as ExtraFieldCfg) : null;
+      }
+      if (!item || typeof item !== "object") return null;
+      const label = String(item.label ?? "").trim();
+      if (!label) return null;
+      const mode = item.mode === "elaboracion" ? "elaboracion" : "registro";
+      return {
+        label,
+        mode,
+        default_value: item.default_value ?? "",
+      } as ExtraFieldCfg;
+    })
+    .filter(Boolean) as ExtraFieldCfg[];
+}
+
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -251,6 +278,10 @@ export function GestionMonitoreosPage() {
   const [qOpciones, setQOpciones] = useState("");
   const [qMulti, setQMulti] = useState(false);
   const [qNivelLabels, setQNivelLabels] = useState<string[]>(["Bajo", "Medio", "Alto"]);
+  const [qExtraFields, setQExtraFields] = useState<ExtraFieldCfg[]>([]);
+  const [qExtraFieldInput, setQExtraFieldInput] = useState("");
+  const [qExtraFieldMode, setQExtraFieldMode] = useState<"registro" | "elaboracion">("registro");
+  const [qExtraFieldDefault, setQExtraFieldDefault] = useState("");
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -401,9 +432,20 @@ export function GestionMonitoreosPage() {
       distrito: true,
       rei: true,
       monitor: true,
+      monitor_doc_tipo: false,
+      monitor_numero_doc: false,
       monitoreado: true,
+      monitoreado_doc_tipo: false,
+      monitoreado_numero_doc: false,
+      monitoreado_cargo: false,
+      monitoreado_telefono: false,
+      monitoreado_correo: false,
       condicion: true,
       area: true,
+      numero_visitas: false,
+      fecha_aplicacion: false,
+      hora_inicio: false,
+      hora_fin: false,
       area_options: [],
       nivel_avance: false,
       nivel_avance_info: [],
@@ -919,9 +961,20 @@ export function GestionMonitoreosPage() {
         distrito: true,
         rei: true,
         monitor: true,
+        monitor_doc_tipo: false,
+        monitor_numero_doc: false,
         monitoreado: true,
+        monitoreado_doc_tipo: false,
+        monitoreado_numero_doc: false,
+        monitoreado_cargo: false,
+        monitoreado_telefono: false,
+        monitoreado_correo: false,
         condicion: true,
         area: true,
+        numero_visitas: false,
+        fecha_aplicacion: false,
+        hora_inicio: false,
+        hora_fin: false,
         area_options: [],
         nivel_avance: false,
         nivel_avance_info: [],
@@ -1077,6 +1130,10 @@ export function GestionMonitoreosPage() {
     setQRequired(true);
     setQNiveles(3);
     setQNivelLabels(["Bajo", "Medio", "Alto"]);
+    setQExtraFields([]);
+    setQExtraFieldInput("");
+    setQExtraFieldMode("registro");
+    setQExtraFieldDefault("");
     setQMulti(false);
     setEditingQuestionId(null);
   };
@@ -1096,6 +1153,7 @@ export function GestionMonitoreosPage() {
       config.multi = qMulti;
     }
     if (qTipo === "archivo_pdf") config.maxSizeMB = 5;
+    if (qExtraFields.length) config.extra_fields = qExtraFields;
 
     if (editingQuestionId) {
       await supabase
@@ -1150,6 +1208,10 @@ export function GestionMonitoreosPage() {
       setQOpciones("");
       setQMulti(false);
     }
+    setQExtraFields(normalizeExtraFields(q.config_json?.extra_fields));
+    setQExtraFieldInput("");
+    setQExtraFieldMode("registro");
+    setQExtraFieldDefault("");
     setShowQuestionForm(true);
   };
 
@@ -1289,9 +1351,27 @@ export function GestionMonitoreosPage() {
     if (templateHeader.distrito) headerPairs.push(["Distrito / Lugar", header.distrito ?? ""]);
     if (templateHeader.rei) headerPairs.push(["REI", header.rei ?? ""]);
     if (templateHeader.monitor) headerPairs.push(["Monitor", header.monitor ?? ""]);
+    if (templateHeader.monitor_doc_tipo) headerPairs.push(["Tipo doc. monitor", header.monitor_doc_tipo ?? ""]);
+    if (templateHeader.monitor_numero_doc)
+      headerPairs.push(["Numero doc. monitor", header.monitor_numero_doc ?? ""]);
     if (templateHeader.monitoreado) headerPairs.push(["Monitoreado", header.monitoreado ?? ""]);
+    if (templateHeader.monitoreado_doc_tipo)
+      headerPairs.push(["Tipo doc. monitoreado", header.monitoreado_doc_tipo ?? ""]);
+    if (templateHeader.monitoreado_numero_doc)
+      headerPairs.push(["Numero doc. monitoreado", header.monitoreado_numero_doc ?? ""]);
+    if (templateHeader.monitoreado_cargo) headerPairs.push(["Cargo monitoreado", header.monitoreado_cargo ?? ""]);
+    if (templateHeader.monitoreado_telefono)
+      headerPairs.push(["Telefono monitoreado", header.monitoreado_telefono ?? ""]);
+    if (templateHeader.monitoreado_correo)
+      headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
     if (templateHeader.condicion) headerPairs.push(["Condición", header.condicion ?? ""]);
     if (templateHeader.area) headerPairs.push(["Área", header.area ?? ""]);
+    if (templateHeader.numero_visitas)
+      headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
+    if (templateHeader.fecha_aplicacion)
+      headerPairs.push(["Fecha de aplicacion", header.fecha_aplicacion ?? ""]);
+    if (templateHeader.hora_inicio) headerPairs.push(["Hora de inicio", header.hora_inicio ?? ""]);
+    if (templateHeader.hora_fin) headerPairs.push(["Hora de fin", header.hora_fin ?? ""]);
 
     if (headerPairs.length) {
       drawSectionHeader("Encabezado");
@@ -1344,6 +1424,11 @@ export function GestionMonitoreosPage() {
         if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
         if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
         parts.push(`Observación: ${p.obs ?? "-"}`);
+        const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
+        extraFields.forEach((f) => {
+          const val = f.mode === "elaboracion" ? f.default_value ?? "" : p?.extra?.[f.label] ?? "-";
+          parts.push(`${f.label}: ${val || "-"}`);
+        });
 
         if (parts.length) {
           const detail = parts.join(" | ");
@@ -2028,9 +2113,20 @@ export function GestionMonitoreosPage() {
                           ["distrito", "Distrito / lugar"],
                           ["rei", "REI"],
                           ["monitor", "Monitor"],
+                          ["monitor_doc_tipo", "Tipo doc. monitor"],
+                          ["monitor_numero_doc", "Numero doc. monitor"],
                           ["monitoreado", "Monitoreado"],
+                          ["monitoreado_doc_tipo", "Tipo doc. monitoreado"],
+                          ["monitoreado_numero_doc", "Numero doc. monitoreado"],
+                          ["monitoreado_cargo", "Cargo monitoreado"],
+                          ["monitoreado_telefono", "Telefono monitoreado"],
+                          ["monitoreado_correo", "Correo monitoreado"],
                           ["condicion", "Condición docente"],
                           ["area", "Área que monitorea"],
+                          ["numero_visitas", "Numero de visitas a la IE"],
+                          ["fecha_aplicacion", "Fecha de aplicacion"],
+                          ["hora_inicio", "Hora de inicio"],
+                          ["hora_fin", "Hora de fin"],
                           ["nivel_avance", "Nivel de avance (Sí)"],
                         ].map(([key, label]) => (
                           <label key={key} className="flex items-center gap-2 text-xs text-white/70">
@@ -2344,6 +2440,146 @@ export function GestionMonitoreosPage() {
                             </label>
                           </div>
                         )}
+                        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                          <div className="text-xs text-white/60">
+                            Campos adicionales por pregunta (ademas de Observaciones)
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setQExtraFields((v) =>
+                                  v.some((f) => f.label === "Evidencia")
+                                    ? v
+                                    : [...v, { label: "Evidencia", mode: "registro", default_value: "" }]
+                                )
+                              }
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
+                            >
+                              + Evidencia
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setQExtraFields((v) =>
+                                  v.some((f) => f.label === "Recomendación")
+                                    ? v
+                                    : [...v, { label: "Recomendación", mode: "registro", default_value: "" }]
+                                )
+                              }
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
+                            >
+                              + Recomendación
+                            </button>
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <input
+                              className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                              placeholder="Nuevo campo (ej. Requisito)"
+                              value={qExtraFieldInput}
+                              onChange={(e) => setQExtraFieldInput(e.target.value)}
+                            />
+                            <select
+                              className="rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-xs"
+                              value={qExtraFieldMode}
+                              onChange={(e) =>
+                                setQExtraFieldMode((e.target.value as "registro" | "elaboracion") || "registro")
+                              }
+                            >
+                              <option value="registro">Se llena al registrar</option>
+                              <option value="elaboracion">Se define en elaboración</option>
+                            </select>
+                            {qExtraFieldMode === "elaboracion" && (
+                              <input
+                                className="min-w-[180px] rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                placeholder="Valor en elaboración"
+                                value={qExtraFieldDefault}
+                                onChange={(e) => setQExtraFieldDefault(e.target.value)}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = qExtraFieldInput.trim();
+                                if (!next) return;
+                                setQExtraFields((v) =>
+                                  v.some((f) => f.label === next)
+                                    ? v
+                                    : [
+                                        ...v,
+                                        {
+                                          label: next,
+                                          mode: qExtraFieldMode,
+                                          default_value: qExtraFieldMode === "elaboracion" ? qExtraFieldDefault : "",
+                                        },
+                                      ]
+                                );
+                                setQExtraFieldInput("");
+                                setQExtraFieldDefault("");
+                              }}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            >
+                              Agregar
+                            </button>
+                          </div>
+                          {qExtraFields.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {qExtraFields.map((x) => (
+                                <span
+                                  key={x.label}
+                                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
+                                >
+                                  {x.label}
+                                  <select
+                                    value={x.mode}
+                                    onChange={(e) =>
+                                      setQExtraFields((prev) =>
+                                        prev.map((it) =>
+                                          it.label === x.label
+                                            ? {
+                                                ...it,
+                                                mode:
+                                                  (e.target.value as "registro" | "elaboracion") || "registro",
+                                              }
+                                            : it
+                                        )
+                                      )
+                                    }
+                                    className="rounded border border-white/10 bg-black/30 px-1 py-0.5 text-[10px]"
+                                  >
+                                    <option value="registro">Registro</option>
+                                    <option value="elaboracion">Elaboración</option>
+                                  </select>
+                                  {x.mode === "elaboracion" && (
+                                    <input
+                                      className="w-28 rounded border border-white/10 bg-black/30 px-1 py-0.5 text-[10px]"
+                                      value={x.default_value ?? ""}
+                                      placeholder="Valor"
+                                      onChange={(e) =>
+                                        setQExtraFields((prev) =>
+                                          prev.map((it) =>
+                                            it.label === x.label
+                                              ? { ...it, default_value: e.target.value }
+                                              : it
+                                          )
+                                        )
+                                      }
+                                    />
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setQExtraFields((v) => v.filter((it) => it.label !== x.label))
+                                    }
+                                    className="text-white/70"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
@@ -2580,6 +2816,36 @@ export function GestionMonitoreosPage() {
                           />
                         </label>
                       )}
+                      {templateHeader.monitor_doc_tipo && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Tipo doc. monitor</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.monitor_doc_tipo ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, monitor_doc_tipo: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.monitor_numero_doc && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Numero doc. monitor</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.monitor_numero_doc ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, monitor_numero_doc: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
                       {templateHeader.monitoreado && (
                         <label className="block">
                           <div className="mb-1 text-[11px] text-white/60">Monitoreado</div>
@@ -2590,6 +2856,81 @@ export function GestionMonitoreosPage() {
                               savePreview({
                                 ...previewData,
                                 __header: { ...previewData.__header, monitoreado: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.monitoreado_doc_tipo && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Tipo doc. monitoreado</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.monitoreado_doc_tipo ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, monitoreado_doc_tipo: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.monitoreado_numero_doc && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Numero doc. monitoreado</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.monitoreado_numero_doc ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, monitoreado_numero_doc: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.monitoreado_cargo && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Cargo monitoreado</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.monitoreado_cargo ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, monitoreado_cargo: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.monitoreado_telefono && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Telefono monitoreado</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.monitoreado_telefono ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, monitoreado_telefono: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.monitoreado_correo && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Correo monitoreado</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.monitoreado_correo ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, monitoreado_correo: e.target.value },
                               })
                             }
                           />
@@ -2642,6 +2983,69 @@ export function GestionMonitoreosPage() {
                               }
                             />
                           )}
+                        </label>
+                      )}
+                      {templateHeader.numero_visitas && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Numero de visitas a la IE</div>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.numero_visitas ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, numero_visitas: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.fecha_aplicacion && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Fecha de aplicacion</div>
+                          <input
+                            type="date"
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.fecha_aplicacion ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, fecha_aplicacion: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.hora_inicio && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Hora de inicio</div>
+                          <input
+                            type="time"
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.hora_inicio ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, hora_inicio: e.target.value },
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {templateHeader.hora_fin && (
+                        <label className="block">
+                          <div className="mb-1 text-[11px] text-white/60">Hora de fin</div>
+                          <input
+                            type="time"
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={previewData.__header?.hora_fin ?? ""}
+                            onChange={(e) =>
+                              savePreview({
+                                ...previewData,
+                                __header: { ...previewData.__header, hora_fin: e.target.value },
+                              })
+                            }
+                          />
                         </label>
                       )}
                     </div>
@@ -2839,6 +3243,36 @@ export function GestionMonitoreosPage() {
                             }
                           />
                         </div>
+                        {normalizeExtraFields(q.config_json?.extra_fields).map((field) => (
+                              <div className="mt-3" key={`${q.id}-${field.label}`}>
+                                <div className="text-[11px] text-white/60">{field.label}</div>
+                                {field.mode === "elaboracion" ? (
+                                  <input
+                                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                    value={field.default_value ?? ""}
+                                    readOnly
+                                  />
+                                ) : (
+                                  <textarea
+                                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                    placeholder={`${field.label}...`}
+                                    value={previewData[q.id]?.extra?.[field.label] ?? ""}
+                                    onChange={(e) =>
+                                      savePreview({
+                                        ...previewData,
+                                        [q.id]: {
+                                          ...previewData[q.id],
+                                          extra: {
+                                            ...(previewData[q.id]?.extra ?? {}),
+                                            [field.label]: e.target.value,
+                                          },
+                                        },
+                                      })
+                                    }
+                                  />
+                                )}
+                              </div>
+                            ))}
                       </div>
                     </div>
                         ))}
