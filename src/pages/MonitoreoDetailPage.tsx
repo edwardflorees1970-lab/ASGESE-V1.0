@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { getFichasByMonitoreo } from "../lib/monitoreoApi";
 import { canSeeAllRole } from "../lib/roles";
+import { isMonitoreoExpired } from "../lib/monitoreoVigencia";
 
 type FichaCard = {
   key: string; // "ESCRIBE" | "LEE" | "ORAL"
@@ -17,6 +18,7 @@ type MonitoreoRow = {
   nombre: string;
   descripcion: string | null;
   anio: number;
+  fecha_fin: string;
 };
 
 function cls(...xs: Array<string | false | null | undefined>) {
@@ -33,6 +35,7 @@ export function MonitoreoDetailPage() {
   const [assigned, setAssigned] = useState(false);
   const [fichas, setFichas] = useState<FichaCard[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -41,11 +44,12 @@ export function MonitoreoDetailPage() {
     (async () => {
       setLoading(true);
       setError(null);
+      setExpired(false);
       setFichas([]);
       try {
         const { data: monData, error: monError } = await supabase
           .from("monitoreo_catalog")
-          .select("id, codigo, nombre, descripcion, anio, is_active")
+          .select("id, codigo, nombre, descripcion, anio, is_active, fecha_fin")
           .eq("codigo", monitoreoCodigo)
           .eq("is_active", true)
           .order("anio", { ascending: false })
@@ -61,6 +65,14 @@ export function MonitoreoDetailPage() {
         }
 
         const mon = monData as MonitoreoRow;
+        if (isMonitoreoExpired(mon.fecha_fin)) {
+          if (!alive) return;
+          setMonitoreo(mon);
+          setAssigned(false);
+          setExpired(true);
+          setLoading(false);
+          return;
+        }
         setMonitoreo(mon);
 
         const canSeeAll = canSeeAllRole(profile?.role);
@@ -149,6 +161,10 @@ export function MonitoreoDetailPage() {
       ) : !monitoreo ? (
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
           Monitoreo no encontrado.
+        </div>
+      ) : expired ? (
+        <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
+          Este monitoreo esta vencido. Solicita al administrador una ampliacion.
         </div>
       ) : !assigned ? (
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
