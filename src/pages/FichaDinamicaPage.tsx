@@ -42,6 +42,7 @@ type InstitucionLite = {
   codigo_local: string | null;
   rei: string | null;
   nivel?: { nombre: string } | { nombre: string }[] | null;
+  distrito?: { nombre: string } | { nombre: string }[] | null;
 };
 
 type HeaderState = {
@@ -224,8 +225,18 @@ export function FichaDinamicaPage() {
   const [ieQuery, setIeQuery] = useState("");
   const [ieOpen, setIeOpen] = useState(false);
   const [ieOptions, setIeOptions] = useState<InstitucionLite[]>([]);
+  const [iePool, setIePool] = useState<InstitucionLite[]>([]);
   const [ieLoading, setIeLoading] = useState(false);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
+  const profileMonitorName = [profile?.apellido_paterno, profile?.apellido_materno, profile?.nombres]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const profileMonitorDocTipo =
+    profile?.tipo_documento === "CE" || profile?.tipo_documento === "DNI"
+      ? profile.tipo_documento
+      : null;
+  const profileMonitorDocNumero = profile?.numero_documento?.trim() || "";
 
   const defaultHeader = {
     institucion: true,
@@ -487,58 +498,87 @@ export function FichaDinamicaPage() {
 
   useEffect(() => {
     if (!profile) return;
-    const fullName = [profile.apellido_paterno, profile.apellido_materno, profile.nombres]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
     setHeader((s) => ({
       ...s,
-      monitor: fullName || s.monitor,
-      monitor_doc_tipo:
-        profile.tipo_documento === "CE" || profile.tipo_documento === "DNI"
-          ? profile.tipo_documento
-          : s.monitor_doc_tipo,
-      monitor_numero_doc: profile.numero_documento || s.monitor_numero_doc,
+      monitor: profileMonitorName || s.monitor,
+      monitor_doc_tipo: profileMonitorDocTipo || s.monitor_doc_tipo,
+      monitor_numero_doc: profileMonitorDocNumero || s.monitor_numero_doc,
     }));
-  }, [profile?.tipo_documento, profile?.numero_documento]);
+  }, [profileMonitorName, profileMonitorDocTipo, profileMonitorDocNumero, profile]);
 
   useEffect(() => {
-    const term = ieQuery.trim();
+    if (!monitorReadOnly) return;
+    if (!profileMonitorName && !profileMonitorDocTipo && !profileMonitorDocNumero) return;
+    if (
+      header.monitor === profileMonitorName &&
+      header.monitor_doc_tipo === (profileMonitorDocTipo || header.monitor_doc_tipo) &&
+      header.monitor_numero_doc === (profileMonitorDocNumero || header.monitor_numero_doc)
+    ) {
+      return;
+    }
+    setHeader((s) => ({
+      ...s,
+      monitor: profileMonitorName || s.monitor,
+      monitor_doc_tipo: profileMonitorDocTipo || s.monitor_doc_tipo,
+      monitor_numero_doc: profileMonitorDocNumero || s.monitor_numero_doc,
+    }));
+  }, [
+    monitorReadOnly,
+    profileMonitorName,
+    profileMonitorDocTipo,
+    profileMonitorDocNumero,
+    header.monitor,
+    header.monitor_doc_tipo,
+    header.monitor_numero_doc,
+  ]);
+
+  useEffect(() => {
+    if (!solicitudId) {
+      setIePool([]);
+      setIeOptions([]);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      setIeLoading(true);
+      const { data } = await supabase
+        .from("monitoreo_solicitud_ie")
+        .select(
+          "institucion_id, institucion_educativa!inner(id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre), distrito:cat_distrito(nombre))"
+        )
+        .eq("solicitud_id", solicitudId)
+        .limit(10000);
+      if (!alive) return;
+      const list = (data ?? []).map((r: any) => r.institucion_educativa) as InstitucionLite[];
+      setIePool(list);
+      setIeLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [solicitudId]);
+
+  useEffect(() => {
+    const term = ieQuery.trim().toLowerCase();
     if (term.length < 2) {
       setIeOptions([]);
       return;
     }
-    if (!solicitudId) {
-      setIeOptions([]);
-      return;
-    }
     setIeLoading(true);
-    const handle = setTimeout(async () => {
-      const { data: linkRows } = await supabase
-        .from("monitoreo_solicitud_ie")
-        .select("institucion_id")
-        .eq("solicitud_id", solicitudId)
-        .limit(5000);
-
-      const ids = (linkRows ?? []).map((r: any) => r.institucion_id).filter(Boolean);
-      if (!ids.length) {
-        setIeOptions([]);
-        setIeLoading(false);
-        return;
-      }
-
-      const { data } = await supabase
-        .from("institucion_educativa")
-        .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre)")
-        .in("id", ids)
-        .or(`nombre.ilike.%${term}%,codigo_modular.ilike.%${term}%,codigo_local.ilike.%${term}%`)
-        .order("nombre", { ascending: true })
-        .limit(20);
-      setIeOptions(((data as unknown) as InstitucionLite[]) ?? []);
+    const handle = setTimeout(() => {
+      const next = iePool
+        .filter((ie) => {
+          const name = (ie.nombre || "").toLowerCase();
+          const mod = (ie.codigo_modular || "").toLowerCase();
+          const loc = (ie.codigo_local || "").toLowerCase();
+          return name.includes(term) || mod.includes(term) || loc.includes(term);
+        })
+        .slice(0, 20);
+      setIeOptions(next);
       setIeLoading(false);
-    }, 300);
+    }, 120);
     return () => clearTimeout(handle);
-  }, [ieQuery, solicitudId]);
+  }, [ieQuery, iePool]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -614,16 +654,19 @@ export function FichaDinamicaPage() {
   };
 
   const validate = () => {
+    const monitorNameVal = profileMonitorName || header.monitor;
+    const monitorDocTipoVal = profileMonitorDocTipo || header.monitor_doc_tipo;
+    const monitorDocNumVal = profileMonitorDocNumero || header.monitor_numero_doc;
     if (effectiveHeaderCfg.institucion && !header.institucion.trim()) return "Falta Institución Educativa.";
     if (effectiveHeaderCfg.codigo_modular && !header.codigo_modular.trim()) return "Falta Código Modular.";
     if (effectiveHeaderCfg.codigo_local && !header.codigo_local.trim()) return "Falta Código Local.";
     if (effectiveHeaderCfg.distrito && !header.distrito.trim()) return "Falta Distrito/Lugar.";
-    if (effectiveHeaderCfg.monitor && !header.monitor.trim()) return "Falta nombre del monitor.";
+    if (effectiveHeaderCfg.monitor && !monitorNameVal.trim()) return "Falta nombre del monitor.";
     if (effectiveHeaderCfg.monitoreado && !header.monitoreado.trim()) return "Falta nombre del monitoreado.";
     if (effectiveHeaderCfg.condicion && !header.condicion.trim()) return "Falta condición.";
     if (effectiveHeaderCfg.area && !header.area.trim()) return "Falta área.";
-    if (effectiveHeaderCfg.monitor_doc_tipo && !header.monitor_doc_tipo) return "Falta tipo documento del monitor.";
-    if (effectiveHeaderCfg.monitor_numero_doc && !header.monitor_numero_doc.trim())
+    if (effectiveHeaderCfg.monitor_doc_tipo && !monitorDocTipoVal) return "Falta tipo documento del monitor.";
+    if (effectiveHeaderCfg.monitor_numero_doc && !monitorDocNumVal.trim())
       return "Falta numero de documento del monitor.";
     if (effectiveHeaderCfg.monitoreado_doc_tipo && !header.monitoreado_doc_tipo)
       return "Falta tipo documento del monitoreado.";
@@ -640,11 +683,11 @@ export function FichaDinamicaPage() {
     if (effectiveHeaderCfg.hora_inicio && !header.hora_inicio) return "Falta hora de inicio.";
     if (effectiveHeaderCfg.hora_fin && !header.hora_fin) return "Falta hora de fin.";
 
-    if (effectiveHeaderCfg.monitor_numero_doc && header.monitor_numero_doc) {
-      const req = header.monitor_doc_tipo === "CE" ? 9 : 8;
-      if (!/^\d+$/.test(header.monitor_numero_doc)) return "Documento del monitor: solo numeros.";
-      if (header.monitor_numero_doc.length !== req) {
-        return `Documento del monitor incompleto: ${header.monitor_doc_tipo} requiere ${req} digitos.`;
+    if (effectiveHeaderCfg.monitor_numero_doc && monitorDocNumVal) {
+      const req = monitorDocTipoVal === "CE" ? 9 : 8;
+      if (!/^\d+$/.test(monitorDocNumVal)) return "Documento del monitor: solo numeros.";
+      if (monitorDocNumVal.length !== req) {
+        return `Documento del monitor incompleto: ${monitorDocTipoVal} requiere ${req} digitos.`;
       }
     }
     if (effectiveHeaderCfg.monitoreado_numero_doc && header.monitoreado_numero_doc) {
@@ -720,12 +763,18 @@ export function FichaDinamicaPage() {
     }
     setSaving(true);
     setError(null);
+    const headerPayload = {
+      ...header,
+      monitor: profileMonitorName || header.monitor,
+      monitor_doc_tipo: profileMonitorDocTipo || header.monitor_doc_tipo,
+      monitor_numero_doc: profileMonitorDocNumero || header.monitor_numero_doc,
+    };
     const payload = {
       template_id: template.id,
       created_by: user.id,
       status,
       is_test: isTestMode,
-      header_json: header,
+      header_json: headerPayload,
       footer_json: footer,
     };
     let currentRunId = status === "draft" ? null : runId;
@@ -1111,12 +1160,16 @@ export function FichaDinamicaPage() {
                         type="button"
                         className="flex w-full flex-col gap-0.5 border-b border-white/5 px-3 py-2 text-left text-xs text-white/80 hover:bg-white/5"
                         onClick={() => {
+                          const distritoNombre = Array.isArray(opt.distrito)
+                            ? opt.distrito[0]?.nombre ?? ""
+                            : opt.distrito?.nombre ?? "";
                           setHeader((s) => ({
                             ...s,
                             institucion: opt.nombre ?? "",
                             codigo_modular: opt.codigo_modular ?? "",
                             codigo_local: opt.codigo_local ?? "",
                             rei: opt.rei ?? "",
+                            distrito: distritoNombre || s.distrito,
                           }));
                           setIeQuery(opt.nombre ?? "");
                           setIeOpen(false);
@@ -1131,6 +1184,13 @@ export function FichaDinamicaPage() {
                               : ""
                             : opt.nivel?.nombre
                             ? ` • ${opt.nivel.nombre}`
+                            : ""}
+                          {Array.isArray(opt.distrito)
+                            ? opt.distrito[0]?.nombre
+                              ? ` • ${opt.distrito[0].nombre}`
+                              : ""
+                            : opt.distrito?.nombre
+                            ? ` • ${opt.distrito.nombre}`
                             : ""}
                         </span>
                       </button>
@@ -1185,7 +1245,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={header.monitor}
+                value={monitorReadOnly ? profileMonitorName || header.monitor : header.monitor}
                 readOnly={monitorReadOnly}
                 onChange={(e) => setHeader((s) => ({ ...s, monitor: toUpper(e.target.value) }))}
               />
@@ -1196,7 +1256,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Tipo de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={header.monitor_doc_tipo}
+                value={profileMonitorDocTipo || header.monitor_doc_tipo}
                 readOnly
               />
             </label>
@@ -1206,7 +1266,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Numero de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={header.monitor_numero_doc}
+                value={profileMonitorDocNumero || header.monitor_numero_doc}
                 readOnly
               />
             </label>
