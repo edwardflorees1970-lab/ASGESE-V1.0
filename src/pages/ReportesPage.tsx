@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import logoUrl from "../assets/logoagebresf.png";
@@ -388,6 +388,26 @@ export function ReportesPage() {
       return;
     }
     try {
+      const fieldKey = (label: string) => label.toLowerCase().trim().replace(/\s+/g, "_");
+      const normalizeExtraFields = (input: any) => {
+        if (!Array.isArray(input)) return [] as Array<{ label: string; mode: "registro" | "elaboracion"; default_value?: string | null }>;
+        return input
+          .map((item: any) => {
+            if (typeof item === "string") {
+              const label = item.trim();
+              return label ? { label, mode: "registro" as const, default_value: "" } : null;
+            }
+            if (!item || typeof item !== "object") return null;
+            const label = String(item.label ?? "").trim();
+            if (!label) return null;
+            return {
+              label,
+              mode: item.mode === "elaboracion" ? "elaboracion" : "registro",
+              default_value: item.default_value ?? "",
+            };
+          })
+          .filter(Boolean) as Array<{ label: string; mode: "registro" | "elaboracion"; default_value?: string | null }>;
+      };
       const [{ data: tpl }, { data: secRows }, { data: qRows }, { data: runRow }, { data: ansRows }] =
         await Promise.all([
           supabase
@@ -435,9 +455,20 @@ export function ReportesPage() {
         distrito: true,
         rei: true,
         monitor: true,
+        monitor_doc_tipo: false,
+        monitor_numero_doc: false,
         monitoreado: true,
+        monitoreado_doc_tipo: false,
+        monitoreado_numero_doc: false,
+        monitoreado_cargo: false,
+        monitoreado_telefono: false,
+        monitoreado_correo: false,
         condicion: true,
         area: true,
+        numero_visitas: false,
+        fecha_aplicacion: false,
+        hora_inicio: false,
+        hora_fin: false,
         nivel_avance: false,
         nivel_avance_info: [],
       };
@@ -471,13 +502,24 @@ export function ReportesPage() {
           headerRaw.monitor_nombre ??
           headerRaw.director_monitor ??
           "",
+        monitor_doc_tipo: headerRaw.monitor_doc_tipo ?? "",
+        monitor_numero_doc: headerRaw.monitor_numero_doc ?? "",
         monitoreado:
           headerRaw.monitoreado ??
           headerRaw.docente ??
           headerRaw.docente_nombre ??
           "",
+        monitoreado_doc_tipo: headerRaw.monitoreado_doc_tipo ?? "",
+        monitoreado_numero_doc: headerRaw.monitoreado_numero_doc ?? "",
+        monitoreado_cargo: headerRaw.monitoreado_cargo ?? "",
+        monitoreado_telefono: headerRaw.monitoreado_telefono ?? "",
+        monitoreado_correo: headerRaw.monitoreado_correo ?? "",
         condicion: headerRaw.condicion ?? headerRaw.condicion_docente ?? "",
         area: headerRaw.area ?? headerRaw.area_monitoreo ?? "",
+        numero_visitas: headerRaw.numero_visitas ?? "",
+        fecha_aplicacion: headerRaw.fecha_aplicacion ?? "",
+        hora_inicio: headerRaw.hora_inicio ?? "",
+        hora_fin: headerRaw.hora_fin ?? "",
       };
       const footer = {
         observacion:
@@ -534,31 +576,82 @@ export function ReportesPage() {
         if (!pairs.length) return;
         const cols = 2;
         const colW = contentW / cols;
-        const rowH = 8;
         const rows = Math.ceil(pairs.length / cols);
-        ensureSpace(rows * rowH + 4);
         doc.setDrawColor(200);
         for (let r = 0; r < rows; r += 1) {
+          const rowPairs = Array.from({ length: cols }, (_, c) => pairs[r * cols + c]).filter(Boolean) as Array<
+            [string, string]
+          >;
+          const valueLineCount = Math.max(
+            1,
+            ...rowPairs.map((pair) => splitSafe(pair[1] || "-", colW - 4).length)
+          );
+          const rowH = Math.max(10, 5 + valueLineCount * 4);
+          ensureSpace(rowH + 1);
           for (let c = 0; c < cols; c += 1) {
             const idx = r * cols + c;
             const x = M + c * colW;
-            const yCell = y + r * rowH;
+            const yCell = y;
             doc.rect(x, yCell, colW, rowH);
             const pair = pairs[idx];
-            if (pair) {
-              doc.setFontSize(8);
-              doc.setTextColor(90);
-              doc.text(pair[0], x + 2, yCell + 3.5);
-              doc.setFontSize(9);
-              doc.setTextColor(20);
-              const valueLines = doc.splitTextToSize(pair[1] || "-", colW - 4);
-              doc.text(valueLines, x + 2, yCell + 7);
-            }
+            if (!pair) continue;
+            doc.setFontSize(8);
+            doc.setTextColor(90);
+            doc.text(pair[0], x + 2, yCell + 3.5);
+            doc.setFontSize(9);
+            doc.setTextColor(20);
+            const valueLines = splitSafe(pair[1] || "-", colW - 4);
+            doc.text(valueLines, x + 2, yCell + 7);
           }
+          y += rowH;
         }
         doc.setTextColor(20);
-        y += rows * rowH + 4;
+        y += 4;
         doc.setFontSize(10);
+      };
+      const splitSafe = (text: string, maxW: number) => {
+        const raw = String(text ?? "-");
+        const out: string[] = [];
+        let line = "";
+        const pushLine = () => {
+          if (line) out.push(line);
+          line = "";
+        };
+        const parts = raw.split(/(\s+)/);
+        for (const part of parts) {
+          if (!part) continue;
+          const trial = `${line}${part}`;
+          if (doc.getTextWidth(trial) <= maxW) {
+            line = trial;
+            continue;
+          }
+          if (doc.getTextWidth(part) > maxW) {
+            pushLine();
+            let chunk = "";
+            for (const ch of part) {
+              const next = chunk + ch;
+              if (doc.getTextWidth(next) <= maxW) {
+                chunk = next;
+              } else {
+                if (chunk) out.push(chunk);
+                chunk = ch;
+              }
+            }
+            line = chunk;
+          } else {
+            pushLine();
+            line = part;
+          }
+        }
+        pushLine();
+        return out.length ? out : ["-"];
+      };
+      const drawWrappedLines = (lines: string[], x: number, lh: number) => {
+        lines.forEach((ln) => {
+          ensureSpace(lh + 1);
+          doc.text(ln, x, y);
+          y += lh;
+        });
       };
 
       try {
@@ -570,31 +663,54 @@ export function ReportesPage() {
       } catch {
         // ignore
       }
+      doc.setFillColor(242, 246, 252);
+      doc.setDrawColor(192, 203, 220);
+      doc.rect(M + 24, y - 10, contentW - 24, 22, "FD");
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.text(tpl.titulo, M + 26, y);
-      y += 6;
+      const titleMaxW = pageW - M - (M + 26);
+      const titleLines = splitSafe(tpl.titulo || "", titleMaxW);
+      doc.text(titleLines, M + 26, y);
+      y += Math.max(6, titleLines.length * 5);
       if (tpl.subtitulo) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(tpl.subtitulo, M + 26, y);
-        y += 6;
+        const subLines = splitSafe(tpl.subtitulo, titleMaxW);
+        doc.text(subLines, M + 26, y);
+        y += Math.max(6, subLines.length * 4.5);
       }
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(70);
+      doc.text(`Run: ${run.id}  |  Estado: ${run.status}  |  Fecha: ${fmtDateShort(run.created_at)}`, M + 26, y);
+      doc.setTextColor(20);
+      y += 4;
       doc.setDrawColor(220);
       doc.line(M, y, pageW - M, y);
       y += 10;
 
       const headerPairs: Array<[string, string]> = [];
-      if (effectiveHeader.institucion) headerPairs.push(["Institución educativa", header.institucion ?? ""]);
-      if (effectiveHeader.codigo_modular) headerPairs.push(["Código modular", header.codigo_modular ?? ""]);
-      if (effectiveHeader.codigo_local) headerPairs.push(["Código local", header.codigo_local ?? ""]);
+      if (effectiveHeader.institucion) headerPairs.push(["Institucion educativa", header.institucion ?? ""]);
+      if (effectiveHeader.codigo_modular) headerPairs.push(["Codigo modular", header.codigo_modular ?? ""]);
+      if (effectiveHeader.codigo_local) headerPairs.push(["Codigo local", header.codigo_local ?? ""]);
       if (effectiveHeader.distrito) headerPairs.push(["Distrito / Lugar", header.distrito ?? ""]);
       if (effectiveHeader.rei) headerPairs.push(["REI", header.rei ?? ""]);
       if (effectiveHeader.monitor) headerPairs.push(["Monitor", header.monitor ?? ""]);
+      if (effectiveHeader.monitor_doc_tipo) headerPairs.push(["Tipo doc. monitor", header.monitor_doc_tipo ?? ""]);
+      if (effectiveHeader.monitor_numero_doc) headerPairs.push(["Numero doc. monitor", header.monitor_numero_doc ?? ""]);
       if (effectiveHeader.monitoreado) headerPairs.push(["Monitoreado", header.monitoreado ?? ""]);
-      if (effectiveHeader.condicion) headerPairs.push(["Condición", header.condicion ?? ""]);
-      if (effectiveHeader.area) headerPairs.push(["Área", header.area ?? ""]);
+      if (effectiveHeader.monitoreado_doc_tipo) headerPairs.push(["Tipo doc. monitoreado", header.monitoreado_doc_tipo ?? ""]);
+      if (effectiveHeader.monitoreado_numero_doc) headerPairs.push(["Numero doc. monitoreado", header.monitoreado_numero_doc ?? ""]);
+      if (effectiveHeader.monitoreado_cargo) headerPairs.push(["Cargo monitoreado", header.monitoreado_cargo ?? ""]);
+      if (effectiveHeader.monitoreado_telefono) headerPairs.push(["Telefono monitoreado", header.monitoreado_telefono ?? ""]);
+      if (effectiveHeader.monitoreado_correo) headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
+      if (effectiveHeader.condicion) headerPairs.push(["Condicion", header.condicion ?? ""]);
+      if (effectiveHeader.area) headerPairs.push(["Area", header.area ?? ""]);
+      if (effectiveHeader.numero_visitas) headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
+      if (effectiveHeader.fecha_aplicacion) headerPairs.push(["Fecha de aplicacion", header.fecha_aplicacion ?? ""]);
+      if (effectiveHeader.hora_inicio) headerPairs.push(["Hora de inicio", header.hora_inicio ?? ""]);
+      if (effectiveHeader.hora_fin) headerPairs.push(["Hora de fin", header.hora_fin ?? ""]);
       if (headerPairs.length) {
         drawSectionHeader("Encabezado");
         drawKeyValueGrid(headerPairs);
@@ -612,20 +728,24 @@ export function ReportesPage() {
           `Nivel ${x.nivel}`,
           x.descripcion ?? "",
         ]);
-        drawSectionHeader("Niveles de respuesta (Sí)");
+        drawSectionHeader("Niveles de respuesta (Si)");
         drawKeyValueGrid(nivelPairs);
       }
 
       (secRows ?? []).forEach((s: any) => {
         drawSectionHeader(s.titulo);
         (qRows ?? []).filter((q: any) => q.section_id === s.id).forEach((q: any) => {
-          const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
-          const lines = doc.splitTextToSize(title, contentW);
-          ensureSpace(lines.length * lineH + 6);
+          // Use stricter inner bounds for question text to avoid any right-edge clipping in long lines.
+          const qInnerLeft = 8;
+          const qInnerRight = 10;
+          const qX = M + qInnerLeft;
+          const qContentW = pageW - qX - (M + qInnerRight);
           doc.setFont("helvetica", "bold");
           doc.setFontSize(10);
-          doc.text(lines, M, y);
-          y += lines.length * lineH;
+          const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
+          // Measure with the same font/size used for rendering; otherwise long bold lines can overflow.
+          const lines = splitSafe(title, qContentW - 1);
+          drawWrappedLines(lines, qX, lineH);
           doc.setFont("helvetica", "normal");
           doc.setFontSize(9);
 
@@ -641,20 +761,27 @@ export function ReportesPage() {
             parts.push(`Nivel: ${nivelLabel}`);
           }
           if (q.tipo === "opciones") {
-            if (p.option) parts.push(`Opción: ${p.option}`);
+            if (p.option) parts.push(`Opcion: ${p.option}`);
             if (p.options?.length) parts.push(`Opciones: ${p.options.join(", ")}`);
             if (!p.option && !p.options?.length) parts.push("Opciones: -");
           }
           if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
           if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
           if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
-          parts.push(`Observación: ${p.obs ?? "-"}`);
+          parts.push(`Observacion: ${p.obs ?? "-"}`);
+          const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
+          extraFields.forEach((f) => {
+            const val =
+              f.mode === "elaboracion"
+                ? f.default_value ?? ""
+                : p?.extra?.[fieldKey(f.label)] ?? p?.extra?.[f.label] ?? "-";
+            parts.push(`${f.label}: ${val || "-"}`);
+          });
 
           if (parts.length) {
             const detail = parts.join(" | ");
-            const detailLines = doc.splitTextToSize(detail, contentW);
-            doc.text(detailLines, M, y);
-            y += detailLines.length * smallLineH;
+            const detailLines = splitSafe(detail, qContentW - 1);
+            drawWrappedLines(detailLines, qX, smallLineH);
           }
 
           y += 4;
@@ -665,7 +792,7 @@ export function ReportesPage() {
       });
 
       const footerPairs: Array<[string, string]> = [];
-      if (effectiveFooter.observacion) footerPairs.push(["Observación general", footer.observacion ?? ""]);
+      if (effectiveFooter.observacion) footerPairs.push(["Observacion general", footer.observacion ?? ""]);
       if (effectiveFooter.compromiso) footerPairs.push(["Compromiso", footer.compromiso ?? ""]);
       if (effectiveFooter.lugar) footerPairs.push(["Lugar", footer.lugar ?? ""]);
       if (effectiveFooter.fecha) footerPairs.push(["Fecha", footer.fecha ?? ""]);
@@ -701,6 +828,19 @@ export function ReportesPage() {
         if (footer.monitor_dni) {
           doc.text(`DNI: ${footer.monitor_dni}`, pageW - M - 70, y + 24);
         }
+      }
+
+      const totalPages = doc.getNumberOfPages();
+      for (let pno = 1; pno <= totalPages; pno += 1) {
+        doc.setPage(pno);
+        doc.setDrawColor(220);
+        doc.line(M, pageH - 11, pageW - M, pageH - 11);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(90);
+        doc.text("UGEL 06 - Sistema de Monitoreo", M, pageH - 7);
+        doc.text(`Pag ${pno}/${totalPages}`, pageW - M - 18, pageH - 7);
+        doc.setTextColor(20);
       }
 
       doc.save(`ficha_${tpl.codigo || "ficha"}.pdf`);
@@ -1193,3 +1333,4 @@ export function ReportesPage() {
     </div>
   );
 }
+
