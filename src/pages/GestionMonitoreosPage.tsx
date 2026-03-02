@@ -4,6 +4,7 @@ import logoUrl from "../assets/logoagebresf.png";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { isMonitoreoExpired, todayDateOnly } from "../lib/monitoreoVigencia";
 
 const GESTION_PUBLICA = "Pública";
 const GESTION_PRIVADA = "Privada";
@@ -85,6 +86,20 @@ type InstitucionLite = {
   nombre: string;
   codigo_modular: string;
   codigo_local: string | null;
+};
+
+type DeleteFichaResumen = {
+  titulo: string;
+  registros: number;
+};
+
+type DeleteMonSummary = {
+  monitoreoNombre: string;
+  monitoreoCodigo: string;
+  fichas: DeleteFichaResumen[];
+  totalRegistros: number;
+  totalAsignacionesMonitor: number;
+  totalAsignacionesIe: number;
 };
 
 
@@ -175,6 +190,10 @@ export function GestionMonitoreosPage() {
   const [deleteMonBusy, setDeleteMonBusy] = useState(false);
   const [rebuildIeBusy, setRebuildIeBusy] = useState(false);
   const [rebuildIeOpen, setRebuildIeOpen] = useState(false);
+  const [extendBusy, setExtendBusy] = useState(false);
+  const [extendFechaFin, setExtendFechaFin] = useState("");
+  const [deleteSummary, setDeleteSummary] = useState<DeleteMonSummary | null>(null);
+  const [deleteSummaryBusy, setDeleteSummaryBusy] = useState(false);
 
   const [items, setItems] = useState<Solicitud[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -239,6 +258,10 @@ export function GestionMonitoreosPage() {
   const [showTemplateDetail, setShowTemplateDetail] = useState(true);
 
   const selected = useMemo(() => items.find((s) => s.id === selectedId) ?? null, [items, selectedId]);
+  const selectedExpired = useMemo(
+    () => !!selected && selected.status === "approved" && isMonitoreoExpired(selected.fecha_fin),
+    [selected]
+  );
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === selectedTemplateId) ?? null,
     [templates, selectedTemplateId]
@@ -333,6 +356,7 @@ export function GestionMonitoreosPage() {
     setEditDetalle(selected.detalle ?? "");
     setEditFechaInicio(selected.fecha_inicio);
     setEditFechaFin(selected.fecha_fin);
+    setExtendFechaFin(selected.fecha_fin);
     setEditCdd(!!selected.cdd);
     (async () => {
       const { data } = await supabase
@@ -714,6 +738,39 @@ export function GestionMonitoreosPage() {
     loadSolicitudes();
   };
 
+  const extendMonitoreo = async (solicitudId: string) => {
+    if (!extendFechaFin) {
+      setToast({ type: "err", msg: "Selecciona una nueva fecha fin." });
+      return;
+    }
+    if (extendFechaFin <= todayDateOnly()) {
+      setToast({ type: "err", msg: "La ampliacion debe ser mayor a la fecha actual." });
+      return;
+    }
+    setExtendBusy(true);
+    const { error: solErr } = await supabase
+      .from("monitoreo_solicitud")
+      .update({ fecha_fin: extendFechaFin, updated_at: new Date().toISOString() })
+      .eq("id", solicitudId);
+    if (solErr) {
+      setToast({ type: "err", msg: solErr.message });
+      setExtendBusy(false);
+      return;
+    }
+    const { error: monErr } = await supabase
+      .from("monitoreo_catalog")
+      .update({ fecha_fin: extendFechaFin, is_active: true, updated_at: new Date().toISOString() })
+      .eq("solicitud_id", solicitudId);
+    if (monErr) {
+      setToast({ type: "err", msg: monErr.message });
+      setExtendBusy(false);
+      return;
+    }
+    setToast({ type: "ok", msg: "Monitoreo ampliado correctamente." });
+    await loadSolicitudes();
+    setExtendBusy(false);
+  };
+
   const deleteMonitoreoFull = async (solicitudId: string) => {
     setDeleteMonBusy(true);
     const { data: mon, error: monErr } = await supabase
@@ -735,7 +792,11 @@ export function GestionMonitoreosPage() {
       p_monitoreo_id: mon.id,
     });
     if (error) {
-      setError(error.message);
+      if (error.message.includes("Could not find the function public.delete_monitoreo_full")) {
+        setError("Falta crear la función SQL delete_monitoreo_full(uuid) en Supabase.");
+      } else {
+        setError(error.message);
+      }
       setDeleteMonBusy(false);
       return;
     }
@@ -743,6 +804,73 @@ export function GestionMonitoreosPage() {
     loadSolicitudes();
     setDeleteMonBusy(false);
     setDeleteMonOpen(false);
+  };
+
+  const openDeleteMonitoreoDialog = async (solicitudId: string) => {
+    setDeleteMonOpen(true);
+    setDeleteSummary(null);
+    setDeleteSummaryBusy(true);
+
+    try {
+      const { data: mon, error: monErr } = await supabase
+        .from("monitoreo_catalog")
+        .select("id, nombre, codigo")
+        .eq("solicitud_id", solicitudId)
+        .maybeSingle();
+      if (monErr || !mon?.id) {
+        setDeleteSummaryBusy(false);
+        return;
+      }
+
+      const { data: tpls } = await supabase
+        .from("form_template")
+        .select("id, titulo")
+        .eq("solicitud_id", solicitudId)
+        .order("orden", { ascending: true });
+      const tplRows = (tpls ?? []) as Array<{ id: string; titulo: string }>;
+      const templateIds = tplRows.map((t) => t.id);
+
+      let fichaResumen: DeleteFichaResumen[] = tplRows.map((t) => ({ titulo: t.titulo, registros: 0 }));
+      let totalRegistros = 0;
+      if (templateIds.length) {
+        const { data: runs } = await supabase
+          .from("form_run")
+          .select("template_id")
+          .in("template_id", templateIds);
+        const runRows = (runs ?? []) as Array<{ template_id: string }>;
+        totalRegistros = runRows.length;
+        const byTemplate: Record<string, number> = {};
+        runRows.forEach((r) => {
+          byTemplate[r.template_id] = (byTemplate[r.template_id] ?? 0) + 1;
+        });
+        fichaResumen = tplRows.map((t) => ({
+          titulo: t.titulo,
+          registros: byTemplate[t.id] ?? 0,
+        }));
+      }
+
+      const [{ count: asigMonCount }, { count: asigIeCount }] = await Promise.all([
+        supabase
+          .from("monitoreo_asignacion")
+          .select("id", { count: "exact", head: true })
+          .eq("monitoreo_id", mon.id),
+        supabase
+          .from("monitoreo_ie_asignacion")
+          .select("id", { count: "exact", head: true })
+          .eq("monitoreo_id", mon.id),
+      ]);
+
+      setDeleteSummary({
+        monitoreoNombre: mon.nombre,
+        monitoreoCodigo: mon.codigo,
+        fichas: fichaResumen,
+        totalRegistros,
+        totalAsignacionesMonitor: asigMonCount ?? 0,
+        totalAsignacionesIe: asigIeCount ?? 0,
+      });
+    } finally {
+      setDeleteSummaryBusy(false);
+    }
   };
 
   const rebuildIeFromFilters = async (solicitudId: string) => {
@@ -1381,6 +1509,7 @@ export function GestionMonitoreosPage() {
                 </div>
                 <div className="mt-1 text-xs text-white/60">
                   {s.fecha_inicio} → {s.fecha_fin}
+                  {s.status === "approved" && isMonitoreoExpired(s.fecha_fin) ? " • Vencido" : ""}
                 </div>
                 <div className="mt-1 text-xs text-white/50">
                   Código: SOL-{s.id.slice(0, 8).toUpperCase()}
@@ -1590,7 +1719,10 @@ export function GestionMonitoreosPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-semibold">{selected.nombre}</div>
-                  <div className="text-xs text-white/60">{statusLabel(selected.status)}</div>
+                  <div className="text-xs text-white/60">
+                    {statusLabel(selected.status)}
+                    {selectedExpired ? " • Vencido" : ""}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {canApproveLv1 && selected.status === "pending" && (
@@ -1642,7 +1774,7 @@ export function GestionMonitoreosPage() {
                   {isAdmin && selected.status === "approved" && (
                     <button
                       type="button"
-                      onClick={() => setDeleteMonOpen(true)}
+                      onClick={() => openDeleteMonitoreoDialog(selected.id)}
                       className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
                     >
                       Eliminar monitoreo
@@ -1659,6 +1791,29 @@ export function GestionMonitoreosPage() {
                   )}
                 </div>
               </div>
+              {isAdmin && selected.status === "approved" && selectedExpired && (
+                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                  <div className="text-xs text-amber-100">
+                    Monitoreo vencido. Para habilitarlo, define una nueva fecha de vencimiento (Ampliacion).
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <input
+                      type="date"
+                      value={extendFechaFin}
+                      onChange={(e) => setExtendFechaFin(e.target.value)}
+                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => extendMonitoreo(selected.id)}
+                      disabled={extendBusy}
+                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100 disabled:opacity-50"
+                    >
+                      {extendBusy ? "Guardando..." : "Aplicar ampliacion"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {isAdmin && (
                 <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -2240,12 +2395,40 @@ export function GestionMonitoreosPage() {
           <ConfirmDialog
             open={deleteMonOpen}
             title="Eliminar monitoreo"
-            description="¿Seguro que deseas eliminar el monitoreo publicado y toda su información? Esta acción no se puede deshacer."
+            description={
+              deleteSummaryBusy ? (
+                "Calculando resumen de eliminación..."
+              ) : deleteSummary ? (
+                <div className="space-y-2">
+                  <div>
+                    Estas a punto de eliminar <b>{deleteSummary.monitoreoNombre}</b> (
+                    {deleteSummary.monitoreoCodigo}).
+                  </div>
+                  <div>Fichas: {deleteSummary.fichas.length}</div>
+                  <div>Registros totales de fichas: {deleteSummary.totalRegistros}</div>
+                  <div>Asignaciones de monitores: {deleteSummary.totalAsignacionesMonitor}</div>
+                  <div>IE asignadas: {deleteSummary.totalAsignacionesIe}</div>
+                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] text-red-100">
+                    Esta acción eliminará toda la data relacionada y no se puede deshacer.
+                  </div>
+                  <div className="max-h-28 overflow-auto rounded border border-white/10 bg-black/20 p-2 text-[11px]">
+                    {deleteSummary.fichas.map((f) => (
+                      <div key={f.titulo} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{f.titulo}</span>
+                        <span>{f.registros} registros</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                "No se pudo calcular el resumen. Si continúas, se intentará eliminar todo el monitoreo."
+              )
+            }
             confirmText="Eliminar"
             cancelText="Cancelar"
             variant="danger"
-            busy={deleteMonBusy}
-            onClose={() => !deleteMonBusy && setDeleteMonOpen(false)}
+            busy={deleteMonBusy || deleteSummaryBusy}
+            onClose={() => !(deleteMonBusy || deleteSummaryBusy) && setDeleteMonOpen(false)}
             onConfirm={() => selected && deleteMonitoreoFull(selected.id)}
           />
         </section>

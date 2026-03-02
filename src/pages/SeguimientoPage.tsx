@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole } from "../lib/roles";
+import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
 
 type MonitoreoRow = {
   id: string;
   codigo: string;
   nombre: string;
   solicitud_id?: string | null;
+  fecha_fin?: string | null;
 };
 
 type ProfileRow = {
@@ -127,12 +129,13 @@ export function SeguimientoPage() {
       if (canManage) {
         const { data } = await supabase
           .from("monitoreo_catalog")
-          .select("id, codigo, nombre, solicitud_id")
+          .select("id, codigo, nombre, solicitud_id, fecha_fin")
           .eq("is_active", true)
           .order("nombre", { ascending: true });
         if (!alive) return;
-        setMonitoreos((data ?? []) as MonitoreoRow[]);
-        if (!monitoreoId && data?.length) setMonitoreoId(data[0].id);
+        const list = (data ?? []) as MonitoreoRow[];
+        setMonitoreos(list);
+        setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
         return;
       }
 
@@ -149,13 +152,14 @@ export function SeguimientoPage() {
       }
       const { data } = await supabase
         .from("monitoreo_catalog")
-        .select("id, codigo, nombre, solicitud_id")
+        .select("id, codigo, nombre, solicitud_id, fecha_fin")
         .in("id", ids)
         .eq("is_active", true)
         .order("nombre", { ascending: true });
       if (!alive) return;
-      setMonitoreos((data ?? []) as MonitoreoRow[]);
-      if (!monitoreoId && data?.length) setMonitoreoId(data[0].id);
+      const list = (data ?? []) as MonitoreoRow[];
+      setMonitoreos(list);
+      setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
     })();
     return () => {
       alive = false;
@@ -348,6 +352,16 @@ export function SeguimientoPage() {
     return map;
   }, [monitores]);
 
+  const selectedMonitoreo = useMemo(
+    () => monitoreos.find((m) => m.id === monitoreoId) ?? null,
+    [monitoreos, monitoreoId]
+  );
+  const selectedExpired = useMemo(
+    () => isMonitoreoExpired(selectedMonitoreo?.fecha_fin ?? null),
+    [selectedMonitoreo]
+  );
+  const monitorBlockedByExpiry = !canManage && selectedExpired;
+
   const requiredActIds = useMemo(
     () => new Set(actividades.filter((a) => a.obligatorio).map((a) => a.id)),
     [actividades]
@@ -474,6 +488,10 @@ export function SeguimientoPage() {
 
   const toggleAvance = async (ieId: string, actId: string, tipo: "global" | "extra") => {
     if (!profile?.id) return;
+    if (monitorBlockedByExpiry) {
+      setToast({ type: "err", msg: "Monitoreo vencido: actividades bloqueadas para monitor." });
+      return;
+    }
     const existing = avances.find(
       (a) =>
         a.institucion_id === ieId &&
@@ -589,6 +607,10 @@ export function SeguimientoPage() {
   };
 
   const addExtra = async () => {
+    if (monitorBlockedByExpiry) {
+      setToast({ type: "err", msg: "Monitoreo vencido: no puedes agregar actividades." });
+      return;
+    }
     const title = extraTitle.trim();
     if (!title) return;
     const { data, error } = await supabase
@@ -664,9 +686,32 @@ export function SeguimientoPage() {
             {monitoreos.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.nombre}
+                {isMonitoreoExpired(m.fecha_fin) ? " (Vencido)" : ""}
               </option>
             ))}
           </select>
+          {selectedMonitoreo && (
+            <div className="mt-2 text-xs text-white/70">
+              {selectedExpired ? (
+                <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-red-100">
+                  Vencido 🔒
+                </span>
+              ) : (
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                  Disponible
+                </span>
+              )}
+              <span className="ml-2">
+                {(() => {
+                  const days = daysFromToday(selectedMonitoreo.fecha_fin);
+                  if (days == null) return "Sin fecha fin";
+                  if (days < 0) return `Vencido hace ${Math.abs(days)} dias`;
+                  if (days === 0) return "Vence hoy";
+                  return `Faltan ${days} dias para vencer`;
+                })()}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -985,6 +1030,11 @@ export function SeguimientoPage() {
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="text-sm font-semibold">Mis instituciones asignadas</div>
+        {monitorBlockedByExpiry && (
+          <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            Monitoreo vencido: las actividades estan bloqueadas para el monitor.
+          </div>
+        )}
         {loadingDetails && (
           <div className="mt-2 text-xs text-white/50">Cargando avances...</div>
         )}
@@ -1013,6 +1063,7 @@ export function SeguimientoPage() {
                         <input
                           type="checkbox"
                           checked={done}
+                          disabled={monitorBlockedByExpiry}
                           onChange={() => toggleAvance(ie.id, a.id, "global")}
                         />
                         <span className="break-words">{a.titulo}</span>
@@ -1042,6 +1093,7 @@ export function SeguimientoPage() {
                           <input
                             type="checkbox"
                             checked={done}
+                            disabled={monitorBlockedByExpiry}
                             onChange={() => toggleAvance(ie.id, ex.id, "extra")}
                           />
                           <span className="break-words">{ex.titulo}</span>
@@ -1053,11 +1105,13 @@ export function SeguimientoPage() {
                         className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs"
                         placeholder="Nueva actividad opcional"
                         value={extraTitle}
+                        disabled={monitorBlockedByExpiry}
                         onChange={(e) => setExtraTitle(e.target.value)}
                       />
                       <button
                         type="button"
                         onClick={addExtra}
+                        disabled={monitorBlockedByExpiry}
                         className="rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-xs"
                       >
                         Agregar

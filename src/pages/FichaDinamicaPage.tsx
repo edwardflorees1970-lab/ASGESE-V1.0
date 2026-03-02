@@ -5,6 +5,7 @@ import logoUrl from "../assets/logoagebresf.png";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
+import { isMonitoreoExpired } from "../lib/monitoreoVigencia";
 
 type Template = {
   id: string;
@@ -271,7 +272,7 @@ export function FichaDinamicaPage() {
       try {
         const monQuery = supabase
           .from("monitoreo_catalog")
-          .select("id, codigo, is_active, solicitud_id")
+          .select("id, codigo, is_active, solicitud_id, fecha_fin")
           .eq("is_active", true)
           .eq("codigo", monitoreoCodigo);
         const { data: mon } = midParam
@@ -281,6 +282,9 @@ export function FichaDinamicaPage() {
           throw new Error(
             `Monitoreo no encontrado para codigo=${(monitoreoCodigo || "").toUpperCase()} mid=${midParam || "-"}`
           );
+        }
+        if (isMonitoreoExpired((mon as any).fecha_fin)) {
+          throw new Error("Monitoreo vencido. Solicita ampliacion al administrador.");
         }
         setSolicitudId((mon as any).solicitud_id ?? null);
 
