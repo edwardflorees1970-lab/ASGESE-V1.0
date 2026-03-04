@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
-import logoUrl from "../assets/logoagebresf.png";
+import logoUrl from "../assets/ugel06_3.jpg";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
@@ -654,36 +654,48 @@ export function ReportesPage() {
         });
       };
 
+      const bannerY = y - 8;
+      let bannerH = 10;
       try {
         const img = await loadImage(logoUrl);
-        const imgW = 22;
-        const imgH = (img.height / img.width) * imgW;
         const dataUrl = toDataUrl(img);
-        if (dataUrl) doc.addImage(dataUrl, "PNG", M, y - 8, imgW, imgH);
+        if (dataUrl) {
+          const ratio = img.width > 0 && img.height > 0 ? img.width / img.height : 1;
+          const maxW = contentW;
+          const maxH = 10;
+          const scaledW = Math.min(maxW, maxH * ratio);
+          const scaledH = scaledW / Math.max(ratio, 0.0001);
+          const drawX = M + (contentW - scaledW) / 2;
+          bannerH = scaledH;
+          doc.addImage(dataUrl, "PNG", drawX, bannerY, scaledW, scaledH);
+          doc.setDrawColor(192, 203, 220);
+          doc.rect(drawX, bannerY, scaledW, scaledH, "S");
+        }
       } catch {
         // ignore
       }
+      y = bannerY + bannerH + 10;
       doc.setFillColor(242, 246, 252);
       doc.setDrawColor(192, 203, 220);
-      doc.rect(M + 24, y - 10, contentW - 24, 22, "FD");
+      doc.rect(M, y - 10, contentW, 22, "FD");
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      const titleMaxW = pageW - M - (M + 26);
+      const titleMaxW = contentW - 6;
       const titleLines = splitSafe(tpl.titulo || "", titleMaxW);
-      doc.text(titleLines, M + 26, y);
+      doc.text(titleLines, M + 3, y);
       y += Math.max(6, titleLines.length * 5);
       if (tpl.subtitulo) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(11);
         const subLines = splitSafe(tpl.subtitulo, titleMaxW);
-        doc.text(subLines, M + 26, y);
+        doc.text(subLines, M + 3, y);
         y += Math.max(6, subLines.length * 4.5);
       }
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.5);
       doc.setTextColor(70);
-      doc.text(`Run: ${run.id}  |  Estado: ${run.status}  |  Fecha: ${fmtDateShort(run.created_at)}`, M + 26, y);
+      doc.text(`Run: ${run.id}  |  Estado: ${run.status}  |  Fecha: ${fmtDateShort(run.created_at)}`, M + 3, y);
       doc.setTextColor(20);
       y += 4;
       doc.setDrawColor(220);

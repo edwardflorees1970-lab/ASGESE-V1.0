@@ -123,6 +123,13 @@ function fieldKey(label: string) {
   return label.toLowerCase().trim().replace(/\s+/g, "_");
 }
 
+function isDateWithinRange(date: string, min?: string, max?: string) {
+  if (!date) return true;
+  if (min && date < min) return false;
+  if (max && date > max) return false;
+  return true;
+}
+
 function normalizeExtraFields(input: any): ExtraFieldCfg[] {
   if (!Array.isArray(input)) return [];
   return input
@@ -169,7 +176,7 @@ export function FichaDinamicaPage() {
   const runIdParam = searchParams.get("runId");
   const returnTo = searchParams.get("returnTo");
   const midParam = searchParams.get("mid");
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { isTestMode } = useAppConfig();
 
   const [loading, setLoading] = useState(true);
@@ -228,6 +235,13 @@ export function FichaDinamicaPage() {
   const [iePool, setIePool] = useState<InstitucionLite[]>([]);
   const [ieLoading, setIeLoading] = useState(false);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
+  const [monitoreoFechaInicio, setMonitoreoFechaInicio] = useState<string>("");
+  const [monitoreoFechaFin, setMonitoreoFechaFin] = useState<string>("");
+  const [monitorIdentity, setMonitorIdentity] = useState<{
+    name: string;
+    docTipo: "DNI" | "CE";
+    docNumero: string;
+  }>({ name: "", docTipo: "DNI", docNumero: "" });
   const profileMonitorName = [profile?.apellido_paterno, profile?.apellido_materno, profile?.nombres]
     .filter(Boolean)
     .join(" ")
@@ -237,6 +251,9 @@ export function FichaDinamicaPage() {
       ? profile.tipo_documento
       : null;
   const profileMonitorDocNumero = profile?.numero_documento?.trim() || "";
+  const effectiveProfileMonitorName = profileMonitorName || monitorIdentity.name;
+  const effectiveProfileMonitorDocTipo = profileMonitorDocTipo || monitorIdentity.docTipo;
+  const effectiveProfileMonitorDocNumero = profileMonitorDocNumero || monitorIdentity.docNumero;
 
   const defaultHeader = {
     institucion: true,
@@ -358,7 +375,7 @@ export function FichaDinamicaPage() {
       try {
         const monQuery = supabase
           .from("monitoreo_catalog")
-          .select("id, codigo, is_active, solicitud_id, fecha_fin")
+          .select("id, codigo, is_active, solicitud_id, fecha_inicio, fecha_fin")
           .eq("is_active", true)
           .eq("codigo", monitoreoCodigo);
         const { data: mon } = midParam
@@ -372,6 +389,8 @@ export function FichaDinamicaPage() {
         if (isMonitoreoExpired((mon as any).fecha_fin)) {
           throw new Error("Monitoreo vencido. Solicita ampliacion al administrador.");
         }
+        setMonitoreoFechaInicio((mon as any).fecha_inicio ?? "");
+        setMonitoreoFechaFin((mon as any).fecha_fin ?? "");
         setSolicitudId((mon as any).solicitud_id ?? null);
 
         const { data: ficha, error: fichaErr } = await supabase
@@ -454,7 +473,15 @@ export function FichaDinamicaPage() {
         }
         setRunId(draft.id);
         setRunStatus(draft.status);
-        setHeader((s) => ({ ...s, ...(draft.header_json ?? {}) }));
+        setHeader((s) => {
+          const next = { ...s, ...(draft.header_json ?? {}) };
+          return {
+            ...next,
+            monitor: next.monitor || effectiveProfileMonitorName || "",
+            monitor_doc_tipo: (next.monitor_doc_tipo || effectiveProfileMonitorDocTipo || "DNI") as "DNI" | "CE",
+            monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
+          };
+        });
         setFooter((s) => ({ ...s, ...(draft.footer_json ?? {}) }));
         const { data: ansRows } = await supabase
           .from("form_answer")
@@ -478,7 +505,15 @@ export function FichaDinamicaPage() {
       if (!data || !alive) return;
       setRunId(data.id);
       setRunStatus(data.status);
-      setHeader((s) => ({ ...s, ...(data.header_json ?? {}) }));
+      setHeader((s) => {
+        const next = { ...s, ...(data.header_json ?? {}) };
+        return {
+          ...next,
+          monitor: next.monitor || effectiveProfileMonitorName || "",
+          monitor_doc_tipo: (next.monitor_doc_tipo || effectiveProfileMonitorDocTipo || "DNI") as "DNI" | "CE",
+          monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
+        };
+      });
       setFooter((s) => ({ ...s, ...(data.footer_json ?? {}) }));
       const { data: ansRows } = await supabase
         .from("form_answer")
@@ -497,36 +532,51 @@ export function FichaDinamicaPage() {
   }, [template?.id, user?.id, isTestMode, runIdParam]);
 
   useEffect(() => {
+    if (!profileMonitorName && !profileMonitorDocNumero && !profileMonitorDocTipo) return;
+    setMonitorIdentity((prev) => ({
+      name: profileMonitorName || prev.name,
+      docTipo: (profileMonitorDocTipo || prev.docTipo) as "DNI" | "CE",
+      docNumero: profileMonitorDocNumero || prev.docNumero,
+    }));
+  }, [profileMonitorName, profileMonitorDocTipo, profileMonitorDocNumero]);
+
+  useEffect(() => {
+    // Trigger an explicit profile refresh when entering the form so monitor identity is painted immediately.
+    if (!user?.id || profile) return;
+    refreshProfile().catch(() => undefined);
+  }, [user?.id, profile, refreshProfile]);
+
+  useEffect(() => {
     if (!profile) return;
     setHeader((s) => ({
       ...s,
-      monitor: profileMonitorName || s.monitor,
-      monitor_doc_tipo: profileMonitorDocTipo || s.monitor_doc_tipo,
-      monitor_numero_doc: profileMonitorDocNumero || s.monitor_numero_doc,
+      monitor: effectiveProfileMonitorName || s.monitor,
+      monitor_doc_tipo: effectiveProfileMonitorDocTipo || s.monitor_doc_tipo,
+      monitor_numero_doc: effectiveProfileMonitorDocNumero || s.monitor_numero_doc,
     }));
-  }, [profileMonitorName, profileMonitorDocTipo, profileMonitorDocNumero, profile]);
+  }, [effectiveProfileMonitorName, effectiveProfileMonitorDocTipo, effectiveProfileMonitorDocNumero, profile]);
 
   useEffect(() => {
     if (!monitorReadOnly) return;
-    if (!profileMonitorName && !profileMonitorDocTipo && !profileMonitorDocNumero) return;
+    if (!effectiveProfileMonitorName && !effectiveProfileMonitorDocTipo && !effectiveProfileMonitorDocNumero) return;
     if (
-      header.monitor === profileMonitorName &&
-      header.monitor_doc_tipo === (profileMonitorDocTipo || header.monitor_doc_tipo) &&
-      header.monitor_numero_doc === (profileMonitorDocNumero || header.monitor_numero_doc)
+      header.monitor === effectiveProfileMonitorName &&
+      header.monitor_doc_tipo === (effectiveProfileMonitorDocTipo || header.monitor_doc_tipo) &&
+      header.monitor_numero_doc === (effectiveProfileMonitorDocNumero || header.monitor_numero_doc)
     ) {
       return;
     }
     setHeader((s) => ({
       ...s,
-      monitor: profileMonitorName || s.monitor,
-      monitor_doc_tipo: profileMonitorDocTipo || s.monitor_doc_tipo,
-      monitor_numero_doc: profileMonitorDocNumero || s.monitor_numero_doc,
+      monitor: effectiveProfileMonitorName || s.monitor,
+      monitor_doc_tipo: effectiveProfileMonitorDocTipo || s.monitor_doc_tipo,
+      monitor_numero_doc: effectiveProfileMonitorDocNumero || s.monitor_numero_doc,
     }));
   }, [
     monitorReadOnly,
-    profileMonitorName,
-    profileMonitorDocTipo,
-    profileMonitorDocNumero,
+    effectiveProfileMonitorName,
+    effectiveProfileMonitorDocTipo,
+    effectiveProfileMonitorDocNumero,
     header.monitor,
     header.monitor_doc_tipo,
     header.monitor_numero_doc,
@@ -654,9 +704,9 @@ export function FichaDinamicaPage() {
   };
 
   const validate = () => {
-    const monitorNameVal = profileMonitorName || header.monitor;
-    const monitorDocTipoVal = profileMonitorDocTipo || header.monitor_doc_tipo;
-    const monitorDocNumVal = profileMonitorDocNumero || header.monitor_numero_doc;
+    const monitorNameVal = effectiveProfileMonitorName || header.monitor;
+    const monitorDocTipoVal = effectiveProfileMonitorDocTipo || header.monitor_doc_tipo;
+    const monitorDocNumVal = effectiveProfileMonitorDocNumero || header.monitor_numero_doc;
     if (effectiveHeaderCfg.institucion && !header.institucion.trim()) return "Falta Institución Educativa.";
     if (effectiveHeaderCfg.codigo_modular && !header.codigo_modular.trim()) return "Falta Código Modular.";
     if (effectiveHeaderCfg.codigo_local && !header.codigo_local.trim()) return "Falta Código Local.";
@@ -680,6 +730,13 @@ export function FichaDinamicaPage() {
       return "Falta correo del monitoreado.";
     if (effectiveHeaderCfg.numero_visitas && !header.numero_visitas.trim()) return "Falta numero de visitas a la IE.";
     if (effectiveHeaderCfg.fecha_aplicacion && !header.fecha_aplicacion) return "Falta fecha de aplicacion.";
+    if (
+      effectiveHeaderCfg.fecha_aplicacion &&
+      header.fecha_aplicacion &&
+      !isDateWithinRange(header.fecha_aplicacion, monitoreoFechaInicio, monitoreoFechaFin)
+    ) {
+      return "La fecha de aplicacion debe estar dentro del rango del monitoreo.";
+    }
     if (effectiveHeaderCfg.hora_inicio && !header.hora_inicio) return "Falta hora de inicio.";
     if (effectiveHeaderCfg.hora_fin && !header.hora_fin) return "Falta hora de fin.";
 
@@ -731,6 +788,13 @@ export function FichaDinamicaPage() {
 
     if (effectiveFooterCfg.lugar && !footer.lugar.trim()) return "Falta Lugar.";
     if (effectiveFooterCfg.fecha && !footer.fecha) return "Falta Fecha.";
+    if (
+      effectiveFooterCfg.fecha &&
+      footer.fecha &&
+      !isDateWithinRange(footer.fecha, monitoreoFechaInicio, monitoreoFechaFin)
+    ) {
+      return "La fecha del cierre debe estar dentro del rango del monitoreo.";
+    }
     if (effectiveFooterCfg.docente_dni && footer.docente_dni) {
       const req = footer.docente_doc_tipo === "CE" ? 9 : 8;
       if (!/^\d+$/.test(footer.docente_dni)) return "Documento del monitoreado: solo numeros.";
@@ -765,9 +829,9 @@ export function FichaDinamicaPage() {
     setError(null);
     const headerPayload = {
       ...header,
-      monitor: profileMonitorName || header.monitor,
-      monitor_doc_tipo: profileMonitorDocTipo || header.monitor_doc_tipo,
-      monitor_numero_doc: profileMonitorDocNumero || header.monitor_numero_doc,
+      monitor: effectiveProfileMonitorName || header.monitor,
+      monitor_doc_tipo: effectiveProfileMonitorDocTipo || header.monitor_doc_tipo,
+      monitor_numero_doc: effectiveProfileMonitorDocNumero || header.monitor_numero_doc,
     };
     const payload = {
       template_id: template.id,
@@ -1245,7 +1309,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={monitorReadOnly ? profileMonitorName || header.monitor : header.monitor}
+                value={monitorReadOnly ? effectiveProfileMonitorName || header.monitor : header.monitor}
                 readOnly={monitorReadOnly}
                 onChange={(e) => setHeader((s) => ({ ...s, monitor: toUpper(e.target.value) }))}
               />
@@ -1256,7 +1320,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Tipo de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={profileMonitorDocTipo || header.monitor_doc_tipo}
+                value={effectiveProfileMonitorDocTipo || header.monitor_doc_tipo}
                 readOnly
               />
             </label>
@@ -1266,7 +1330,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Numero de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={profileMonitorDocNumero || header.monitor_numero_doc}
+                value={effectiveProfileMonitorDocNumero || header.monitor_numero_doc}
                 readOnly
               />
             </label>
@@ -1409,6 +1473,8 @@ export function FichaDinamicaPage() {
                 type="date"
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.fecha_aplicacion}
+                min={monitoreoFechaInicio || undefined}
+                max={monitoreoFechaFin || undefined}
                 onChange={(e) => setHeader((s) => ({ ...s, fecha_aplicacion: e.target.value }))}
               />
             </label>
@@ -1467,7 +1533,9 @@ export function FichaDinamicaPage() {
                 const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
                 return (
                   <div key={q.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <div className="text-sm font-semibold">{q.texto}</div>
+                    <div className="text-sm font-semibold">
+                      {q.orden_in_section ?? q.orden}. {q.texto}
+                    </div>
                     <div className="mt-3 space-y-3 text-sm text-white/80">
                       {q.tipo === "yes_no" && (
                         <div className="flex gap-4">
@@ -1713,6 +1781,8 @@ export function FichaDinamicaPage() {
                 type="date"
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={footer.fecha}
+                min={monitoreoFechaInicio || undefined}
+                max={monitoreoFechaFin || undefined}
                 onChange={(e) => setFooter((s) => ({ ...s, fecha: e.target.value }))}
               />
             </label>
