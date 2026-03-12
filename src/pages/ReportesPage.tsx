@@ -120,6 +120,21 @@ function downloadCsv(filename: string, rows: string[][]) {
   link.remove();
 }
 
+function RunSummary({
+  monitoreado,
+  institucion,
+}: {
+  monitoreado: string;
+  institucion: string;
+}) {
+  return (
+    <div className="text-xs text-white/50 leading-4">
+      <div>Monitoreado: {monitoreado}</div>
+      <div>Institucion: {institucion}</div>
+    </div>
+  );
+}
+
 export function ReportesPage() {
   const nav = useNavigate();
   const { user, profile } = useAuth();
@@ -1148,10 +1163,11 @@ export function ReportesPage() {
                 {canSeeAll && (
                   <div className="mt-1 text-xs text-white/60">
                     <div>Por: {creatorName}</div>
-                    <div className="text-white/50">Monitoreado: {monitoreado}</div>
-                    <div className="text-white/50">Institucion: {institucion}</div>
                   </div>
                 )}
+                <div className="mt-2">
+                  <RunSummary monitoreado={monitoreado} institucion={institucion} />
+                </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {canEditOrDelete(r) && (
@@ -1214,6 +1230,7 @@ export function ReportesPage() {
                 <th className="px-4 py-3">Ficha</th>
                 <th className="px-4 py-3">Fecha</th>
                 {canSeeAll && <th className="px-4 py-3 w-64">Creador</th>}
+                <th className="px-4 py-3 w-72">Resumen</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
@@ -1221,13 +1238,13 @@ export function ReportesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 6 : 5}>
+                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 7 : 6}>
                     Cargando...
                   </td>
                 </tr>
               ) : runs.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 6 : 5}>
+                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 7 : 6}>
                     Sin registros.
                   </td>
                 </tr>
@@ -1257,14 +1274,11 @@ export function ReportesPage() {
                       {canSeeAll && (
                         <td className="px-4 py-3 text-white/70 w-64">
                           <div className="font-medium text-white/80">{creatorName}</div>
-                          <div className="text-xs text-white/50 leading-4">
-                            Monitoreado: {monitoreado}
-                          </div>
-                          <div className="text-xs text-white/50 leading-4">
-                            Institucion: {institucion}
-                          </div>
                         </td>
                       )}
+                      <td className="px-4 py-3 align-top">
+                        <RunSummary monitoreado={monitoreado} institucion={institucion} />
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={cls(
