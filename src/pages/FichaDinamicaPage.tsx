@@ -81,6 +81,11 @@ type FooterState = {
   monitor_dni: string;
 };
 
+type ToastState = {
+  type: "ok" | "err";
+  msg: string;
+};
+
 type NivelInfo = {
   nivel: number;
   descripcion: string;
@@ -117,6 +122,25 @@ function toUpper(value: string) {
 
 function onlyDigits(value: string, max: number) {
   return value.replace(/\D/g, "").slice(0, max);
+}
+
+function normalizeTime24(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+function cleanStoredTime(value: string) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return normalizeTime24(raw);
+  return `${match[1]}:${match[2]}`;
+}
+
+function isValidTime24(value: string) {
+  if (!/^\d{2}:\d{2}$/.test(value)) return false;
+  const [hh, mm] = value.split(":").map(Number);
+  return hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59;
 }
 
 function fieldKey(label: string) {
@@ -167,6 +191,117 @@ function toDataUrl(img: HTMLImageElement): string {
   if (!ctx) return "";
   ctx.drawImage(img, 0, 0);
   return canvas.toDataURL("image/png");
+}
+
+function getTimeParts(value: string) {
+  const raw = String(value || "");
+  const [hourRaw = "", minuteRaw = ""] = raw.split(":");
+  const hour = /^\d{1,2}$/.test(hourRaw) ? hourRaw.padStart(2, "0").slice(0, 2) : "";
+  const minute = /^\d{1,2}$/.test(minuteRaw) ? minuteRaw.padStart(2, "0").slice(0, 2) : "";
+  return { hour, minute };
+}
+
+function TimeField({
+  value,
+  onChange,
+  className = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const { hour, minute } = getTimeParts(value);
+
+  const updatePart = (nextHour: string, nextMinute: string) => {
+    if (!nextHour && !nextMinute) {
+      onChange("");
+      return;
+    }
+    if (nextHour && nextMinute) {
+      onChange(`${nextHour}:${nextMinute}`);
+      return;
+    }
+    if (nextHour && !nextMinute) {
+      onChange(nextHour);
+      return;
+    }
+    onChange(`${nextHour || "00"}:${nextMinute}`);
+  };
+
+  return (
+    <div className={`relative ${className}`.trim()}>
+      <div className="relative">
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={5}
+          placeholder="HH:mm"
+          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 pr-11 text-sm text-white"
+          value={value}
+          onChange={(e) => onChange(normalizeTime24(e.target.value))}
+        />
+        <button
+          type="button"
+          aria-label="Seleccionar hora"
+          className="absolute inset-y-1 right-1 rounded-md border border-white/10 bg-white/5 px-2 text-sm text-white/80 hover:bg-white/10"
+          onClick={() => setOpen((s) => !s)}
+        >
+          24h
+        </button>
+      </div>
+      {open ? (
+        <div className="absolute left-0 right-0 z-20 mt-2 rounded-xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+          <div className="mb-2 flex items-center justify-between text-xs text-white/60">
+            <span>Seleccione hora</span>
+            <button
+              type="button"
+              className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10"
+              onClick={() => setOpen(false)}
+            >
+              Cerrar
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="mb-2 text-xs text-white/60">Hora</div>
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-1">
+                {Array.from({ length: 24 }, (_, idx) => String(idx).padStart(2, "0")).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    className={`mb-1 w-full rounded-md px-3 py-2 text-sm ${
+                      hour === opt ? "bg-cyan-500/20 text-cyan-100" : "bg-white/5 text-white/80 hover:bg-white/10"
+                    }`}
+                    onClick={() => updatePart(opt, minute)}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 text-xs text-white/60">Minuto</div>
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-1">
+                {Array.from({ length: 60 }, (_, idx) => String(idx).padStart(2, "0")).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    className={`mb-1 w-full rounded-md px-3 py-2 text-sm ${
+                      minute === opt ? "bg-cyan-500/20 text-cyan-100" : "bg-white/5 text-white/80 hover:bg-white/10"
+                    }`}
+                    onClick={() => updatePart(hour, opt)}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function FichaDinamicaPage() {
@@ -226,7 +361,7 @@ export function FichaDinamicaPage() {
   const [saving, setSaving] = useState(false);
   const [showUp, setShowUp] = useState(false);
   const [showDown, setShowDown] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const monitorReadOnly = profile?.role === "user";
 
   const [ieQuery, setIeQuery] = useState("");
@@ -254,6 +389,10 @@ export function FichaDinamicaPage() {
   const effectiveProfileMonitorName = profileMonitorName || monitorIdentity.name;
   const effectiveProfileMonitorDocTipo = profileMonitorDocTipo || monitorIdentity.docTipo;
   const effectiveProfileMonitorDocNumero = profileMonitorDocNumero || monitorIdentity.docNumero;
+  const sessionDraftKey = useMemo(
+    () => `ficha-dyn:${user?.id || "anon"}:${midParam || monitoreoCodigo || "-"}:${fichaCodigo || "-"}:${isTestMode ? "test" : "prod"}`,
+    [user?.id, midParam, monitoreoCodigo, fichaCodigo, isTestMode]
+  );
 
   const defaultHeader = {
     institucion: true,
@@ -323,6 +462,7 @@ export function FichaDinamicaPage() {
   };
 
   const resetFormState = () => {
+    sessionStorage.removeItem(sessionDraftKey);
     setRunId(null);
     setRunStatus(null);
     setHeader({
@@ -456,6 +596,21 @@ export function FichaDinamicaPage() {
     if (!template?.id || !user?.id) return;
     let alive = true;
     (async () => {
+      const localDraftRaw = sessionStorage.getItem(sessionDraftKey);
+      if (localDraftRaw) {
+        try {
+          const localDraft = JSON.parse(localDraftRaw);
+          if (alive) {
+            setRunId(localDraft.runId ?? null);
+            setRunStatus(localDraft.runStatus ?? null);
+            setHeader((s) => ({ ...s, ...(localDraft.header ?? {}) }));
+            setFooter((s) => ({ ...s, ...(localDraft.footer ?? {}) }));
+            setAnswers(localDraft.answers ?? {});
+          }
+        } catch {
+          sessionStorage.removeItem(sessionDraftKey);
+        }
+      }
       if (!runIdParam) {
         const { data: draft } = await supabase
           .from("form_run")
@@ -468,7 +623,7 @@ export function FichaDinamicaPage() {
           .limit(1)
           .maybeSingle();
         if (!draft || !alive) {
-          resetFormState();
+          if (!localDraftRaw) resetFormState();
           return;
         }
         setRunId(draft.id);
@@ -480,6 +635,8 @@ export function FichaDinamicaPage() {
             monitor: next.monitor || effectiveProfileMonitorName || "",
             monitor_doc_tipo: (next.monitor_doc_tipo || effectiveProfileMonitorDocTipo || "DNI") as "DNI" | "CE",
             monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
+            hora_inicio: cleanStoredTime(next.hora_inicio || ""),
+            hora_fin: cleanStoredTime(next.hora_fin || ""),
           };
         });
         setFooter((s) => ({ ...s, ...(draft.footer_json ?? {}) }));
@@ -512,6 +669,8 @@ export function FichaDinamicaPage() {
           monitor: next.monitor || effectiveProfileMonitorName || "",
           monitor_doc_tipo: (next.monitor_doc_tipo || effectiveProfileMonitorDocTipo || "DNI") as "DNI" | "CE",
           monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
+          hora_inicio: cleanStoredTime(next.hora_inicio || ""),
+          hora_fin: cleanStoredTime(next.hora_fin || ""),
         };
       });
       setFooter((s) => ({ ...s, ...(data.footer_json ?? {}) }));
@@ -529,7 +688,21 @@ export function FichaDinamicaPage() {
     return () => {
       alive = false;
     };
-  }, [template?.id, user?.id, isTestMode, runIdParam]);
+  }, [template?.id, user?.id, isTestMode, runIdParam, sessionDraftKey]);
+
+  useEffect(() => {
+    if (!template?.id) return;
+    sessionStorage.setItem(
+      sessionDraftKey,
+      JSON.stringify({
+        runId,
+        runStatus,
+        header,
+        footer,
+        answers,
+      })
+    );
+  }, [template?.id, sessionDraftKey, runId, runStatus, header, footer, answers]);
 
   useEffect(() => {
     if (!profileMonitorName && !profileMonitorDocNumero && !profileMonitorDocTipo) return;
@@ -642,8 +815,8 @@ export function FichaDinamicaPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
+  const showToast = (msg: string, type: "ok" | "err" = "err") => {
+    setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
 
@@ -678,7 +851,7 @@ export function FichaDinamicaPage() {
     }
     if (!targetId) {
       resetFormState();
-      showToast("No hay borrador para limpiar.");
+      showToast("No hay borrador para limpiar.", "err");
       return;
     }
     const { error: ansErr } = await supabase.from("form_answer").delete().eq("run_id", targetId);
@@ -700,7 +873,7 @@ export function FichaDinamicaPage() {
       return;
     }
     resetFormState();
-    showToast("Borrador eliminado.");
+      showToast("Borrador eliminado.", "ok");
   };
 
   const validate = () => {
@@ -739,6 +912,12 @@ export function FichaDinamicaPage() {
     }
     if (effectiveHeaderCfg.hora_inicio && !header.hora_inicio) return "Falta hora de inicio.";
     if (effectiveHeaderCfg.hora_fin && !header.hora_fin) return "Falta hora de fin.";
+    if (effectiveHeaderCfg.hora_inicio && header.hora_inicio && !isValidTime24(header.hora_inicio)) {
+      return "Hora de inicio invalida. Usa formato 24 horas HH:mm.";
+    }
+    if (effectiveHeaderCfg.hora_fin && header.hora_fin && !isValidTime24(header.hora_fin)) {
+      return "Hora de fin invalida. Usa formato 24 horas HH:mm.";
+    }
 
     if (effectiveHeaderCfg.monitor_numero_doc && monitorDocNumVal) {
       const req = monitorDocTipoVal === "CE" ? 9 : 8;
@@ -814,14 +993,14 @@ export function FichaDinamicaPage() {
 
   const saveRun = async (status: "borrador" | "draft") => {
     if (!template?.id || !user?.id) {
-      showToast("Sesión inválida. Vuelve a iniciar sesión.");
+      showToast("Sesion invalida. Vuelve a iniciar sesion.", "err");
       return;
     }
     if (status !== "borrador") {
       const msg = validate();
       if (msg) {
         setError(msg);
-        showToast(msg);
+        showToast(msg, "err");
         return;
       }
     }
@@ -886,13 +1065,13 @@ export function FichaDinamicaPage() {
         .upsert(rows, { onConflict: "run_id,question_id" });
       if (error) {
         setError(error.message);
-        showToast(error.message);
+        showToast(error.message, "err");
         setSaving(false);
         return;
       }
     }
     setSaving(false);
-    showToast(status === "draft" ? "Ficha guardada en BD." : "Borrador guardado.");
+    showToast(status === "draft" ? "Ficha guardada en BD." : "Borrador guardado.", "ok");
     if (status === "draft") {
       resetFormState();
     } else {
@@ -1152,8 +1331,14 @@ export function FichaDinamicaPage() {
   return (
     <div className="space-y-5 text-white">
       {toast && (
-        <div className="fixed left-3 right-3 top-4 z-50 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-100 shadow-lg sm:left-auto sm:right-6 sm:top-6">
-          {toast}
+        <div
+          className={`fixed left-3 right-3 top-4 z-50 rounded-xl px-4 py-3 text-sm shadow-lg sm:left-auto sm:right-6 sm:top-6 ${
+            toast.type === "ok"
+              ? "border border-emerald-500/40 bg-emerald-500/20 text-emerald-100"
+              : "border border-red-500/40 bg-red-500/20 text-red-100"
+          }`}
+        >
+          {toast.msg}
         </div>
       )}
       {error && (
@@ -1482,22 +1667,20 @@ export function FichaDinamicaPage() {
           {effectiveHeaderCfg?.hora_inicio && (
             <label className="text-sm">
               <span className="text-white/70">Hora de inicio</span>
-              <input
-                type="time"
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              <TimeField
+                className="mt-1"
                 value={header.hora_inicio}
-                onChange={(e) => setHeader((s) => ({ ...s, hora_inicio: e.target.value }))}
+                onChange={(value) => setHeader((s) => ({ ...s, hora_inicio: value }))}
               />
             </label>
           )}
           {effectiveHeaderCfg?.hora_fin && (
             <label className="text-sm">
               <span className="text-white/70">Hora de fin</span>
-              <input
-                type="time"
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+              <TimeField
+                className="mt-1"
                 value={header.hora_fin}
-                onChange={(e) => setHeader((s) => ({ ...s, hora_fin: e.target.value }))}
+                onChange={(value) => setHeader((s) => ({ ...s, hora_fin: value }))}
               />
             </label>
           )}
