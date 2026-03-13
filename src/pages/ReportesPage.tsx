@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
 
 type RunRow = {
   id: string;
@@ -461,32 +462,8 @@ export function ReportesPage() {
         answersMap[a.question_id] = a.value_json;
       });
 
-      const headerCfg = tpl.header_config ?? {};
+      const headerCfg = normalizeHeaderConfig(tpl.header_config ?? {});
       const footerCfg = tpl.footer_config ?? {};
-      const defaultHeader = {
-        institucion: true,
-        codigo_modular: true,
-        codigo_local: true,
-        distrito: true,
-        rei: true,
-        monitor: true,
-        monitor_doc_tipo: false,
-        monitor_numero_doc: false,
-        monitoreado: true,
-        monitoreado_doc_tipo: false,
-        monitoreado_numero_doc: false,
-        monitoreado_cargo: false,
-        monitoreado_telefono: false,
-        monitoreado_correo: false,
-        condicion: true,
-        area: true,
-        numero_visitas: false,
-        fecha_aplicacion: false,
-        hora_inicio: false,
-        hora_fin: false,
-        nivel_avance: false,
-        nivel_avance_info: [],
-      };
       const defaultFooter = {
         observacion: true,
         compromiso: true,
@@ -498,7 +475,7 @@ export function ReportesPage() {
         monitor_dni: true,
         firmas: true,
       };
-      const effectiveHeader = { ...defaultHeader, ...(headerCfg || {}) };
+      const effectiveHeader = headerCfg;
       const effectiveFooter = { ...defaultFooter, ...(footerCfg || {}) };
       const headerRaw = runRow.header_json ?? {};
       const footerRaw = runRow.footer_json ?? {};
@@ -535,6 +512,8 @@ export function ReportesPage() {
         fecha_aplicacion: headerRaw.fecha_aplicacion ?? "",
         hora_inicio: headerRaw.hora_inicio ?? "",
         hora_fin: headerRaw.hora_fin ?? "",
+        custom_values:
+          headerRaw.custom_values && typeof headerRaw.custom_values === "object" ? headerRaw.custom_values : {},
       };
       const footer = {
         observacion:
@@ -732,12 +711,16 @@ export function ReportesPage() {
       if (effectiveHeader.monitoreado_cargo) headerPairs.push(["Cargo monitoreado", header.monitoreado_cargo ?? ""]);
       if (effectiveHeader.monitoreado_telefono) headerPairs.push(["Telefono monitoreado", header.monitoreado_telefono ?? ""]);
       if (effectiveHeader.monitoreado_correo) headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
-      if (effectiveHeader.condicion) headerPairs.push(["Condicion", header.condicion ?? ""]);
+      if (effectiveHeader.condicion)
+        headerPairs.push(["Condicion del monitoreado", header.condicion ?? ""]);
       if (effectiveHeader.area) headerPairs.push(["Area", header.area ?? ""]);
       if (effectiveHeader.numero_visitas) headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
       if (effectiveHeader.fecha_aplicacion) headerPairs.push(["Fecha de aplicacion", header.fecha_aplicacion ?? ""]);
       if (effectiveHeader.hora_inicio) headerPairs.push(["Hora de inicio", header.hora_inicio ?? ""]);
       if (effectiveHeader.hora_fin) headerPairs.push(["Hora de fin", header.hora_fin ?? ""]);
+      (effectiveHeader.custom_fields ?? []).forEach((field: HeaderFieldDef) => {
+        headerPairs.push([field.label, header.custom_values?.[field.key] ?? ""]);
+      });
       if (headerPairs.length) {
         drawSectionHeader("Encabezado");
         drawKeyValueGrid(headerPairs);

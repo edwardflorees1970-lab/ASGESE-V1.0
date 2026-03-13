@@ -5,6 +5,13 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { isMonitoreoExpired, todayDateOnly } from "../lib/monitoreoVigencia";
+import {
+  createHeaderField,
+  DEFAULT_HEADER_CONFIG,
+  HEADER_FIELD_TYPE_OPTIONS,
+  normalizeHeaderConfig,
+  type HeaderFieldDef,
+} from "../lib/dynamicHeader";
 
 const GESTION_PUBLICA = "Pública";
 const GESTION_PRIVADA = "Privada";
@@ -377,6 +384,10 @@ export function GestionMonitoreosPage() {
   const [templateFooter, setTemplateFooter] = useState<any>({});
   const [templateHeaderAreas, setTemplateHeaderAreas] = useState("");
   const [templateHeaderNiveles, setTemplateHeaderNiveles] = useState("");
+  const [templateCustomFieldLabel, setTemplateCustomFieldLabel] = useState("");
+  const [templateCustomFieldType, setTemplateCustomFieldType] = useState<HeaderFieldDef["type"]>("text");
+  const [templateCustomFieldOptions, setTemplateCustomFieldOptions] = useState("");
+  const [templateCustomFieldRequired, setTemplateCustomFieldRequired] = useState(false);
   const [editTemplateTitle, setEditTemplateTitle] = useState("");
   const [editTemplateCode, setEditTemplateCode] = useState("");
   const [editTemplateSubtitle, setEditTemplateSubtitle] = useState("");
@@ -540,31 +551,6 @@ export function GestionMonitoreosPage() {
 
   useEffect(() => {
     if (!selectedTemplate) return;
-    const defaultHeader = {
-      institucion: true,
-      codigo_modular: true,
-      codigo_local: true,
-      distrito: true,
-      rei: true,
-      monitor: true,
-      monitor_doc_tipo: false,
-      monitor_numero_doc: false,
-      monitoreado: true,
-      monitoreado_doc_tipo: false,
-      monitoreado_numero_doc: false,
-      monitoreado_cargo: false,
-      monitoreado_telefono: false,
-      monitoreado_correo: false,
-      condicion: true,
-      area: true,
-      numero_visitas: false,
-      fecha_aplicacion: false,
-      hora_inicio: false,
-      hora_fin: false,
-      area_options: [],
-      nivel_avance: false,
-      nivel_avance_info: [],
-    };
     const defaultFooter = {
       observacion: true,
       compromiso: true,
@@ -576,7 +562,7 @@ export function GestionMonitoreosPage() {
       monitor_dni: true,
       firmas: true,
     };
-    const header = selectedTemplate.header_config ?? defaultHeader;
+    const header = normalizeHeaderConfig(selectedTemplate.header_config ?? DEFAULT_HEADER_CONFIG);
     const footer = selectedTemplate.footer_config ?? defaultFooter;
     setTemplateHeader(header);
     setTemplateFooter(footer);
@@ -1391,31 +1377,7 @@ export function GestionMonitoreosPage() {
       titulo: templateTitle.trim(),
       codigo: code,
       subtitulo: templateSubtitle.trim() || null,
-      header_config: {
-        institucion: true,
-        codigo_modular: true,
-        codigo_local: true,
-        distrito: true,
-        rei: true,
-        monitor: true,
-        monitor_doc_tipo: false,
-        monitor_numero_doc: false,
-        monitoreado: true,
-        monitoreado_doc_tipo: false,
-        monitoreado_numero_doc: false,
-        monitoreado_cargo: false,
-        monitoreado_telefono: false,
-        monitoreado_correo: false,
-        condicion: true,
-        area: true,
-        numero_visitas: false,
-        fecha_aplicacion: false,
-        hora_inicio: false,
-        hora_fin: false,
-        area_options: [],
-        nivel_avance: false,
-        nivel_avance_info: [],
-      },
+      header_config: DEFAULT_HEADER_CONFIG,
       footer_config: {
         observacion: true,
         compromiso: true,
@@ -1452,14 +1414,82 @@ export function GestionMonitoreosPage() {
     if (templateHeader.nivel_avance && nivelInfo.length === 0) {
       nivelInfo = DEFAULT_NIVEL_INFO;
     }
-    return {
+    return normalizeHeaderConfig({
       ...templateHeader,
       area_options: templateHeaderAreas
         .split("\n")
         .map((v) => v.trim())
         .filter(Boolean),
       nivel_avance_info: nivelInfo,
-    };
+      custom_fields: templateHeader.custom_fields ?? [],
+    });
+  };
+
+  const addTemplateCustomField = () => {
+    const label = templateCustomFieldLabel.trim();
+    if (!label) {
+      setToast({ type: "err", msg: "Ingresa el nombre del campo de encabezado." });
+      return;
+    }
+    const field = createHeaderField({
+      label,
+      type: templateCustomFieldType,
+      required: templateCustomFieldRequired,
+      options:
+        templateCustomFieldType === "select"
+          ? templateCustomFieldOptions
+              .split("\n")
+              .map((v) => v.trim())
+              .filter(Boolean)
+          : [],
+    });
+    setTemplateHeader((prev: any) =>
+      normalizeHeaderConfig({
+        ...prev,
+        custom_fields: [...(prev?.custom_fields ?? []), field],
+      })
+    );
+    setTemplateCustomFieldLabel("");
+    setTemplateCustomFieldType("text");
+    setTemplateCustomFieldOptions("");
+    setTemplateCustomFieldRequired(false);
+  };
+
+  const patchTemplateCustomField = (fieldId: string, patch: Partial<HeaderFieldDef>) => {
+    setTemplateHeader((prev: any) =>
+      normalizeHeaderConfig({
+        ...prev,
+        custom_fields: (prev?.custom_fields ?? []).map((field: HeaderFieldDef) =>
+          field.id === fieldId ? { ...field, ...patch } : field
+        ),
+      })
+    );
+  };
+
+  const removeTemplateCustomField = (fieldId: string) => {
+    setTemplateHeader((prev: any) =>
+      normalizeHeaderConfig({
+        ...prev,
+        custom_fields: (prev?.custom_fields ?? []).filter((field: HeaderFieldDef) => field.id !== fieldId),
+      })
+    );
+  };
+
+  const moveTemplateCustomField = (fieldId: string, direction: -1 | 1) => {
+    setTemplateHeader((prev: any) => {
+      const list = [...(prev?.custom_fields ?? [])];
+      const index = list.findIndex((field: HeaderFieldDef) => field.id === fieldId);
+      if (index < 0) return prev;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= list.length) return prev;
+      const temp = list[index];
+      list[index] = list[nextIndex];
+      list[nextIndex] = temp;
+      return normalizeHeaderConfig({
+        ...prev,
+        custom_fields: list,
+      });
+    });
   };
 
   const saveTemplateConfig = async () => {
@@ -1809,6 +1839,9 @@ export function GestionMonitoreosPage() {
       headerPairs.push(["Fecha de aplicacion", header.fecha_aplicacion ?? ""]);
     if (templateHeader.hora_inicio) headerPairs.push(["Hora de inicio", header.hora_inicio ?? ""]);
     if (templateHeader.hora_fin) headerPairs.push(["Hora de fin", header.hora_fin ?? ""]);
+    (templateHeader.custom_fields ?? []).forEach((field: HeaderFieldDef) => {
+      headerPairs.push([field.label, header.custom_values?.[field.key] ?? ""]);
+    });
 
     if (headerPairs.length) {
       drawSectionHeader("Encabezado");
@@ -2567,7 +2600,7 @@ export function GestionMonitoreosPage() {
                           ["monitoreado_cargo", "Cargo monitoreado"],
                           ["monitoreado_telefono", "Telefono monitoreado"],
                           ["monitoreado_correo", "Correo monitoreado"],
-                          ["condicion", "Condición docente"],
+                          ["condicion", "Condición del monitoreado (designado o encargado)"],
                           ["area", "Área que monitorea"],
                           ["numero_visitas", "Numero de visitas a la IE"],
                           ["fecha_aplicacion", "Fecha de aplicacion"],
@@ -2609,6 +2642,152 @@ export function GestionMonitoreosPage() {
                           />
                         </div>
                       )}
+                      <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                        <div className="text-sm font-semibold">Campos dinámicos del encabezado</div>
+                        <div className="mt-1 text-xs text-white/60">
+                          Úsalos para director, docente, matrícula u otros datos nuevos sin tocar código.
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-[1.5fr_140px_1fr_120px_auto]">
+                          <input
+                            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            placeholder="Nombre del campo"
+                            value={templateCustomFieldLabel}
+                            onChange={(e) => setTemplateCustomFieldLabel(e.target.value)}
+                          />
+                          <select
+                            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            value={templateCustomFieldType}
+                            onChange={(e) => setTemplateCustomFieldType(e.target.value as HeaderFieldDef["type"])}
+                          >
+                            {HEADER_FIELD_TYPE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            placeholder="Opciones (si es lista)"
+                            value={templateCustomFieldOptions}
+                            onChange={(e) => setTemplateCustomFieldOptions(e.target.value)}
+                            disabled={templateCustomFieldType !== "select"}
+                          />
+                          <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
+                            <input
+                              type="checkbox"
+                              checked={templateCustomFieldRequired}
+                              onChange={(e) => setTemplateCustomFieldRequired(e.target.checked)}
+                            />
+                            Obligatorio
+                          </label>
+                          <button
+                            type="button"
+                            onClick={addTemplateCustomField}
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                          >
+                            Agregar
+                          </button>
+                        </div>
+                        {templateCustomFieldType === "select" && (
+                          <textarea
+                            className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                            placeholder="Una opción por línea"
+                            value={templateCustomFieldOptions}
+                            onChange={(e) => setTemplateCustomFieldOptions(e.target.value)}
+                          />
+                        )}
+                        <div className="mt-3 space-y-2">
+                          {(templateHeader.custom_fields ?? []).map((field: HeaderFieldDef) => (
+                            <div
+                              key={field.id}
+                              className="grid gap-2 rounded-lg border border-white/10 bg-white/5 p-3 md:grid-cols-[1.5fr_130px_1fr_110px_auto]"
+                            >
+                              <input
+                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                value={field.label}
+                                onChange={(e) => patchTemplateCustomField(field.id, { label: e.target.value })}
+                              />
+                              <select
+                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                value={field.type}
+                                onChange={(e) =>
+                                  patchTemplateCustomField(field.id, {
+                                    type: e.target.value as HeaderFieldDef["type"],
+                                    options:
+                                      e.target.value === "select"
+                                        ? field.options
+                                        : [],
+                                  })
+                                }
+                              >
+                                {HEADER_FIELD_TYPE_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                placeholder={field.type === "select" ? "op1 | op2 | op3" : "Opcional"}
+                                value={field.type === "select" ? field.options.join(" | ") : field.placeholder ?? ""}
+                                onChange={(e) =>
+                                  patchTemplateCustomField(
+                                    field.id,
+                                    field.type === "select"
+                                      ? {
+                                          options: e.target.value
+                                            .split("|")
+                                            .map((v) => v.trim())
+                                            .filter(Boolean),
+                                        }
+                                      : { placeholder: e.target.value }
+                                  )
+                                }
+                              />
+                              <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
+                                <input
+                                  type="checkbox"
+                                  checked={field.required}
+                                  onChange={(e) =>
+                                    patchTemplateCustomField(field.id, { required: e.target.checked })
+                                  }
+                                />
+                                Obligatorio
+                              </label>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => moveTemplateCustomField(field.id, -1)}
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-white/80"
+                                  title="Subir"
+                                >
+                                  ↑
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveTemplateCustomField(field.id, 1)}
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-white/80"
+                                  title="Bajar"
+                                >
+                                  ↓
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeTemplateCustomField(field.id)}
+                                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
+                                >
+                                  Quitar
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          {!(templateHeader.custom_fields ?? []).length && (
+                            <div className="rounded-lg border border-dashed border-white/10 bg-black/20 px-3 py-3 text-xs text-white/50">
+                              Sin campos dinámicos todavía.
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       <div className="mt-4 grid gap-3 md:grid-cols-2">
                         {[
                           ["observacion", "Observación general"],
@@ -3384,8 +3563,8 @@ export function GestionMonitoreosPage() {
                       )}
                       {templateHeader.condicion && (
                         <label className="block">
-                          <div className="mb-1 text-[11px] text-white/60">Condición docente</div>
-                          <input
+                          <div className="mb-1 text-[11px] text-white/60">Condición del monitoreado (designado o encargado)</div>
+                          <select
                             className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                             value={previewData.__header?.condicion ?? ""}
                             onChange={(e) =>
@@ -3394,7 +3573,11 @@ export function GestionMonitoreosPage() {
                                 __header: { ...previewData.__header, condicion: e.target.value },
                               })
                             }
-                          />
+                          >
+                            <option value="">Seleccionar</option>
+                            <option value="DESIGNADO">Designado</option>
+                            <option value="ENCARGADO">Encargado</option>
+                          </select>
                         </label>
                       )}
                       {templateHeader.area && (
@@ -3490,6 +3673,63 @@ export function GestionMonitoreosPage() {
                           />
                         </label>
                       )}
+                      {(templateHeader.custom_fields ?? []).map((field: HeaderFieldDef) => (
+                        <label
+                          key={field.id}
+                          className={`block ${field.type === "select" && field.options.length > 4 ? "md:col-span-2" : ""}`}
+                        >
+                          <div className="mb-1 text-[11px] text-white/60">
+                            {field.label}
+                            {field.required ? " *" : ""}
+                          </div>
+                          {field.type === "select" ? (
+                            <select
+                              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                              value={previewData.__header?.custom_values?.[field.key] ?? ""}
+                              onChange={(e) =>
+                                savePreview({
+                                  ...previewData,
+                                  __header: {
+                                    ...previewData.__header,
+                                    custom_values: {
+                                      ...(previewData.__header?.custom_values ?? {}),
+                                      [field.key]: e.target.value,
+                                    },
+                                  },
+                                })
+                              }
+                            >
+                              <option value="">Seleccionar</option>
+                              {field.options.map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type={field.type === "number" ? "number" : "text"}
+                              inputMode={field.type === "number" ? "numeric" : undefined}
+                              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                              value={previewData.__header?.custom_values?.[field.key] ?? ""}
+                              placeholder={field.placeholder || field.label}
+                              onChange={(e) =>
+                                savePreview({
+                                  ...previewData,
+                                  __header: {
+                                    ...previewData.__header,
+                                    custom_values: {
+                                      ...(previewData.__header?.custom_values ?? {}),
+                                      [field.key]:
+                                        field.type === "number" ? e.target.value.replace(/[^\d]/g, "") : e.target.value,
+                                    },
+                                  },
+                                })
+                              }
+                            />
+                          )}
+                        </label>
+                      ))}
                     </div>
                   </div>
                   {templateHeader.nivel_avance ? (
