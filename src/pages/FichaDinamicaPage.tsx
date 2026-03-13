@@ -6,6 +6,12 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { isMonitoreoExpired } from "../lib/monitoreoVigencia";
+import {
+  DEFAULT_HEADER_CONFIG,
+  normalizeCustomHeaderValues,
+  normalizeHeaderConfig,
+  type HeaderFieldDef,
+} from "../lib/dynamicHeader";
 
 type Template = {
   id: string;
@@ -66,6 +72,7 @@ type HeaderState = {
   fecha_aplicacion: string;
   hora_inicio: string;
   hora_fin: string;
+  custom_values: Record<string, string>;
 };
 
 type FooterState = {
@@ -342,6 +349,7 @@ export function FichaDinamicaPage() {
     fecha_aplicacion: "",
     hora_inicio: "",
     hora_fin: "",
+    custom_values: {},
   });
   const [footer, setFooter] = useState<FooterState>({
     observacion: "",
@@ -394,31 +402,6 @@ export function FichaDinamicaPage() {
     [user?.id, midParam, monitoreoCodigo, fichaCodigo, isTestMode]
   );
 
-  const defaultHeader = {
-    institucion: true,
-    codigo_modular: true,
-    codigo_local: true,
-    distrito: true,
-    rei: true,
-    monitor: true,
-    monitor_doc_tipo: false,
-    monitor_numero_doc: false,
-    monitoreado: true,
-    monitoreado_doc_tipo: false,
-    monitoreado_numero_doc: false,
-    monitoreado_cargo: false,
-    monitoreado_telefono: false,
-    monitoreado_correo: false,
-    condicion: true,
-    area: true,
-    numero_visitas: false,
-    fecha_aplicacion: false,
-    hora_inicio: false,
-    hora_fin: false,
-    area_options: [],
-    nivel_avance: false,
-    nivel_avance_info: [],
-  };
   const defaultFooter = {
     observacion: true,
     compromiso: true,
@@ -429,8 +412,14 @@ export function FichaDinamicaPage() {
     monitor_nombre: true,
     monitor_dni: true,
   };
-  const effectiveHeaderCfg = headerCfg && Object.keys(headerCfg).length ? headerCfg : defaultHeader;
+  const effectiveHeaderCfg = normalizeHeaderConfig(
+    headerCfg && Object.keys(headerCfg).length ? headerCfg : DEFAULT_HEADER_CONFIG
+  );
   const effectiveFooterCfg = footerCfg && Object.keys(footerCfg).length ? footerCfg : defaultFooter;
+  const customHeaderFields = useMemo(
+    () => (effectiveHeaderCfg?.custom_fields ?? []) as HeaderFieldDef[],
+    [effectiveHeaderCfg]
+  );
   const nivelInfo: NivelInfo[] = Array.isArray(effectiveHeaderCfg?.nivel_avance_info)
     ? effectiveHeaderCfg.nivel_avance_info
     : [];
@@ -486,6 +475,7 @@ export function FichaDinamicaPage() {
       fecha_aplicacion: "",
       hora_inicio: "",
       hora_fin: "",
+      custom_values: normalizeCustomHeaderValues(customHeaderFields, {}),
     });
     setFooter({
       observacion: "",
@@ -574,7 +564,7 @@ export function FichaDinamicaPage() {
 
         if (!alive) return;
         setTemplate(tpl as Template);
-        setHeaderCfg(tpl.header_config ?? defaultHeader);
+        setHeaderCfg(normalizeHeaderConfig(tpl.header_config ?? DEFAULT_HEADER_CONFIG));
         setFooterCfg(tpl.footer_config ?? defaultFooter);
         setSections((secRows as Section[]) ?? []);
         setQuestions((qRows as Question[]) ?? []);
@@ -637,6 +627,7 @@ export function FichaDinamicaPage() {
             monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
             hora_inicio: cleanStoredTime(next.hora_inicio || ""),
             hora_fin: cleanStoredTime(next.hora_fin || ""),
+            custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
           };
         });
         setFooter((s) => ({ ...s, ...(draft.footer_json ?? {}) }));
@@ -671,6 +662,7 @@ export function FichaDinamicaPage() {
           monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
           hora_inicio: cleanStoredTime(next.hora_inicio || ""),
           hora_fin: cleanStoredTime(next.hora_fin || ""),
+          custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
         };
       });
       setFooter((s) => ({ ...s, ...(data.footer_json ?? {}) }));
@@ -712,6 +704,13 @@ export function FichaDinamicaPage() {
       docNumero: profileMonitorDocNumero || prev.docNumero,
     }));
   }, [profileMonitorName, profileMonitorDocTipo, profileMonitorDocNumero]);
+
+  useEffect(() => {
+    setHeader((s) => ({
+      ...s,
+      custom_values: normalizeCustomHeaderValues(customHeaderFields, s.custom_values),
+    }));
+  }, [customHeaderFields]);
 
   useEffect(() => {
     // Trigger an explicit profile refresh when entering the form so monitor identity is painted immediately.
@@ -886,7 +885,8 @@ export function FichaDinamicaPage() {
     if (effectiveHeaderCfg.distrito && !header.distrito.trim()) return "Falta Distrito/Lugar.";
     if (effectiveHeaderCfg.monitor && !monitorNameVal.trim()) return "Falta nombre del monitor.";
     if (effectiveHeaderCfg.monitoreado && !header.monitoreado.trim()) return "Falta nombre del monitoreado.";
-    if (effectiveHeaderCfg.condicion && !header.condicion.trim()) return "Falta condición.";
+    if (effectiveHeaderCfg.condicion && !header.condicion.trim())
+      return "Falta condición del monitoreado.";
     if (effectiveHeaderCfg.area && !header.area.trim()) return "Falta área.";
     if (effectiveHeaderCfg.monitor_doc_tipo && !monitorDocTipoVal) return "Falta tipo documento del monitor.";
     if (effectiveHeaderCfg.monitor_numero_doc && !monitorDocNumVal.trim())
@@ -917,6 +917,10 @@ export function FichaDinamicaPage() {
     }
     if (effectiveHeaderCfg.hora_fin && header.hora_fin && !isValidTime24(header.hora_fin)) {
       return "Hora de fin invalida. Usa formato 24 horas HH:mm.";
+    }
+    for (const field of customHeaderFields) {
+      const value = (header.custom_values?.[field.key] ?? "").trim();
+      if (field.required && !value) return `Falta ${field.label}.`;
     }
 
     if (effectiveHeaderCfg.monitor_numero_doc && monitorDocNumVal) {
@@ -1011,6 +1015,7 @@ export function FichaDinamicaPage() {
       monitor: effectiveProfileMonitorName || header.monitor,
       monitor_doc_tipo: effectiveProfileMonitorDocTipo || header.monitor_doc_tipo,
       monitor_numero_doc: effectiveProfileMonitorDocNumero || header.monitor_numero_doc,
+      custom_values: normalizeCustomHeaderValues(customHeaderFields, header.custom_values),
     };
     const payload = {
       template_id: template.id,
@@ -1188,7 +1193,8 @@ export function FichaDinamicaPage() {
       headerPairs.push(["Telefono monitoreado", header.monitoreado_telefono ?? ""]);
     if (effectiveHeaderCfg?.monitoreado_correo)
       headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
-    if (effectiveHeaderCfg?.condicion) headerPairs.push(["Condición", header.condicion ?? ""]);
+    if (effectiveHeaderCfg?.condicion)
+      headerPairs.push(["Condición del monitoreado", header.condicion ?? ""]);
     if (effectiveHeaderCfg?.area) headerPairs.push(["Área", header.area ?? ""]);
     if (effectiveHeaderCfg?.numero_visitas)
       headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
@@ -1196,6 +1202,9 @@ export function FichaDinamicaPage() {
       headerPairs.push(["Fecha de aplicacion", header.fecha_aplicacion ?? ""]);
     if (effectiveHeaderCfg?.hora_inicio) headerPairs.push(["Hora de inicio", header.hora_inicio ?? ""]);
     if (effectiveHeaderCfg?.hora_fin) headerPairs.push(["Hora de fin", header.hora_fin ?? ""]);
+    customHeaderFields.forEach((field) => {
+      headerPairs.push([field.label, header.custom_values?.[field.key] ?? ""]);
+    });
 
     if (headerPairs.length) {
       drawSectionHeader("Encabezado");
@@ -1604,15 +1613,15 @@ export function FichaDinamicaPage() {
           )}
           {effectiveHeaderCfg?.condicion && (
             <label className="text-sm">
-              <span className="text-white/70">Condición</span>
+              <span className="text-white/70">Condición del monitoreado (designado o encargado)</span>
               <select
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.condicion}
                 onChange={(e) => setHeader((s) => ({ ...s, condicion: e.target.value }))}
               >
-                <option value="">Seleccione</option>
-                <option value="NOMBRADO">Nombrado</option>
-                <option value="CONTRATADO">Contratado</option>
+                <option value="">Seleccionar</option>
+                <option value="DESIGNADO">Designado</option>
+                <option value="ENCARGADO">Encargado</option>
               </select>
             </label>
           )}
@@ -1684,6 +1693,56 @@ export function FichaDinamicaPage() {
               />
             </label>
           )}
+          {customHeaderFields.map((field) => (
+            <label
+              key={field.id}
+              className={`text-sm ${field.type === "select" && field.options.length > 4 ? "md:col-span-2" : ""}`}
+            >
+              <span className="text-white/70">
+                {field.label}
+                {field.required ? " *" : ""}
+              </span>
+              {field.type === "select" ? (
+                <select
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                  value={header.custom_values?.[field.key] ?? ""}
+                  onChange={(e) =>
+                    setHeader((s) => ({
+                      ...s,
+                      custom_values: {
+                        ...s.custom_values,
+                        [field.key]: e.target.value,
+                      },
+                    }))
+                  }
+                >
+                  <option value="">Seleccionar</option>
+                  {field.options.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                  inputMode={field.type === "number" ? "numeric" : undefined}
+                  value={header.custom_values?.[field.key] ?? ""}
+                  placeholder={field.placeholder || field.label}
+                  onChange={(e) =>
+                    setHeader((s) => ({
+                      ...s,
+                      custom_values: {
+                        ...s.custom_values,
+                        [field.key]:
+                          field.type === "number" ? e.target.value.replace(/[^\d]/g, "") : e.target.value,
+                      },
+                    }))
+                  }
+                />
+              )}
+            </label>
+          ))}
         </div>
       </div>
 
