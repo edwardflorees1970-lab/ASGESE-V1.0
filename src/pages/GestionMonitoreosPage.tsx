@@ -895,6 +895,27 @@ export function GestionMonitoreosPage() {
     loadSolicitudes();
   };
 
+  const reactivateMonitoreo = async (solicitudId: string) => {
+    const { error: solErr } = await supabase
+      .from("monitoreo_solicitud")
+      .update({ status: "approved", inactive_at: null, updated_at: new Date().toISOString() })
+      .eq("id", solicitudId);
+    if (solErr) {
+      setToast({ type: "err", msg: solErr.message });
+      return;
+    }
+    const { error: monErr } = await supabase
+      .from("monitoreo_catalog")
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq("solicitud_id", solicitudId);
+    if (monErr) {
+      setToast({ type: "err", msg: monErr.message });
+      return;
+    }
+    setToast({ type: "ok", msg: "Monitoreo reactivado." });
+    await loadSolicitudes();
+  };
+
   const extendMonitoreo = async (solicitudId: string) => {
     if (!extendFechaFin) {
       setToast({ type: "err", msg: "Selecciona una nueva fecha fin." });
@@ -930,9 +951,11 @@ export function GestionMonitoreosPage() {
 
   const deleteMonitoreoFull = async (solicitudId: string) => {
     setDeleteMonBusy(true);
+    setError(null);
+    let solicitudDeleted = false;
     const { data: mon, error: monErr } = await supabase
       .from("monitoreo_catalog")
-      .select("id")
+      .select("id,nombre,codigo")
       .eq("solicitud_id", solicitudId)
       .maybeSingle();
     if (monErr) {
@@ -941,7 +964,15 @@ export function GestionMonitoreosPage() {
       return;
     }
     if (!mon?.id) {
-      setError("No se encontró el monitoreo publicado.");
+      const delErr = await deleteSolicitudCascade(solicitudId);
+      if (delErr) {
+        setError(delErr.message);
+      } else {
+        setToast({ type: "ok", msg: "Se eliminó la solicitud que había quedado suelta." });
+        removeSolicitudFromState(solicitudId);
+        await loadSolicitudes();
+        setDeleteMonOpen(false);
+      }
       setDeleteMonBusy(false);
       return;
     }
@@ -949,16 +980,191 @@ export function GestionMonitoreosPage() {
       p_monitoreo_id: mon.id,
     });
     if (error) {
-      if (error.message.includes("Could not find the function public.delete_monitoreo_full")) {
-        setError("Falta crear la función SQL delete_monitoreo_full(uuid) en Supabase.");
+      const shouldFallback =
+        error.message.includes("Could not find the function public.delete_monitoreo_full") ||
+        error.message.includes("violates foreign key constraint");
+
+      if (shouldFallback) {
+        const { data: tpls, error: tplErr } = await supabase
+          .from("form_template")
+          .select("id")
+          .eq("solicitud_id", solicitudId);
+        if (tplErr) {
+          setError(tplErr.message);
+          setDeleteMonBusy(false);
+          return;
+        }
+
+        const templateIds = (tpls ?? []).map((row) => row.id as string);
+
+        const runIds: string[] = [];
+        const questionIds: string[] = [];
+        if (templateIds.length > 0) {
+          const [{ data: runs, error: runErr }, { data: questions, error: qErr }] = await Promise.all([
+            supabase.from("form_run").select("id").in("template_id", templateIds),
+            supabase.from("form_question").select("id").in("template_id", templateIds),
+          ]);
+          if (runErr) {
+            setError(runErr.message);
+            setDeleteMonBusy(false);
+            return;
+          }
+          if (qErr) {
+            setError(qErr.message);
+            setDeleteMonBusy(false);
+            return;
+          }
+          runIds.push(...(runs ?? []).map((row) => row.id as string));
+          questionIds.push(...(questions ?? []).map((row) => row.id as string));
+        }
+
+        const deleteIfAny = async (
+          table: string,
+          column: string,
+          values: string[],
+        ) => {
+          if (values.length === 0) return null;
+          const { error: delErr } = await supabase.from(table).delete().in(column, values);
+          return delErr;
+        };
+
+        const steps: Array<() => Promise<{ message: string } | null>> = [
+          async () => {
+            const delErr = await deleteIfAny("form_answer", "run_id", runIds);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const delErr = await deleteIfAny("form_answer", "question_id", questionIds);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const delErr = await deleteIfAny("form_run", "id", runIds);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const delErr = await deleteIfAny("form_question", "id", questionIds);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const delErr = await deleteIfAny("form_section", "template_id", templateIds);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("ficha_catalog")
+              .delete()
+              .eq("monitoreo_id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const delErr = await deleteIfAny("form_template", "id", templateIds);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_ie_validacion")
+              .delete()
+              .eq("monitoreo_id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_ie_avance")
+              .delete()
+              .eq("monitoreo_id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_ie_asignacion")
+              .delete()
+              .eq("monitoreo_id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_asignacion")
+              .delete()
+              .eq("monitoreo_id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_actividad_extra")
+              .delete()
+              .eq("monitoreo_id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_actividad")
+              .delete()
+              .eq("monitoreo_id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: updErr } = await supabase
+              .from("monitoreo_catalog")
+              .update({ solicitud_id: null })
+              .eq("id", mon.id);
+            return updErr ? { message: updErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase.from("monitoreo_catalog").delete().eq("id", mon.id);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_solicitud_ie")
+              .delete()
+              .eq("solicitud_id", solicitudId);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_solicitud_filtro")
+              .delete()
+              .eq("solicitud_id", solicitudId);
+            return delErr ? { message: delErr.message } : null;
+          },
+          async () => {
+            const { error: delErr } = await supabase
+              .from("monitoreo_solicitud")
+              .delete()
+              .eq("id", solicitudId);
+            return delErr ? { message: delErr.message } : null;
+          },
+        ];
+
+        for (const step of steps) {
+          const stepError = await step();
+          if (stepError) {
+            setError(stepError.message);
+            setDeleteMonBusy(false);
+            return;
+          }
+        }
+        solicitudDeleted = true;
       } else {
         setError(error.message);
+        setDeleteMonBusy(false);
+        return;
       }
-      setDeleteMonBusy(false);
-      return;
     }
-    if (selectedId === solicitudId) setSelectedId(null);
-    loadSolicitudes();
+    if (!solicitudDeleted) {
+      const delErr = await deleteSolicitudCascade(solicitudId);
+      if (delErr) {
+        setError(delErr.message);
+        setDeleteMonBusy(false);
+        return;
+      }
+    }
+    setToast({
+      type: "ok",
+      msg: `Monitoreo ${mon.codigo} eliminado con toda su información relacionada.`,
+    });
+    removeSolicitudFromState(solicitudId);
+    await loadSolicitudes();
     setDeleteMonBusy(false);
     setDeleteMonOpen(false);
   };
@@ -1054,11 +1260,127 @@ export function GestionMonitoreosPage() {
     setRebuildIeOpen(false);
   };
 
+  const deleteSolicitudCascade = async (solicitudId: string) => {
+    const { data: tpls, error: tplErr } = await supabase
+      .from("form_template")
+      .select("id")
+      .eq("solicitud_id", solicitudId);
+    if (tplErr) return tplErr;
+
+    const templateIds = (tpls ?? []).map((row) => row.id as string);
+    if (templateIds.length > 0) {
+      const [{ data: runs, error: runErr }, { data: questions, error: qErr }] = await Promise.all([
+        supabase.from("form_run").select("id").in("template_id", templateIds),
+        supabase.from("form_question").select("id").in("template_id", templateIds),
+      ]);
+      if (runErr) return runErr;
+      if (qErr) return qErr;
+
+      const runIds = (runs ?? []).map((row) => row.id as string);
+      const questionIds = (questions ?? []).map((row) => row.id as string);
+
+      if (runIds.length > 0) {
+        const { error: delAnsRunErr } = await supabase.from("form_answer").delete().in("run_id", runIds);
+        if (delAnsRunErr) return delAnsRunErr;
+      }
+      if (questionIds.length > 0) {
+        const { error: delAnsQuestionErr } = await supabase
+          .from("form_answer")
+          .delete()
+          .in("question_id", questionIds);
+        if (delAnsQuestionErr) return delAnsQuestionErr;
+      }
+      const { error: delRunErr } = await supabase.from("form_run").delete().in("template_id", templateIds);
+      if (delRunErr) return delRunErr;
+
+      const { error: delFichaErr } = await supabase
+        .from("ficha_catalog")
+        .delete()
+        .in("form_template_id", templateIds);
+      if (delFichaErr) return delFichaErr;
+
+      const { error: delQuestionErr } = await supabase
+        .from("form_question")
+        .delete()
+        .in("template_id", templateIds);
+      if (delQuestionErr) return delQuestionErr;
+
+      const { error: delSectionErr } = await supabase
+        .from("form_section")
+        .delete()
+        .in("template_id", templateIds);
+      if (delSectionErr) return delSectionErr;
+
+      const { error: delTemplateErr } = await supabase.from("form_template").delete().in("id", templateIds);
+      if (delTemplateErr) return delTemplateErr;
+    }
+
+    const { error: delIeErr } = await supabase
+      .from("monitoreo_solicitud_ie")
+      .delete()
+      .eq("solicitud_id", solicitudId);
+    if (delIeErr) return delIeErr;
+
+    const { error: delFiltroErr } = await supabase
+      .from("monitoreo_solicitud_filtro")
+      .delete()
+      .eq("solicitud_id", solicitudId);
+    if (delFiltroErr) return delFiltroErr;
+
+    const { error: delSolErr } = await supabase
+      .from("monitoreo_solicitud")
+      .delete()
+      .eq("id", solicitudId);
+    if (delSolErr) return delSolErr;
+
+    const { data: stillExists, error: verifyErr } = await supabase
+      .from("monitoreo_solicitud")
+      .select("id")
+      .eq("id", solicitudId)
+      .maybeSingle();
+    if (verifyErr) return verifyErr;
+    if (stillExists?.id) {
+      return {
+        message:
+          "La solicitud sigue existiendo en la base de datos. El front ya intentó borrarla, pero Supabase la bloqueó o no aplicó el DELETE. Revisa la policy DELETE de monitoreo_solicitud.",
+      };
+    }
+
+    return null;
+  };
+
+  const removeSolicitudFromState = (solicitudId: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== solicitudId));
+    if (selectedId === solicitudId) setSelectedId(null);
+  };
+
   const deleteSolicitud = async (solicitudId: string) => {
     if (!window.confirm("¿Eliminar la solicitud?")) return;
-    await supabase.from("monitoreo_solicitud").delete().eq("id", solicitudId);
-    if (selectedId === solicitudId) setSelectedId(null);
-    loadSolicitudes();
+    const { data: linkedMonitoreo, error: monErr } = await supabase
+      .from("monitoreo_catalog")
+      .select("id,nombre,codigo")
+      .eq("solicitud_id", solicitudId)
+      .maybeSingle();
+    if (monErr) {
+      setToast({ type: "err", msg: monErr.message });
+      return;
+    }
+    if (linkedMonitoreo) {
+      setToast({
+        type: "err",
+        msg: `La solicitud ya tiene un monitoreo publicado (${linkedMonitoreo.codigo} - ${linkedMonitoreo.nombre}). Elimínalo con "Eliminar monitoreo".`,
+      });
+      return;
+    }
+
+    const error = await deleteSolicitudCascade(solicitudId);
+    if (error) {
+      setToast({ type: "err", msg: error.message });
+      return;
+    }
+    setToast({ type: "ok", msg: "Solicitud eliminada." });
+    removeSolicitudFromState(solicitudId);
+    await loadSolicitudes();
   };
 
   const addTemplate = async () => {
@@ -1971,7 +2293,16 @@ export function GestionMonitoreosPage() {
                       {rebuildIeBusy ? "Reaplicando..." : "Reaplicar filtros IE"}
                     </button>
                   )}
-                  {isAdmin && selected.status === "approved" && (
+                  {isAdmin && selected.status === "inactive" && (
+                    <button
+                      type="button"
+                      onClick={() => reactivateMonitoreo(selected.id)}
+                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                    >
+                      Reactivar monitoreo
+                    </button>
+                  )}
+                  {isAdmin && (selected.status === "approved" || selected.status === "inactive") && (
                     <button
                       type="button"
                       onClick={() => openDeleteMonitoreoDialog(selected.id)}
