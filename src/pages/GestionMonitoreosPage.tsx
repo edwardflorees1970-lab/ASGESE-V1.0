@@ -20,6 +20,10 @@ const GESTION_PUBLICA_PRIVADA = "Pública de gestión privada";
 const GESTIONES = [GESTION_PUBLICA, GESTION_PRIVADA, GESTION_PUBLICA_DIRECTA, GESTION_PUBLICA_PRIVADA];
 const MODALIDADES = ["EBR", "EBE", "EBA", "PRONOEI"];
 const TIPOS = ["Focalizado", "No focalizado"];
+const DUP_RULE_NONE = "none";
+const DUP_RULE_LOCAL = "codigo_local";
+const DUP_RULE_MODULAR = "codigo_modular";
+const DUP_RULE_MARKER = "__restriccion_duplicado__";
 const NIVELES_BY_MODALIDAD: Record<string, string[]> = {
   EBR: ["Inicial", "Primaria", "Secundaria"],
   EBE: ["Inicial", "Primaria", "Secundaria"],
@@ -41,6 +45,30 @@ const DEFAULT_NIVEL_INFO = [
   { nivel: 1, descripcion: "Bajo" },
   { nivel: 2, descripcion: "Medio" },
   { nivel: 3, descripcion: "Alto" },
+];
+
+const FIXED_HEADER_FIELDS: Array<{ key: string; label: string }> = [
+  { key: "institucion", label: "Institución educativa" },
+  { key: "codigo_modular", label: "Código modular" },
+  { key: "codigo_local", label: "Código local" },
+  { key: "distrito", label: "Distrito / lugar" },
+  { key: "rei", label: "REI" },
+  { key: "monitor", label: "Monitor" },
+  { key: "monitor_doc_tipo", label: "Tipo doc. monitor" },
+  { key: "monitor_numero_doc", label: "Numero doc. monitor" },
+  { key: "monitoreado", label: "Monitoreado" },
+  { key: "monitoreado_doc_tipo", label: "Tipo doc. monitoreado" },
+  { key: "monitoreado_numero_doc", label: "Numero doc. monitoreado" },
+  { key: "monitoreado_cargo", label: "Cargo monitoreado" },
+  { key: "monitoreado_telefono", label: "Telefono monitoreado" },
+  { key: "monitoreado_correo", label: "Correo monitoreado" },
+  { key: "condicion", label: "Condición de monitoreado" },
+  { key: "area", label: "Área que monitorea" },
+  { key: "numero_visitas", label: "Numero de visitas a la IE" },
+  { key: "fecha_aplicacion", label: "Fecha de aplicacion" },
+  { key: "hora_inicio", label: "Hora de inicio" },
+  { key: "hora_fin", label: "Hora de fin" },
+  { key: "nivel_avance", label: "Nivel de avance (Sí)" },
 ];
 
 type Solicitud = {
@@ -361,11 +389,13 @@ export function GestionMonitoreosPage() {
   const [editModalidades, setEditModalidades] = useState<string[]>([]);
   const [editTipos, setEditTipos] = useState<string[]>([]);
   const [editNiveles, setEditNiveles] = useState<string[]>([]);
+  const [editDupRule, setEditDupRule] = useState<string>(DUP_RULE_NONE);
 
   const [gestiones, setGestiones] = useState<string[]>([]);
   const [modalidades, setModalidades] = useState<string[]>([]);
   const [tipos, setTipos] = useState<string[]>([]);
   const [niveles, setNiveles] = useState<string[]>([]);
+  const [dupRule, setDupRule] = useState<string>(DUP_RULE_NONE);
 
   const [ieQuery, setIeQuery] = useState("");
   const [ieResults, setIeResults] = useState<InstitucionLite[]>([]);
@@ -438,6 +468,17 @@ export function GestionMonitoreosPage() {
       return name.includes(term) || code.includes(term);
     });
   }, [items, solSearch, solStatusFilter]);
+  const orderedFixedHeaderFields = useMemo(() => {
+    const order = Array.isArray(templateHeader?.field_order) ? templateHeader.field_order : [];
+    const orderIndex = new Map<string, number>();
+    order.forEach((key: string, idx: number) => orderIndex.set(key, idx));
+    return [...FIXED_HEADER_FIELDS].sort((a, b) => {
+      const ai = orderIndex.has(a.key) ? (orderIndex.get(a.key) as number) : Number.MAX_SAFE_INTEGER;
+      const bi = orderIndex.has(b.key) ? (orderIndex.get(b.key) as number) : Number.MAX_SAFE_INTEGER;
+      if (ai !== bi) return ai - bi;
+      return FIXED_HEADER_FIELDS.findIndex((x) => x.key === a.key) - FIXED_HEADER_FIELDS.findIndex((x) => x.key === b.key);
+    });
+  }, [templateHeader]);
   const solTotalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / solPageSize));
   const pageSolicitudes = filteredSolicitudes.slice(
     (solPage - 1) * solPageSize,
@@ -529,9 +570,16 @@ export function GestionMonitoreosPage() {
       setEditGestiones(
         toGestionesUi(Array.from(new Set(rows.map((r) => r.gestion).filter(Boolean))) as string[])
       );
-      setEditModalidades(Array.from(new Set(rows.map((r) => r.modalidad).filter(Boolean))) as string[]);
-      setEditTipos(Array.from(new Set(rows.map((r) => r.tipo).filter(Boolean))) as string[]);
+      const modalidadesRaw = Array.from(new Set(rows.map((r) => r.modalidad).filter(Boolean))) as string[];
+      setEditModalidades(modalidadesRaw.filter((m) => MODALIDADES.includes(m)));
+      const tiposRaw = Array.from(new Set(rows.map((r) => r.tipo).filter(Boolean))) as string[];
+      setEditTipos(tiposRaw.filter((t) => TIPOS.includes(t)));
       setEditNiveles(Array.from(new Set(rows.map((r) => r.nivel).filter(Boolean))) as string[]);
+      const dupMeta = rows.find((r) => r.tipo === DUP_RULE_MARKER);
+      const dupVal = dupMeta?.modalidad ?? DUP_RULE_NONE;
+      setEditDupRule(
+        dupVal === DUP_RULE_LOCAL || dupVal === DUP_RULE_MODULAR ? dupVal : DUP_RULE_NONE
+      );
     })();
   }, [selected]);
 
@@ -605,6 +653,7 @@ export function GestionMonitoreosPage() {
     setModalidades([]);
     setTipos([]);
     setNiveles([]);
+    setDupRule(DUP_RULE_NONE);
     setIeSelected([]);
   };
 
@@ -641,6 +690,13 @@ export function GestionMonitoreosPage() {
       editModalidades.forEach((m) => rows.push({ solicitud_id: selected.id, modalidad: m }));
       editTipos.forEach((t) => rows.push({ solicitud_id: selected.id, tipo: t }));
       editNiveles.forEach((n) => rows.push({ solicitud_id: selected.id, nivel: n }));
+      if (editDupRule !== DUP_RULE_NONE) {
+        rows.push({
+          solicitud_id: selected.id,
+          tipo: DUP_RULE_MARKER,
+          modalidad: editDupRule,
+        });
+      }
       if (rows.length) {
         const { error: insErr } = await supabase.from("monitoreo_solicitud_filtro").insert(rows);
         if (insErr) {
@@ -726,6 +782,13 @@ export function GestionMonitoreosPage() {
       modalidades.forEach((m) => rows.push({ solicitud_id: solicitudId, modalidad: m }));
       tipos.forEach((t) => rows.push({ solicitud_id: solicitudId, tipo: t }));
       niveles.forEach((n) => rows.push({ solicitud_id: solicitudId, nivel: n }));
+      if (dupRule !== DUP_RULE_NONE) {
+        rows.push({
+          solicitud_id: solicitudId,
+          tipo: DUP_RULE_MARKER,
+          modalidad: dupRule,
+        });
+      }
       if (rows.length) await supabase.from("monitoreo_solicitud_filtro").insert(rows);
     }
 
@@ -1492,6 +1555,23 @@ export function GestionMonitoreosPage() {
     });
   };
 
+  const moveFixedHeaderField = (fieldKey: string, direction: -1 | 1) => {
+    setTemplateHeader((prev: any) => {
+      const current = [...orderedFixedHeaderFields.map((f) => f.key)];
+      const idx = current.findIndex((k) => k === fieldKey);
+      if (idx < 0) return prev;
+      const nextIdx = idx + direction;
+      if (nextIdx < 0 || nextIdx >= current.length) return prev;
+      const tmp = current[idx];
+      current[idx] = current[nextIdx];
+      current[nextIdx] = tmp;
+      return normalizeHeaderConfig({
+        ...prev,
+        field_order: current,
+      });
+    });
+  };
+
   const saveTemplateConfig = async () => {
     if (!selectedTemplateId) {
       setToast({ type: "err", msg: "Selecciona una ficha para guardar." });
@@ -1831,7 +1911,7 @@ export function GestionMonitoreosPage() {
       headerPairs.push(["Telefono monitoreado", header.monitoreado_telefono ?? ""]);
     if (templateHeader.monitoreado_correo)
       headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
-    if (templateHeader.condicion) headerPairs.push(["Condición", header.condicion ?? ""]);
+    if (templateHeader.condicion) headerPairs.push(["Condición de monitoreado", header.condicion ?? ""]);
     if (templateHeader.area) headerPairs.push(["Área", header.area ?? ""]);
     if (templateHeader.numero_visitas)
       headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
@@ -2208,6 +2288,19 @@ export function GestionMonitoreosPage() {
                     ))}
                   </div>
                 </div>
+                <div className="mt-3">
+                  <div className="text-xs text-white/60">Restricción de guardado por código</div>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm md:max-w-md"
+                    value={dupRule}
+                    onChange={(e) => setDupRule(e.target.value)}
+                    disabled={!canCreate}
+                  >
+                    <option value={DUP_RULE_NONE}>Sin restricción</option>
+                    <option value={DUP_RULE_LOCAL}>No repetir por código local</option>
+                    <option value={DUP_RULE_MODULAR}>No repetir por código modular</option>
+                  </select>
+                </div>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
@@ -2460,7 +2553,7 @@ export function GestionMonitoreosPage() {
                     </div>
                     <div>
                       <div className="text-xs text-white/60">Nivel</div>
-                      {editAvailableNiveles.map((n) => (
+                    {editAvailableNiveles.map((n) => (
                         <label key={n} className="mt-1 flex items-center gap-2 text-xs">
                           <input
                             type="checkbox"
@@ -2469,8 +2562,20 @@ export function GestionMonitoreosPage() {
                           />
                           {n}
                         </label>
-                      ))}
+                    ))}
                     </div>
+                  </div>
+                  <div className="mt-3">
+                    <div className="text-xs text-white/60">Restricción de guardado por código</div>
+                    <select
+                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm md:max-w-md"
+                      value={editDupRule}
+                      onChange={(e) => setEditDupRule(e.target.value)}
+                    >
+                      <option value={DUP_RULE_NONE}>Sin restricción</option>
+                      <option value={DUP_RULE_LOCAL}>No repetir por código local</option>
+                      <option value={DUP_RULE_MODULAR}>No repetir por código modular</option>
+                    </select>
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end">
@@ -2584,40 +2689,43 @@ export function GestionMonitoreosPage() {
                         </div>
                       )}
                       <div className="text-sm font-semibold">Encabezado / Cierre</div>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        {[
-                          ["institucion", "Institución educativa"],
-                          ["codigo_modular", "Código modular"],
-                          ["codigo_local", "Código local"],
-                          ["distrito", "Distrito / lugar"],
-                          ["rei", "REI"],
-                          ["monitor", "Monitor"],
-                          ["monitor_doc_tipo", "Tipo doc. monitor"],
-                          ["monitor_numero_doc", "Numero doc. monitor"],
-                          ["monitoreado", "Monitoreado"],
-                          ["monitoreado_doc_tipo", "Tipo doc. monitoreado"],
-                          ["monitoreado_numero_doc", "Numero doc. monitoreado"],
-                          ["monitoreado_cargo", "Cargo monitoreado"],
-                          ["monitoreado_telefono", "Telefono monitoreado"],
-                          ["monitoreado_correo", "Correo monitoreado"],
-                          ["condicion", "Condición del monitoreado (designado o encargado)"],
-                          ["area", "Área que monitorea"],
-                          ["numero_visitas", "Numero de visitas a la IE"],
-                          ["fecha_aplicacion", "Fecha de aplicacion"],
-                          ["hora_inicio", "Hora de inicio"],
-                          ["hora_fin", "Hora de fin"],
-                          ["nivel_avance", "Nivel de avance (Sí)"],
-                        ].map(([key, label]) => (
-                          <label key={key} className="flex items-center gap-2 text-xs text-white/70">
-                            <input
-                              type="checkbox"
-                              checked={!!templateHeader[key]}
-                              onChange={(e) =>
-                                setTemplateHeader((s: any) => ({ ...s, [key]: e.target.checked }))
-                              }
-                            />
-                            {label}
-                          </label>
+                      <div className="mt-3 space-y-2">
+                        {orderedFixedHeaderFields.map((field) => (
+                          <div
+                            key={field.key}
+                            className="grid items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 md:grid-cols-[1fr_auto]"
+                          >
+                            <label className="flex items-center gap-2 text-xs text-white/70">
+                              <input
+                                type="checkbox"
+                                checked={!!templateHeader[field.key]}
+                                onChange={(e) =>
+                                  setTemplateHeader((s: any) =>
+                                    normalizeHeaderConfig({ ...s, [field.key]: e.target.checked })
+                                  )
+                                }
+                              />
+                              {field.label}
+                            </label>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => moveFixedHeaderField(field.key, -1)}
+                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
+                                title="Subir"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveFixedHeaderField(field.key, 1)}
+                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
+                                title="Bajar"
+                              >
+                                ↓
+                              </button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                       {templateHeader.area && (
@@ -3563,7 +3671,7 @@ export function GestionMonitoreosPage() {
                       )}
                       {templateHeader.condicion && (
                         <label className="block">
-                          <div className="mb-1 text-[11px] text-white/60">Condición del monitoreado (designado o encargado)</div>
+                          <div className="mb-1 text-[11px] text-white/60">Condición de monitoreado</div>
                           <select
                             className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                             value={previewData.__header?.condicion ?? ""}
