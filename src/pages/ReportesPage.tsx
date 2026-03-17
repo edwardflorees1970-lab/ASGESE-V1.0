@@ -1128,8 +1128,9 @@ export function ReportesPage() {
             return (
               <div key={r.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 text-sm font-semibold">
-                    {mon?.nombre || "Monitoreo"} / {fichaCodigo}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold">{mon?.nombre || "Monitoreo"}</div>
+                    <div className="text-xs text-white/60">Ficha: {fichaCodigo}</div>
                   </div>
                   <div
                     className={cls(
@@ -1143,12 +1144,8 @@ export function ReportesPage() {
                   </div>
                 </div>
                 <div className="mt-1 truncate text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
-                {canSeeAll && (
-                  <div className="mt-1 text-xs text-white/60">
-                    <div>Por: {creatorName}</div>
-                  </div>
-                )}
-                <div className="mt-2">
+                <div className="mt-2 text-xs text-white/60">
+                  {canSeeAll && <div>Por: {creatorName}</div>}
                   <RunSummary monitoreado={monitoreado} institucion={institucion} />
                 </div>
 
@@ -1209,11 +1206,9 @@ export function ReportesPage() {
           <table className="min-w-[980px] w-full">
             <thead className="bg-black/20">
               <tr className="text-left text-xs text-white/60">
-                <th className="px-4 py-3">Monitoreo</th>
-                <th className="px-4 py-3">Ficha</th>
+                <th className="px-4 py-3">Monitoreo / Ficha</th>
                 <th className="px-4 py-3">Fecha</th>
-                {canSeeAll && <th className="px-4 py-3 w-64">Creador</th>}
-                <th className="px-4 py-3 w-72">Resumen</th>
+                <th className="px-4 py-3 w-80">{canSeeAll ? "Creador / Resumen" : "Resumen"}</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
@@ -1221,13 +1216,13 @@ export function ReportesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 7 : 6}>
+                  <td className="px-4 py-6 text-sm text-white/60" colSpan={5}>
                     Cargando...
                   </td>
                 </tr>
               ) : runs.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-white/60" colSpan={canSeeAll ? 7 : 6}>
+                  <td className="px-4 py-6 text-sm text-white/60" colSpan={5}>
                     Sin registros.
                   </td>
                 </tr>
@@ -1251,15 +1246,13 @@ export function ReportesPage() {
 
                   return (
                     <tr key={r.id} className="border-t border-white/10 text-sm">
-                      <td className="px-4 py-3">{mon?.nombre || "-"}</td>
-                      <td className="px-4 py-3">{fichaCodigo}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-white/90">{mon?.nombre || "-"}</div>
+                        <div className="text-xs text-white/60">Ficha: {fichaCodigo}</div>
+                      </td>
                       <td className="px-4 py-3 text-white/70">{fmtDateShort(r.created_at)}</td>
-                      {canSeeAll && (
-                        <td className="px-4 py-3 text-white/70 w-64">
-                          <div className="font-medium text-white/80">{creatorName}</div>
-                        </td>
-                      )}
                       <td className="px-4 py-3 align-top">
+                        {canSeeAll && <div className="mb-1 text-xs text-white/70">Por: {creatorName}</div>}
                         <RunSummary monitoreado={monitoreado} institucion={institucion} />
                       </td>
                       <td className="px-4 py-3">
