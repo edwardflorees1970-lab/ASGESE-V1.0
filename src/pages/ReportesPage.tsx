@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import logoUrl from "../assets/ugel06_3.jpg";
@@ -90,6 +90,18 @@ function statusLabel(s: string) {
   return s;
 }
 
+function getCreatorName(creator?: ProfileRow) {
+  return (
+    [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    creator?.correo ||
+    creator?.email ||
+    "Usuario"
+  );
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -147,9 +159,11 @@ export function ReportesPage() {
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState("ALL");
-  const [monitoreo, setMonitoreo] = useState("ALL");
+  const [selectedMonitoreo, setSelectedMonitoreo] = useState("");
   const [status, setStatus] = useState("ALL");
   const [roleFilter, setRoleFilter] = useState("ALL");
+  const [monitorQuery, setMonitorQuery] = useState("");
+  const [colegioQuery, setColegioQuery] = useState("");
 
   const [years, setYears] = useState<string[]>([]);
   const [monitoreos, setMonitoreos] = useState<MonitoreoRow[]>([]);
@@ -197,14 +211,14 @@ export function ReportesPage() {
         .order("nombre", { ascending: true });
       if (!alive) return;
       setMonitoreos((data ?? []) as MonitoreoRow[]);
-      if (monitoreo !== "ALL" && !(data ?? []).some((m: any) => m.codigo === monitoreo)) {
-        setMonitoreo("ALL");
+      if (selectedMonitoreo && !(data ?? []).some((m: any) => m.codigo === selectedMonitoreo)) {
+        setSelectedMonitoreo("");
       }
     })();
     return () => {
       alive = false;
     };
-  }, [year]);
+  }, [year, selectedMonitoreo]);
 
   // Carga principal
   useEffect(() => {
@@ -222,6 +236,15 @@ export function ReportesPage() {
           setLoading(false);
           return;
         }
+        if (!selectedMonitoreo) {
+          setRuns([]);
+          setProfiles({});
+          setFichasByTemplate({});
+          setTemplates({});
+          setMonById({});
+          setLoading(false);
+          return;
+        }
 
         const y = Number(year);
         const m = month === "ALL" ? null : Number(month);
@@ -229,20 +252,18 @@ export function ReportesPage() {
         const end = m ? new Date(y, m, 1) : new Date(y + 1, 0, 1);
 
         let templateIdsByMon: string[] | null = null;
-        if (monitoreo !== "ALL") {
-          const mon = monitoreos.find((x) => x.codigo === monitoreo);
-          if (mon?.id) {
-            const { data: fichasData, error: fichasErr } = await supabase
-              .from("ficha_catalog")
-              .select("id, codigo, monitoreo_id, form_template_id")
-              .eq("monitoreo_id", mon.id);
-            if (fichasErr) throw new Error(fichasErr.message);
-            templateIdsByMon = (fichasData ?? [])
-              .map((f: any) => f.form_template_id)
-              .filter(Boolean);
-          } else {
-            templateIdsByMon = [];
-          }
+        const mon = monitoreos.find((x) => x.codigo === selectedMonitoreo);
+        if (mon?.id) {
+          const { data: fichasData, error: fichasErr } = await supabase
+            .from("ficha_catalog")
+            .select("id, codigo, monitoreo_id, form_template_id")
+            .eq("monitoreo_id", mon.id);
+          if (fichasErr) throw new Error(fichasErr.message);
+          templateIdsByMon = (fichasData ?? [])
+            .map((f: any) => f.form_template_id)
+            .filter(Boolean);
+        } else {
+          templateIdsByMon = [];
         }
 
         let roleUserIds: string[] | null = null;
@@ -380,13 +401,29 @@ export function ReportesPage() {
     return () => {
       alive = false;
     };
-  }, [year, month, monitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll, isTestMode]);
+  }, [year, month, selectedMonitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll, isTestMode]);
 
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  const visibleRuns = useMemo(() => {
+    const monitorTerm = monitorQuery.trim().toLowerCase();
+    const colegioTerm = colegioQuery.trim().toLowerCase();
+    return runs.filter((r) => {
+      const creatorName = getCreatorName(profiles[r.created_by]).toLowerCase();
+      const ieName = (r.institucion_educativa || "").toLowerCase();
+      if (monitorTerm && !creatorName.includes(monitorTerm)) return false;
+      if (colegioTerm && !ieName.includes(colegioTerm)) return false;
+      return true;
+    });
+  }, [runs, profiles, monitorQuery, colegioQuery]);
+  const selectedMonitoreoRow = useMemo(
+    () => monitoreos.find((m) => m.codigo === selectedMonitoreo) ?? null,
+    [monitoreos, selectedMonitoreo]
+  );
 
   const canEditOrDelete = (run: RunRow) => {
     if (isAdmin) return true;
@@ -778,7 +815,7 @@ export function ReportesPage() {
           if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
           if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
           if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
-          parts.push(`Observacion: ${p.obs ?? "-"}`);
+          if (q.config_json?.include_obs !== false) parts.push(`Observacion: ${p.obs ?? "-"}`);
           const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
           extraFields.forEach((f) => {
             const val =
@@ -873,19 +910,12 @@ export function ReportesPage() {
       ],
     ];
 
-    runs.forEach((r) => {
+    visibleRuns.forEach((r) => {
       const dynFicha = r.template_id ? fichasByTemplate[r.template_id] : null;
       const mon = dynFicha ? monById[dynFicha.monitoreo_id] : null;
       const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "" : "";
       const creator = profiles[r.created_by];
-      const creatorName =
-        [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
-          .filter(Boolean)
-          .join(" ")
-          .trim() ||
-        creator?.correo ||
-        creator?.email ||
-        "Usuario";
+      const creatorName = getCreatorName(creator);
       rows.push([
         mon?.nombre || "",
         fichaCodigo,
@@ -909,7 +939,11 @@ export function ReportesPage() {
       setToast({ type: "err", msg: "No se pudo resolver la ficha." });
       return;
     }
-    nav(`/app/monitoreo/${mon.codigo}/ficha/${dynFicha.codigo}?runId=${run.id}&returnTo=reportes`);
+    nav(
+      `/app/monitoreo/${mon.codigo}/ficha/${dynFicha.codigo}?runId=${run.id}&mid=${encodeURIComponent(
+        dynFicha.monitoreo_id
+      )}&returnTo=reportes`
+    );
   };
 
   const updateStatus = async (run: RunRow, next: "draft" | "final") => {
@@ -991,10 +1025,10 @@ export function ReportesPage() {
           <button
             type="button"
             onClick={exportExcel}
-            disabled={loading || runs.length === 0}
+            disabled={loading || visibleRuns.length === 0}
             className={cls(
               "rounded-xl border px-4 py-2 text-sm",
-              loading || runs.length === 0
+              loading || visibleRuns.length === 0
                 ? "border-white/10 text-white/30"
                 : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
             )}
@@ -1004,9 +1038,60 @@ export function ReportesPage() {
         </div>
       </div>
 
+      {!selectedMonitoreo && (
+        <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-sm font-semibold">Selecciona un monitoreo</div>
+          <div className="mt-1 text-xs text-white/60">
+            Primero elige el monitoreo y luego verás sus reportes.
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <select
+              value={selectedMonitoreo}
+              onChange={(e) => setSelectedMonitoreo(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+            >
+              <option value="">Seleccionar monitoreo...</option>
+              {monitoreos.map((m) => (
+                <option key={m.codigo} value={m.codigo}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setSelectedMonitoreo((v) => v)}
+              disabled={!selectedMonitoreo}
+              className={cls(
+                "rounded-xl border px-4 py-2.5 text-sm",
+                selectedMonitoreo
+                  ? "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
+                  : "border-white/10 text-white/30"
+              )}
+            >
+              Ingresar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {selectedMonitoreo && (
+        <div className="mt-5 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <div className="text-sm">
+            Monitoreo actual: <span className="font-semibold">{selectedMonitoreoRow?.nombre || selectedMonitoreo}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedMonitoreo("")}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+          >
+            Cambiar monitoreo
+          </button>
+        </div>
+      )}
+
       {/* Filtros */}
-      <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      {selectedMonitoreo && <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
           <label className="block">
             <div className="mb-2 text-xs font-medium text-white/70">Año</div>
             <select
@@ -1033,22 +1118,6 @@ export function ReportesPage() {
               {monthOptions().map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <div className="mb-2 text-xs font-medium text-white/70">Monitoreo</div>
-            <select
-              value={monitoreo}
-              onChange={(e) => setMonitoreo(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
-            >
-              <option value="ALL">Todos</option>
-              {monitoreos.map((m) => (
-                <option key={m.codigo} value={m.codigo}>
-                  {m.nombre}
                 </option>
               ))}
             </select>
@@ -1084,43 +1153,58 @@ export function ReportesPage() {
             </label>
           )}
 
+          <label className="block">
+            <div className="mb-2 text-xs font-medium text-white/70">Buscar monitor</div>
+            <input
+              value={monitorQuery}
+              onChange={(e) => setMonitorQuery(e.target.value)}
+              placeholder="Nombre del monitor"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+            />
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-xs font-medium text-white/70">Buscar colegio</div>
+            <input
+              value={colegioQuery}
+              onChange={(e) => setColegioQuery(e.target.value)}
+              placeholder="Nombre de la IE"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+            />
+          </label>
+
           <div className="flex items-end">
-            <div className="text-xs text-white/50">{loading ? "Cargando..." : "Listo"}</div>
+            <div className="text-xs text-white/50">
+              {loading ? "Cargando..." : `${visibleRuns.length} resultado(s)`}
+            </div>
           </div>
         </div>
-      </div>
+      </div>}
 
-      {err && (
+      {selectedMonitoreo && err && (
         <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
           {err}
         </div>
       )}
 
       {/* Lista mobile */}
-      <div className="mt-5 space-y-3 md:hidden">
+      {selectedMonitoreo && <div className="mt-5 space-y-3 md:hidden">
         {loading ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
             Cargando...
           </div>
-        ) : runs.length === 0 ? (
+        ) : visibleRuns.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
             Sin registros.
           </div>
         ) : (
-          runs.map((r) => {
+          visibleRuns.map((r) => {
             const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
             const mon = ficha ? monById[ficha.monitoreo_id] : null;
             const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "-" : "-";
             const creator = profiles[r.created_by];
             const statusText = statusLabel(r.status);
-            const creatorName =
-              [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
-                .filter(Boolean)
-                .join(" ")
-                .trim() ||
-              creator?.correo ||
-              creator?.email ||
-              "Usuario";
+            const creatorName = getCreatorName(creator);
 
             const monitoreado = r.docente?.trim() || "-";
             const institucion = r.institucion_educativa?.trim() || "-";
@@ -1193,13 +1277,13 @@ export function ReportesPage() {
             );
           })
         )}
-      </div>
+      </div>}
 
       {/* Tabla desktop */}
-      <div className="mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:block">
+      {selectedMonitoreo && <div className="mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:block">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <div className="text-sm text-white/70">
-            Total: <span className="text-white">{runs.length}</span>
+            Total: <span className="text-white">{visibleRuns.length}</span>
           </div>
         </div>
         <div className="w-full overflow-x-auto">
@@ -1220,27 +1304,20 @@ export function ReportesPage() {
                     Cargando...
                   </td>
                 </tr>
-              ) : runs.length === 0 ? (
+              ) : visibleRuns.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-sm text-white/60" colSpan={5}>
                     Sin registros.
                   </td>
                 </tr>
               ) : (
-                runs.map((r) => {
+                visibleRuns.map((r) => {
                   const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
                   const mon = ficha ? monById[ficha.monitoreo_id] : null;
                   const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "-" : "-";
                   const creator = profiles[r.created_by];
                   const statusText = statusLabel(r.status);
-                  const creatorName =
-                    [creator?.apellido_paterno, creator?.apellido_materno, creator?.nombres]
-                      .filter(Boolean)
-                      .join(" ")
-                      .trim() ||
-                    creator?.correo ||
-                    creator?.email ||
-                    "Usuario";
+                  const creatorName = getCreatorName(creator);
                   const monitoreado = r.docente?.trim() || "-";
                   const institucion = r.institucion_educativa?.trim() || "-";
 
@@ -1319,7 +1396,7 @@ export function ReportesPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
       <ConfirmDialog
         open={confirmDeleteOpen}
@@ -1335,4 +1412,6 @@ export function ReportesPage() {
     </div>
   );
 }
+
+
 
