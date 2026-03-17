@@ -405,6 +405,7 @@ export function FichaDinamicaPage() {
   const [ieOptions, setIeOptions] = useState<InstitucionLite[]>([]);
   const [iePool, setIePool] = useState<InstitucionLite[]>([]);
   const [ieLoading, setIeLoading] = useState(false);
+  const [runHydrating, setRunHydrating] = useState(false);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
   const [duplicateRule, setDuplicateRule] = useState<string>(DUP_RULE_NONE);
   const [monitoreoFechaInicio, setMonitoreoFechaInicio] = useState<string>("");
@@ -427,10 +428,14 @@ export function FichaDinamicaPage() {
   const effectiveProfileMonitorDocTipo = profileMonitorDocTipo || monitorIdentity.docTipo;
   const effectiveProfileMonitorDocNumero = profileMonitorDocNumero || monitorIdentity.docNumero;
   const sessionDraftKey = useMemo(
-    () => `ficha-dyn:${user?.id || "anon"}:${midParam || monitoreoCodigo || "-"}:${fichaCodigo || "-"}:${isTestMode ? "test" : "prod"}`,
-    [user?.id, midParam, monitoreoCodigo, fichaCodigo, isTestMode]
+    () =>
+      `ficha-dyn:${user?.id || "anon"}:${midParam || monitoreoCodigo || "-"}:${fichaCodigo || "-"}:${
+        runIdParam || "new"
+      }:${isTestMode ? "test" : "prod"}`,
+    [user?.id, midParam, monitoreoCodigo, fichaCodigo, runIdParam, isTestMode]
   );
-  const isEditMode = Boolean(runIdParam || runId);
+  const shouldAutoFillMonitor = monitorReadOnly && !runIdParam && !runId;
+  const isEditMode = Boolean(runIdParam);
 
   const defaultFooter = {
     observacion: true,
@@ -442,10 +447,17 @@ export function FichaDinamicaPage() {
     monitor_nombre: true,
     monitor_dni: true,
   };
-  const effectiveHeaderCfg = normalizeHeaderConfig(
-    headerCfg && Object.keys(headerCfg).length ? headerCfg : DEFAULT_HEADER_CONFIG
+  const effectiveHeaderCfg = useMemo(
+    () =>
+      normalizeHeaderConfig(
+        headerCfg && Object.keys(headerCfg).length ? headerCfg : DEFAULT_HEADER_CONFIG
+      ),
+    [headerCfg]
   );
-  const effectiveFooterCfg = footerCfg && Object.keys(footerCfg).length ? footerCfg : defaultFooter;
+  const effectiveFooterCfg = useMemo(
+    () => (footerCfg && Object.keys(footerCfg).length ? footerCfg : defaultFooter),
+    [footerCfg]
+  );
   const customHeaderFields = useMemo(
     () => (effectiveHeaderCfg?.custom_fields ?? []) as HeaderFieldDef[],
     [effectiveHeaderCfg]
@@ -549,6 +561,64 @@ export function FichaDinamicaPage() {
       setLoading(true);
       setError(null);
       try {
+        if (runIdParam) {
+          const { data: runRef, error: runRefErr } = await supabase
+            .from("form_run")
+            .select("id, template_id")
+            .eq("id", runIdParam)
+            .maybeSingle();
+          if (runRefErr) throw new Error(runRefErr.message);
+          if (!runRef?.template_id) throw new Error("No se encontró la ficha registrada para editar.");
+
+          const { data: tpl, error: tplErr } = await supabase
+            .from("form_template")
+            .select("id, titulo, codigo, subtitulo, header_config, footer_config")
+            .eq("id", runRef.template_id)
+            .maybeSingle();
+          if (tplErr) throw new Error(tplErr.message);
+          if (!tpl) throw new Error("Plantilla no encontrada para el registro.");
+
+          const { data: secRows, error: secErr } = await supabase
+            .from("form_section")
+            .select("id, template_id, titulo, orden")
+            .eq("template_id", tpl.id)
+            .order("orden", { ascending: true });
+          if (secErr) throw new Error(secErr.message);
+
+          const { data: qRows, error: qErr } = await supabase
+            .from("form_question")
+            .select("id, template_id, section_id, tipo, texto, orden, orden_in_section, required, config_json")
+            .eq("template_id", tpl.id)
+            .order("orden", { ascending: true });
+          if (qErr) throw new Error(qErr.message);
+
+          const { data: fichaRef } = await supabase
+            .from("ficha_catalog")
+            .select("monitoreo_id")
+            .eq("form_template_id", tpl.id)
+            .order("version", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (fichaRef?.monitoreo_id) {
+            const { data: monRef } = await supabase
+              .from("monitoreo_catalog")
+              .select("solicitud_id, fecha_inicio, fecha_fin")
+              .eq("id", fichaRef.monitoreo_id)
+              .maybeSingle();
+            setMonitoreoFechaInicio((monRef as any)?.fecha_inicio ?? "");
+            setMonitoreoFechaFin((monRef as any)?.fecha_fin ?? "");
+            setSolicitudId((monRef as any)?.solicitud_id ?? null);
+          }
+
+          if (!alive) return;
+          setTemplate(tpl as Template);
+          setHeaderCfg(normalizeHeaderConfig(tpl.header_config ?? DEFAULT_HEADER_CONFIG));
+          setFooterCfg(tpl.footer_config ?? defaultFooter);
+          setSections((secRows as Section[]) ?? []);
+          setQuestions((qRows as Question[]) ?? []);
+          return;
+        }
+
         const monQuery = supabase
           .from("monitoreo_catalog")
           .select("id, codigo, is_active, solicitud_id, fecha_inicio, fecha_fin")
@@ -626,28 +696,29 @@ export function FichaDinamicaPage() {
     return () => {
       alive = false;
     };
-  }, [fichaCodigo, midParam, monitoreoCodigo]);
+  }, [fichaCodigo, midParam, monitoreoCodigo, runIdParam, isTestMode]);
 
   useEffect(() => {
     if (!template?.id || !user?.id) return;
     let alive = true;
     (async () => {
-      const localDraftRaw = sessionStorage.getItem(sessionDraftKey);
-      if (localDraftRaw) {
-        try {
-          const localDraft = JSON.parse(localDraftRaw);
-          if (alive) {
-            setRunId(localDraft.runId ?? null);
-            setRunStatus(localDraft.runStatus ?? null);
-            setHeader((s) => ({ ...s, ...(localDraft.header ?? {}) }));
-            setFooter((s) => ({ ...s, ...(localDraft.footer ?? {}) }));
-            setAnswers(localDraft.answers ?? {});
-          }
-        } catch {
-          sessionStorage.removeItem(sessionDraftKey);
-        }
-      }
+      setRunHydrating(true);
       if (!runIdParam) {
+        const localDraftRaw = sessionStorage.getItem(sessionDraftKey);
+        if (localDraftRaw) {
+          try {
+            const localDraft = JSON.parse(localDraftRaw);
+            if (alive) {
+              setRunId(localDraft.runId ?? null);
+              setRunStatus(localDraft.runStatus ?? null);
+              setHeader((s) => ({ ...s, ...(localDraft.header ?? {}) }));
+              setFooter((s) => ({ ...s, ...(localDraft.footer ?? {}) }));
+              setAnswers(localDraft.answers ?? {});
+            }
+          } catch {
+            sessionStorage.removeItem(sessionDraftKey);
+          }
+        }
         const { data: draft } = await supabase
           .from("form_run")
           .select("id, status, header_json, footer_json")
@@ -668,9 +739,14 @@ export function FichaDinamicaPage() {
           const next = { ...s, ...(draft.header_json ?? {}) };
           return {
             ...next,
-            monitor: next.monitor || effectiveProfileMonitorName || "",
-            monitor_doc_tipo: (next.monitor_doc_tipo || effectiveProfileMonitorDocTipo || "DNI") as "DNI" | "CE",
-            monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
+            monitor:
+              next.monitor || (shouldAutoFillMonitor ? effectiveProfileMonitorName || "" : ""),
+            monitor_doc_tipo: (next.monitor_doc_tipo ||
+              (shouldAutoFillMonitor ? effectiveProfileMonitorDocTipo : null) ||
+              "DNI") as "DNI" | "CE",
+            monitor_numero_doc:
+              next.monitor_numero_doc ||
+              (shouldAutoFillMonitor ? effectiveProfileMonitorDocNumero || "" : ""),
             hora_inicio: cleanStoredTime(next.hora_inicio || ""),
             hora_fin: cleanStoredTime(next.hora_fin || ""),
             custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
@@ -693,19 +769,26 @@ export function FichaDinamicaPage() {
         .from("form_run")
         .select("id, status, header_json, footer_json")
         .eq("id", runIdParam)
-        .eq("template_id", template.id)
-        .eq("is_test", isTestMode)
         .maybeSingle();
-      if (!data || !alive) return;
+      if (!alive) return;
+      if (!data) {
+        setError("No se encontró el registro a editar para esta ficha/modo.");
+        return;
+      }
       setRunId(data.id);
       setRunStatus(data.status);
       setHeader((s) => {
         const next = { ...s, ...(data.header_json ?? {}) };
         return {
           ...next,
-          monitor: next.monitor || effectiveProfileMonitorName || "",
-          monitor_doc_tipo: (next.monitor_doc_tipo || effectiveProfileMonitorDocTipo || "DNI") as "DNI" | "CE",
-          monitor_numero_doc: next.monitor_numero_doc || effectiveProfileMonitorDocNumero || "",
+          monitor:
+            next.monitor || (shouldAutoFillMonitor ? effectiveProfileMonitorName || "" : ""),
+          monitor_doc_tipo: (next.monitor_doc_tipo ||
+            (shouldAutoFillMonitor ? effectiveProfileMonitorDocTipo : null) ||
+            "DNI") as "DNI" | "CE",
+          monitor_numero_doc:
+            next.monitor_numero_doc ||
+            (shouldAutoFillMonitor ? effectiveProfileMonitorDocNumero || "" : ""),
           hora_inicio: cleanStoredTime(next.hora_inicio || ""),
           hora_fin: cleanStoredTime(next.hora_fin || ""),
           custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
@@ -722,14 +805,23 @@ export function FichaDinamicaPage() {
         next[r.question_id] = r.value_json;
       });
       setAnswers(next);
-    })();
+    })().finally(() => {
+      if (alive) setRunHydrating(false);
+    });
     return () => {
       alive = false;
     };
-  }, [template?.id, user?.id, isTestMode, runIdParam, sessionDraftKey]);
+  }, [
+    template?.id,
+    user?.id,
+    isTestMode,
+    runIdParam,
+    sessionDraftKey,
+  ]);
 
   useEffect(() => {
     if (!template?.id) return;
+    if (runHydrating) return;
     sessionStorage.setItem(
       sessionDraftKey,
       JSON.stringify({
@@ -740,7 +832,7 @@ export function FichaDinamicaPage() {
         answers,
       })
     );
-  }, [template?.id, sessionDraftKey, runId, runStatus, header, footer, answers]);
+  }, [template?.id, sessionDraftKey, runId, runStatus, header, footer, answers, runHydrating]);
 
   useEffect(() => {
     if (!profileMonitorName && !profileMonitorDocNumero && !profileMonitorDocTipo) return;
@@ -765,17 +857,7 @@ export function FichaDinamicaPage() {
   }, [user?.id, profile, refreshProfile]);
 
   useEffect(() => {
-    if (!profile) return;
-    setHeader((s) => ({
-      ...s,
-      monitor: effectiveProfileMonitorName || s.monitor,
-      monitor_doc_tipo: effectiveProfileMonitorDocTipo || s.monitor_doc_tipo,
-      monitor_numero_doc: effectiveProfileMonitorDocNumero || s.monitor_numero_doc,
-    }));
-  }, [effectiveProfileMonitorName, effectiveProfileMonitorDocTipo, effectiveProfileMonitorDocNumero, profile]);
-
-  useEffect(() => {
-    if (!monitorReadOnly) return;
+    if (!shouldAutoFillMonitor) return;
     if (!effectiveProfileMonitorName && !effectiveProfileMonitorDocTipo && !effectiveProfileMonitorDocNumero) return;
     if (
       header.monitor === effectiveProfileMonitorName &&
@@ -791,7 +873,7 @@ export function FichaDinamicaPage() {
       monitor_numero_doc: effectiveProfileMonitorDocNumero || s.monitor_numero_doc,
     }));
   }, [
-    monitorReadOnly,
+    shouldAutoFillMonitor,
     effectiveProfileMonitorName,
     effectiveProfileMonitorDocTipo,
     effectiveProfileMonitorDocNumero,
@@ -892,7 +974,11 @@ export function FichaDinamicaPage() {
 
   const clearDraft = async () => {
     if (!template?.id || !user?.id) return;
-    let targetId = runStatus === "borrador" || runStatus === "draft" ? runId : null;
+    if (runStatus && runStatus !== "borrador") {
+      showToast("Solo se puede limpiar fichas en borrador.", "err");
+      return;
+    }
+    let targetId = runStatus === "borrador" ? runId : null;
     if (!targetId) {
       const { data: draft } = await supabase
         .from("form_run")
@@ -905,19 +991,6 @@ export function FichaDinamicaPage() {
         .limit(1)
         .maybeSingle();
       targetId = draft?.id ?? null;
-      if (!targetId) {
-        const { data: draftPub } = await supabase
-          .from("form_run")
-          .select("id")
-          .eq("template_id", template.id)
-          .eq("created_by", user.id)
-          .eq("status", "draft")
-          .eq("is_test", isTestMode)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        targetId = draftPub?.id ?? null;
-      }
     }
     if (!targetId) {
       resetFormState();
@@ -1083,9 +1156,13 @@ export function FichaDinamicaPage() {
     setError(null);
     const headerPayload = {
       ...header,
-      monitor: effectiveProfileMonitorName || header.monitor,
-      monitor_doc_tipo: effectiveProfileMonitorDocTipo || header.monitor_doc_tipo,
-      monitor_numero_doc: effectiveProfileMonitorDocNumero || header.monitor_numero_doc,
+      monitor: shouldAutoFillMonitor ? effectiveProfileMonitorName || header.monitor : header.monitor,
+      monitor_doc_tipo: shouldAutoFillMonitor
+        ? effectiveProfileMonitorDocTipo || header.monitor_doc_tipo
+        : header.monitor_doc_tipo,
+      monitor_numero_doc: shouldAutoFillMonitor
+        ? effectiveProfileMonitorDocNumero || header.monitor_numero_doc
+        : header.monitor_numero_doc,
       custom_values: normalizeCustomHeaderValues(customHeaderFields, header.custom_values),
     };
     const payload = {
@@ -1164,7 +1241,14 @@ export function FichaDinamicaPage() {
       currentRunId = data.id;
       if (status === "borrador") setRunId(data.id);
     } else {
-      const { error } = await supabase.from("form_run").update(payload).eq("id", currentRunId);
+      const updatePayload = {
+        template_id: template.id,
+        status,
+        is_test: isTestMode,
+        header_json: headerPayload,
+        footer_json: footer,
+      };
+      const { error } = await supabase.from("form_run").update(updatePayload).eq("id", currentRunId);
       if (error) {
         setError(error.message);
         setSaving(false);
@@ -1189,6 +1273,13 @@ export function FichaDinamicaPage() {
       }
     }
     setSaving(false);
+    if (status === "draft" && isEditMode) {
+      showToast("Cambios realizados.", "ok");
+      setTimeout(() => {
+        window.location.assign("/app/reportes");
+      }, 700);
+      return;
+    }
     showToast(status === "draft" ? "Ficha guardada en BD." : "Borrador guardado.", "ok");
     if (status === "draft") {
       resetFormState();
@@ -1370,7 +1461,7 @@ export function FichaDinamicaPage() {
         if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
         if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
         if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
-        parts.push(`Observación: ${p.obs ?? "-"}`);
+        if (q.config_json?.include_obs !== false) parts.push(`Observación: ${p.obs ?? "-"}`);
         const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
         extraFields.forEach((field) => {
           const key = fieldKey(field.label);
@@ -1616,7 +1707,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={monitorReadOnly ? effectiveProfileMonitorName || header.monitor : header.monitor}
+                value={shouldAutoFillMonitor ? effectiveProfileMonitorName || header.monitor : header.monitor}
                 readOnly={monitorReadOnly}
                 onChange={(e) => setHeader((s) => ({ ...s, monitor: toUpper(e.target.value) }))}
               />
@@ -1627,7 +1718,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Tipo de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={effectiveProfileMonitorDocTipo || header.monitor_doc_tipo}
+                value={shouldAutoFillMonitor ? effectiveProfileMonitorDocTipo || header.monitor_doc_tipo : header.monitor_doc_tipo}
                 readOnly
               />
             </label>
@@ -1637,7 +1728,7 @@ export function FichaDinamicaPage() {
               <span className="text-white/70">Numero de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                value={effectiveProfileMonitorDocNumero || header.monitor_numero_doc}
+                value={shouldAutoFillMonitor ? effectiveProfileMonitorDocNumero || header.monitor_numero_doc : header.monitor_numero_doc}
                 readOnly
               />
             </label>
@@ -2038,15 +2129,17 @@ export function FichaDinamicaPage() {
                         </div>
                       )}
 
-                      <textarea
-                        className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
-                        rows={2}
-                        placeholder="Observaciones"
-                        value={value.obs ?? ""}
-                        onChange={(e) =>
-                          setAnswers((s) => ({ ...s, [q.id]: { ...value, obs: e.target.value } }))
-                        }
-                      />
+                      {q.config_json?.include_obs !== false && (
+                        <textarea
+                          className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                          rows={2}
+                          placeholder="Observaciones"
+                          value={value.obs ?? ""}
+                          onChange={(e) =>
+                            setAnswers((s) => ({ ...s, [q.id]: { ...value, obs: e.target.value } }))
+                          }
+                        />
+                      )}
                       {extraFields.map((field) => {
                         const key = fieldKey(field.label);
                         const current =
@@ -2252,7 +2345,7 @@ export function FichaDinamicaPage() {
           disabled={saving}
           className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-60"
         >
-          {isEditMode ? "Guardar cambios" : "Guardar en BD"}
+          {isEditMode ? "Enviar" : "Guardar en BD"}
         </button>
         <button
           type="button"

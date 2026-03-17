@@ -433,6 +433,7 @@ export function GestionMonitoreosPage() {
   const [qNiveles, setQNiveles] = useState(3);
   const [qOpciones, setQOpciones] = useState("");
   const [qMulti, setQMulti] = useState(false);
+  const [qIncludeObs, setQIncludeObs] = useState(true);
   const [qNivelLabels, setQNivelLabels] = useState<string[]>(["Bajo", "Medio", "Alto"]);
   const [qExtraFields, setQExtraFields] = useState<ExtraFieldCfg[]>([]);
   const [qExtraFieldInput, setQExtraFieldInput] = useState("");
@@ -1682,6 +1683,7 @@ export function GestionMonitoreosPage() {
     setQExtraFieldMode("registro");
     setQExtraFieldDefault("");
     setQMulti(false);
+    setQIncludeObs(true);
     setEditingQuestionId(null);
   };
 
@@ -1700,6 +1702,7 @@ export function GestionMonitoreosPage() {
       config.multi = qMulti;
     }
     if (qTipo === "archivo_pdf") config.maxSizeMB = 5;
+    config.include_obs = qIncludeObs;
     if (qExtraFields.length) config.extra_fields = qExtraFields;
 
     if (editingQuestionId) {
@@ -1755,6 +1758,7 @@ export function GestionMonitoreosPage() {
       setQOpciones("");
       setQMulti(false);
     }
+    setQIncludeObs(q.config_json?.include_obs !== false);
     setQExtraFields(normalizeExtraFields(q.config_json?.extra_fields));
     setQExtraFieldInput("");
     setQExtraFieldMode("registro");
@@ -1973,7 +1977,7 @@ export function GestionMonitoreosPage() {
         if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
         if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
         if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
-        parts.push(`Observación: ${p.obs ?? "-"}`);
+        if (q.config_json?.include_obs !== false) parts.push(`Observación: ${p.obs ?? "-"}`);
         const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
         extraFields.forEach((f) => {
           const val = f.mode === "elaboracion" ? f.default_value ?? "" : p?.extra?.[f.label] ?? "-";
@@ -3173,9 +3177,17 @@ export function GestionMonitoreosPage() {
                             </label>
                           </div>
                         )}
+                        <label className="flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={qIncludeObs}
+                            onChange={(e) => setQIncludeObs(e.target.checked)}
+                          />
+                          Incluir campo Observaciones
+                        </label>
                         <div className="rounded-lg border border-white/10 bg-black/20 p-3">
                           <div className="text-xs text-white/60">
-                            Campos adicionales por pregunta (ademas de Observaciones)
+                            Campos adicionales por pregunta
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <button
@@ -4019,20 +4031,22 @@ export function GestionMonitoreosPage() {
                             ) : null}
                           </div>
                         )}
-                        <div className="mt-3">
-                          <div className="text-[11px] text-white/60">Observaciones</div>
-                          <textarea
-                            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                            placeholder="Observaciones..."
-                            value={previewData[q.id]?.obs ?? ""}
-                            onChange={(e) =>
-                              savePreview({
-                                ...previewData,
-                                [q.id]: { ...previewData[q.id], obs: e.target.value },
-                              })
-                            }
-                          />
-                        </div>
+                        {q.config_json?.include_obs !== false && (
+                          <div className="mt-3">
+                            <div className="text-[11px] text-white/60">Observaciones</div>
+                            <textarea
+                              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                              placeholder="Observaciones..."
+                              value={previewData[q.id]?.obs ?? ""}
+                              onChange={(e) =>
+                                savePreview({
+                                  ...previewData,
+                                  [q.id]: { ...previewData[q.id], obs: e.target.value },
+                                })
+                              }
+                            />
+                          </div>
+                        )}
                         {normalizeExtraFields(q.config_json?.extra_fields).map((field) => (
                               <div className="mt-3" key={`${q.id}-${field.label}`}>
                                 <div className="text-[11px] text-white/60">{field.label}</div>
