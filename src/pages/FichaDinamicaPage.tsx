@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import jsPDF from "jspdf";
 import logoUrl from "../assets/logoagebresf.png";
 import { supabase } from "../lib/supabaseClient";
@@ -103,6 +103,35 @@ type ExtraFieldCfg = {
   mode: "registro" | "elaboracion";
   default_value?: string | null;
 };
+
+const DUP_RULE_NONE = "none";
+const DUP_RULE_LOCAL = "codigo_local";
+const DUP_RULE_MODULAR = "codigo_modular";
+const DUP_RULE_MARKER = "__restriccion_duplicado__";
+
+const FIXED_HEADER_KEYS = [
+  "institucion",
+  "codigo_modular",
+  "codigo_local",
+  "distrito",
+  "rei",
+  "monitor",
+  "monitor_doc_tipo",
+  "monitor_numero_doc",
+  "monitoreado",
+  "monitoreado_doc_tipo",
+  "monitoreado_numero_doc",
+  "monitoreado_cargo",
+  "monitoreado_telefono",
+  "monitoreado_correo",
+  "condicion",
+  "area",
+  "numero_visitas",
+  "fecha_aplicacion",
+  "hora_inicio",
+  "hora_fin",
+  "nivel_avance",
+];
 
 type Tone = "red" | "amber" | "green";
 
@@ -312,7 +341,6 @@ function TimeField({
 }
 
 export function FichaDinamicaPage() {
-  const nav = useNavigate();
   const { monitoreoCodigo, fichaCodigo } = useParams();
   const [searchParams] = useSearchParams();
   const runIdParam = searchParams.get("runId");
@@ -378,6 +406,7 @@ export function FichaDinamicaPage() {
   const [iePool, setIePool] = useState<InstitucionLite[]>([]);
   const [ieLoading, setIeLoading] = useState(false);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
+  const [duplicateRule, setDuplicateRule] = useState<string>(DUP_RULE_NONE);
   const [monitoreoFechaInicio, setMonitoreoFechaInicio] = useState<string>("");
   const [monitoreoFechaFin, setMonitoreoFechaFin] = useState<string>("");
   const [monitorIdentity, setMonitorIdentity] = useState<{
@@ -401,6 +430,7 @@ export function FichaDinamicaPage() {
     () => `ficha-dyn:${user?.id || "anon"}:${midParam || monitoreoCodigo || "-"}:${fichaCodigo || "-"}:${isTestMode ? "test" : "prod"}`,
     [user?.id, midParam, monitoreoCodigo, fichaCodigo, isTestMode]
   );
+  const isEditMode = Boolean(runIdParam || runId);
 
   const defaultFooter = {
     observacion: true,
@@ -420,6 +450,19 @@ export function FichaDinamicaPage() {
     () => (effectiveHeaderCfg?.custom_fields ?? []) as HeaderFieldDef[],
     [effectiveHeaderCfg]
   );
+  const fixedFieldOrderIndex = useMemo(() => {
+    const order = Array.isArray(effectiveHeaderCfg?.field_order) ? effectiveHeaderCfg.field_order : [];
+    const index = new Map<string, number>();
+    FIXED_HEADER_KEYS.forEach((k, i) => index.set(k, i));
+    let cursor = FIXED_HEADER_KEYS.length;
+    order.forEach((key: string) => {
+      if (!index.has(key)) return;
+      index.set(key, cursor);
+      cursor += 1;
+    });
+    return index;
+  }, [effectiveHeaderCfg]);
+  const fieldOrderStyle = (key: string) => ({ order: fixedFieldOrderIndex.get(key) ?? 0 });
   const nivelInfo: NivelInfo[] = Array.isArray(effectiveHeaderCfg?.nivel_avance_info)
     ? effectiveHeaderCfg.nivel_avance_info
     : [];
@@ -439,15 +482,18 @@ export function FichaDinamicaPage() {
   );
 
   const handleBack = () => {
+    const go = (path: string) => {
+      window.location.assign(path);
+    };
     if (returnTo === "reportes") {
-      nav("/app/reportes");
+      go("/app/reportes");
       return;
     }
     if (monitoreoCodigo) {
-      nav(`/app/monitoreo/${monitoreoCodigo}`);
+      go(`/app/monitoreo/${monitoreoCodigo}`);
       return;
     }
-    nav("/app/monitoreo");
+    go("/app/monitoreo");
   };
 
   const resetFormState = () => {
@@ -756,6 +802,31 @@ export function FichaDinamicaPage() {
 
   useEffect(() => {
     if (!solicitudId) {
+      setDuplicateRule(DUP_RULE_NONE);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from("monitoreo_solicitud_filtro")
+        .select("tipo, modalidad")
+        .eq("solicitud_id", solicitudId)
+        .eq("tipo", DUP_RULE_MARKER)
+        .limit(1)
+        .maybeSingle();
+      if (!alive) return;
+      const mode = (data as any)?.modalidad;
+      setDuplicateRule(
+        mode === DUP_RULE_LOCAL || mode === DUP_RULE_MODULAR ? mode : DUP_RULE_NONE
+      );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [solicitudId]);
+
+  useEffect(() => {
+    if (!solicitudId) {
       setIePool([]);
       setIeOptions([]);
       return;
@@ -1025,7 +1096,7 @@ export function FichaDinamicaPage() {
       header_json: headerPayload,
       footer_json: footer,
     };
-    let currentRunId = status === "draft" ? null : runId;
+    let currentRunId = runId;
     if (status === "draft" && !currentRunId) {
       const { data: draftRow } = await supabase
         .from("form_run")
@@ -1039,6 +1110,48 @@ export function FichaDinamicaPage() {
         .maybeSingle();
       if (draftRow?.id) {
         currentRunId = draftRow.id;
+      }
+    }
+
+    if (status === "draft" && duplicateRule !== DUP_RULE_NONE) {
+      const field = duplicateRule === DUP_RULE_LOCAL ? "codigo_local" : "codigo_modular";
+      const label = duplicateRule === DUP_RULE_LOCAL ? "codigo local" : "codigo modular";
+      const code = String((header as any)[field] ?? "")
+        .trim()
+        .toUpperCase();
+      if (!code) {
+        const msg = `Falta ${label} para validar duplicados.`;
+        setError(msg);
+        showToast(msg, "err");
+        setSaving(false);
+        return;
+      }
+      const { data: runs, error: dupErr } = await supabase
+        .from("form_run")
+        .select("id, header_json")
+        .eq("template_id", template.id)
+        .eq("is_test", isTestMode)
+        .in("status", ["draft", "final"])
+        .limit(10000);
+      if (dupErr) {
+        setError(dupErr.message);
+        showToast(dupErr.message, "err");
+        setSaving(false);
+        return;
+      }
+      const hasDuplicate = (runs ?? []).some((row: any) => {
+        if (currentRunId && row.id === currentRunId) return false;
+        const rowCode = String(row?.header_json?.[field] ?? "")
+          .trim()
+          .toUpperCase();
+        return !!rowCode && rowCode === code;
+      });
+      if (hasDuplicate) {
+        const msg = `Ya existe una ficha registrada con el mismo ${label}.`;
+        setError(msg);
+        showToast(msg, "err");
+        setSaving(false);
+        return;
       }
     }
     if (!currentRunId) {
@@ -1194,7 +1307,7 @@ export function FichaDinamicaPage() {
     if (effectiveHeaderCfg?.monitoreado_correo)
       headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
     if (effectiveHeaderCfg?.condicion)
-      headerPairs.push(["Condición del monitoreado", header.condicion ?? ""]);
+      headerPairs.push(["Condición de monitoreado", header.condicion ?? ""]);
     if (effectiveHeaderCfg?.area) headerPairs.push(["Área", header.area ?? ""]);
     if (effectiveHeaderCfg?.numero_visitas)
       headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
@@ -1394,7 +1507,7 @@ export function FichaDinamicaPage() {
         <div className="text-sm font-semibold">Encabezado</div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {effectiveHeaderCfg?.institucion && (
-            <label className="text-sm">
+            <label className="text-sm md:col-span-2" style={fieldOrderStyle("institucion")}>
               <span className="text-white/70">Institución Educativa</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1459,37 +1572,37 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.codigo_modular && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("codigo_modular")}>
               <span className="text-white/70">Código modular</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.codigo_modular}
-                onChange={(e) => setHeader((s) => ({ ...s, codigo_modular: toUpper(e.target.value) }))}
+                readOnly
               />
             </label>
           )}
           {effectiveHeaderCfg?.codigo_local && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("codigo_local")}>
               <span className="text-white/70">Código local</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.codigo_local}
-                onChange={(e) => setHeader((s) => ({ ...s, codigo_local: toUpper(e.target.value) }))}
+                readOnly
               />
             </label>
           )}
           {effectiveHeaderCfg?.distrito && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("distrito")}>
               <span className="text-white/70">Distrito / Lugar</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.distrito}
-                onChange={(e) => setHeader((s) => ({ ...s, distrito: toUpper(e.target.value) }))}
+                readOnly
               />
             </label>
           )}
           {effectiveHeaderCfg?.rei && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("rei")}>
               <span className="text-white/70">REI</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1499,7 +1612,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitor && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitor")}>
               <span className="text-white/70">Monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1510,7 +1623,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitor_doc_tipo && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitor_doc_tipo")}>
               <span className="text-white/70">Tipo de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1520,7 +1633,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitor_numero_doc && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitor_numero_doc")}>
               <span className="text-white/70">Numero de documento del monitor</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1530,7 +1643,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitoreado && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitoreado")}>
               <span className="text-white/70">Monitoreado</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1540,7 +1653,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitoreado_doc_tipo && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitoreado_doc_tipo")}>
               <span className="text-white/70">Tipo de documento del monitoreado</span>
               <select
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1559,7 +1672,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitoreado_numero_doc && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitoreado_numero_doc")}>
               <span className="text-white/70">Numero de documento del monitoreado</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1575,7 +1688,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitoreado_cargo && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitoreado_cargo")}>
               <span className="text-white/70">Cargo del monitoreado</span>
               <select
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1591,7 +1704,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitoreado_telefono && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitoreado_telefono")}>
               <span className="text-white/70">Telefono del monitoreado</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1601,7 +1714,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.monitoreado_correo && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("monitoreado_correo")}>
               <span className="text-white/70">Correo del monitoreado</span>
               <input
                 type="email"
@@ -1612,8 +1725,8 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.condicion && (
-            <label className="text-sm">
-              <span className="text-white/70">Condición del monitoreado (designado o encargado)</span>
+            <label className="text-sm" style={fieldOrderStyle("condicion")}>
+              <span className="text-white/70">Condición de monitoreado</span>
               <select
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.condicion}
@@ -1626,7 +1739,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.area && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("area")}>
               <span className="text-white/70">Área que monitorea</span>
               {areaOptions.length ? (
                 <select
@@ -1651,7 +1764,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.numero_visitas && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("numero_visitas")}>
               <span className="text-white/70">Numero de visitas a la IE</span>
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
@@ -1661,7 +1774,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.fecha_aplicacion && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("fecha_aplicacion")}>
               <span className="text-white/70">Fecha de aplicacion</span>
               <input
                 type="date"
@@ -1674,7 +1787,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.hora_inicio && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("hora_inicio")}>
               <span className="text-white/70">Hora de inicio</span>
               <TimeField
                 className="mt-1"
@@ -1684,7 +1797,7 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.hora_fin && (
-            <label className="text-sm">
+            <label className="text-sm" style={fieldOrderStyle("hora_fin")}>
               <span className="text-white/70">Hora de fin</span>
               <TimeField
                 className="mt-1"
@@ -2123,21 +2236,23 @@ export function FichaDinamicaPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => saveRun("borrador")}
-          disabled={saving}
-          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/20 disabled:opacity-60"
-        >
-          Guardar borrador
-        </button>
+        {!isEditMode && (
+          <button
+            type="button"
+            onClick={() => saveRun("borrador")}
+            disabled={saving}
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/20 disabled:opacity-60"
+          >
+            Guardar borrador
+          </button>
+        )}
         <button
           type="button"
           onClick={() => saveRun("draft")}
           disabled={saving}
           className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-60"
         >
-          Guardar en BD
+          {isEditMode ? "Guardar cambios" : "Guardar en BD"}
         </button>
         <button
           type="button"

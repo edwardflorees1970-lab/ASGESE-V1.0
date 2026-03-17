@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole, roleLabel } from "../lib/roles";
 import { useTheme } from "../app/ThemeProvider";
@@ -16,16 +16,24 @@ const Item = ({
   label,
   icon,
   onClick,
+  reloadOnClick = false,
 }: {
   to: string;
   label: string;
   icon: ReactNode;
   onClick?: () => void;
+  reloadOnClick?: boolean;
 }) => (
   <NavLink
     to={to}
     end
-    onClick={onClick}
+    onClick={(e) => {
+      onClick?.();
+      if (reloadOnClick) {
+        e.preventDefault();
+        window.location.assign(to);
+      }
+    }}
     className={({ isActive }) =>
       [
         "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition",
@@ -47,6 +55,7 @@ export function AppShell() {
   const { theme, toggleTheme } = useTheme();
   const { isTestMode, setMode } = useAppConfig();
   const nav = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
@@ -93,6 +102,7 @@ export function AppShell() {
 
   const role = profile?.role;
   const canSeeAll = canSeeAllRole(role);
+  const inFichaRoute = /^\/app\/monitoreo\/[^/]+\/ficha\/[^/]+$/i.test(location.pathname);
 
   const SidebarContent = ({
     onItemClick,
@@ -153,21 +163,66 @@ export function AppShell() {
       </div>
 
       <nav className="mt-4 space-y-1">
-        <Item to="/app" label="Inicio" icon={<HomeIcon />} onClick={onItemClick} />
-        <Item to="/app/monitoreo" label="Monitoreo" icon={<ClipboardIcon />} onClick={onItemClick} />
-        <Item to="/app/seguimiento" label="Seguimiento" icon={<TrackIcon />} onClick={onItemClick} />
+        <Item
+          to="/app"
+          label="Inicio"
+          icon={<HomeIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+        />
+        <Item
+          to="/app/monitoreo"
+          label="Monitoreo"
+          icon={<ClipboardIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+        />
+        <Item
+          to="/app/seguimiento"
+          label="Seguimiento"
+          icon={<TrackIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+        />
         <Item
           to="/app/gestion-monitoreos"
           label={"Gesti\u00f3n de Monitoreos"}
           icon={<FormIcon />}
           onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
         />
         {canSeeAll && (
-          <Item to="/app/asignaciones" label="Asignaciones" icon={<UsersCheckIcon />} onClick={onItemClick} />
+          <Item
+            to="/app/asignaciones"
+            label="Asignaciones"
+            icon={<UsersCheckIcon />}
+            onClick={onItemClick}
+            reloadOnClick={inFichaRoute}
+          />
         )}
-        <Item to="/app/reportes" label="Reportes y resultados" icon={<ChartIcon />} onClick={onItemClick} />
-        <Item to="/app/instituciones" label="Instituciones" icon={<SchoolIcon />} onClick={onItemClick} />
-        {canSeeAll && <Item to="/app/usuarios" label="Usuarios" icon={<UserIcon />} onClick={onItemClick} />}
+        <Item
+          to="/app/reportes"
+          label="Reportes y resultados"
+          icon={<ChartIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+        />
+        <Item
+          to="/app/instituciones"
+          label="Instituciones"
+          icon={<SchoolIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+        />
+        {canSeeAll && (
+          <Item
+            to="/app/usuarios"
+            label="Usuarios"
+            icon={<UserIcon />}
+            onClick={onItemClick}
+            reloadOnClick={inFichaRoute}
+          />
+        )}
       </nav>
 
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -274,7 +329,7 @@ export function AppShell() {
             </div>
           )}
           <div className="mx-auto min-w-0 max-w-5xl fade-in-up">
-            <Outlet />
+            <Outlet key={`${location.pathname}${location.search}`} />
           </div>
         </main>
       </div>

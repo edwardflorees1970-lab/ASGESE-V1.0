@@ -40,6 +40,7 @@ export const DEFAULT_HEADER_CONFIG = {
   area_options: [] as string[],
   nivel_avance: false,
   nivel_avance_info: [] as Array<{ nivel: number; descripcion: string }>,
+  field_order: [] as string[],
   custom_fields: [] as HeaderFieldDef[],
 };
 
@@ -97,6 +98,9 @@ export function normalizeHeaderConfig(input: any) {
       ? raw.area_options.map((v: any) => String(v).trim()).filter(Boolean)
       : [],
     nivel_avance_info: Array.isArray(raw.nivel_avance_info) ? raw.nivel_avance_info : [],
+    field_order: Array.isArray(raw.field_order)
+      ? raw.field_order.map((v: any) => String(v).trim()).filter(Boolean)
+      : [],
     custom_fields: normalizeHeaderFields(raw.custom_fields),
   };
 }
