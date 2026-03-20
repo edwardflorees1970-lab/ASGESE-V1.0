@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import logoUrl from "../assets/ugel06_3.jpg";
@@ -86,8 +86,98 @@ function monthOptions() {
 
 function statusLabel(s: string) {
   if (s === "borrador") return "borrador";
-  if (s === "draft") return "draft";
+  if (s === "draft") return "borrador";
   return s;
+}
+
+function IconEdit() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M3.5 13.5V16.5H6.5L15 8L12 5L3.5 13.5Z" />
+      <path d="M11.5 5.5L14.5 8.5" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M4.5 6H15.5" />
+      <path d="M7 6V4.5H13V6" />
+      <path d="M6.5 6L7.2 15.5H12.8L13.5 6" />
+    </svg>
+  );
+}
+
+function IconPdf() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M6 2.5H11L15 6.5V17.5H6Z" />
+      <path d="M11 2.5V6.5H15" />
+      <path d="M7.5 13H12.5" />
+      <path d="M7.5 10.5H11.5" />
+    </svg>
+  );
+}
+
+function IconEye() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M2.2 10C3.9 6.9 6.6 5.3 10 5.3C13.4 5.3 16.1 6.9 17.8 10C16.1 13.1 13.4 14.7 10 14.7C6.6 14.7 3.9 13.1 2.2 10Z" />
+      <circle cx="10" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
+function IconFinalize() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <circle cx="10" cy="10" r="7" />
+      <path d="M7 10.2L9.2 12.4L13.2 8.4" />
+    </svg>
+  );
+}
+
+function IconDraft() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M4 10A6 6 0 1 0 6 5.5" />
+      <path d="M4 4.5V7.5H7" />
+    </svg>
+  );
+}
+
+function ActionIconButton({
+  title,
+  onClick,
+  children,
+  danger = false,
+  disabled = false,
+}: {
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={cls(
+        "inline-flex h-9 w-9 items-center justify-center rounded-lg border text-white/85 transition",
+        danger
+          ? "border-red-500/30 bg-red-500/10 text-red-100 hover:bg-red-500/15"
+          : "border-white/10 bg-white/5 hover:bg-white/10",
+        disabled && "cursor-not-allowed opacity-50"
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 function getCreatorName(creator?: ProfileRow) {
@@ -174,6 +264,8 @@ export function ReportesPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmDeleteRun, setConfirmDeleteRun] = useState<RunRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewPdfTitle, setPreviewPdfTitle] = useState("");
 
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
@@ -409,6 +501,12 @@ export function ReportesPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    return () => {
+      if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+    };
+  }, [previewPdfUrl]);
+
   const visibleRuns = useMemo(() => {
     const monitorTerm = monitorQuery.trim().toLowerCase();
     const colegioTerm = colegioQuery.trim().toLowerCase();
@@ -435,10 +533,10 @@ export function ReportesPage() {
     return run.created_by === user?.id;
   };
 
-  const exportRunPdf = async (run?: RunRow) => {
+  const buildRunPdf = async (run?: RunRow) => {
     if (!run?.template_id) {
       setToast({ type: "err", msg: "No se pudo resolver la ficha." });
-      return;
+      return null;
     }
     try {
       const fieldKey = (label: string) => label.toLowerCase().trim().replace(/\s+/g, "_");
@@ -890,10 +988,29 @@ export function ReportesPage() {
         doc.setTextColor(20);
       }
 
-      doc.save(`ficha_${tpl.codigo || "ficha"}.pdf`);
+      return { doc, tpl };
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message || "No se pudo exportar PDF." });
+      return null;
     }
+  };
+
+  const exportRunPdf = async (run?: RunRow) => {
+    const built = await buildRunPdf(run);
+    if (!built) return;
+    built.doc.save(`ficha_${built.tpl.codigo || "ficha"}.pdf`);
+  };
+
+  const previewRunPdf = async (run?: RunRow) => {
+    const built = await buildRunPdf(run);
+    if (!built) return;
+    const blob = built.doc.output("blob");
+    const nextUrl = URL.createObjectURL(blob);
+    setPreviewPdfUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return nextUrl;
+    });
+    setPreviewPdfTitle(built.tpl.titulo || built.tpl.codigo || "Vista previa");
   };
 
   const exportExcel = () => {
@@ -1131,7 +1248,7 @@ export function ReportesPage() {
               className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
             >
               <option value="ALL">Todos</option>
-              <option value="draft">draft</option>
+              <option value="draft">borrador</option>
               <option value="final">final</option>
             </select>
           </label>
@@ -1234,43 +1351,38 @@ export function ReportesPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <ActionIconButton title="Vista previa" onClick={() => previewRunPdf(r)}>
+                    <IconEye />
+                  </ActionIconButton>
                   {canEditOrDelete(r) && (
-                    <button
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                      onClick={() => handleEdit(r)}
-                      disabled={!canEditOrDelete(r)}
-                    >
-                      Editar
-                    </button>
+                    <ActionIconButton title="Editar" onClick={() => handleEdit(r)} disabled={!canEditOrDelete(r)}>
+                      <IconEdit />
+                    </ActionIconButton>
                   )}
-                  <button
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                    onClick={() => exportRunPdf(r)}
-                  >
-                    PDF
-                  </button>
+                  <ActionIconButton title="Exportar PDF" onClick={() => exportRunPdf(r)}>
+                    <IconPdf />
+                  </ActionIconButton>
                   {canChangeStatus(r) && (
-                    <button
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                      onClick={() =>
-                        updateStatus(r, r.status === "final" ? "draft" : "final")
-                      }
+                    <ActionIconButton
+                      title={r.status === "final" ? "Pasar a borrador" : "Finalizar"}
+                      onClick={() => updateStatus(r, r.status === "final" ? "draft" : "final")}
                       disabled={!canChangeStatus(r)}
                     >
-                      {r.status === "final" ? "Reabrir" : "Finalizar"}
-                    </button>
+                      {r.status === "final" ? <IconDraft /> : <IconFinalize />}
+                    </ActionIconButton>
                   )}
                   {canEditOrDelete(r) && (
-                    <button
-                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
+                    <ActionIconButton
+                      title="Eliminar"
                       onClick={() => {
                         setConfirmDeleteRun(r);
                         setConfirmDeleteOpen(true);
                       }}
                       disabled={!canEditOrDelete(r)}
+                      danger
                     >
-                      Eliminar
-                    </button>
+                      <IconTrash />
+                    </ActionIconButton>
                   )}
                 </div>
               </div>
@@ -1346,24 +1458,20 @@ export function ReportesPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
+                          <ActionIconButton title="Vista previa" onClick={() => previewRunPdf(r)}>
+                            <IconEye />
+                          </ActionIconButton>
                           {canEditOrDelete(r) && (
-                            <button
-                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                              onClick={() => handleEdit(r)}
-                              disabled={!canEditOrDelete(r)}
-                            >
-                              Editar
-                            </button>
+                            <ActionIconButton title="Editar" onClick={() => handleEdit(r)} disabled={!canEditOrDelete(r)}>
+                              <IconEdit />
+                            </ActionIconButton>
                           )}
-                          <button
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                            onClick={() => exportRunPdf(r)}
-                          >
-                            PDF
-                          </button>
+                          <ActionIconButton title="Exportar PDF" onClick={() => exportRunPdf(r)}>
+                            <IconPdf />
+                          </ActionIconButton>
                           {canChangeStatus(r) && (
-                            <button
-                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                            <ActionIconButton
+                              title={r.status === "final" ? "Pasar a borrador" : "Finalizar"}
                               onClick={() =>
                                 updateStatus(
                                   r,
@@ -1372,20 +1480,21 @@ export function ReportesPage() {
                               }
                               disabled={!canChangeStatus(r)}
                             >
-                              {r.status === "final" ? "Reabrir" : "Finalizar"}
-                            </button>
+                              {r.status === "final" ? <IconDraft /> : <IconFinalize />}
+                            </ActionIconButton>
                           )}
                           {canEditOrDelete(r) && (
-                            <button
-                              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100"
+                            <ActionIconButton
+                              title="Eliminar"
                               onClick={() => {
                                 setConfirmDeleteRun(r);
                                 setConfirmDeleteOpen(true);
                               }}
                               disabled={!canEditOrDelete(r)}
+                              danger
                             >
-                              Eliminar
-                            </button>
+                              <IconTrash />
+                            </ActionIconButton>
                           )}
                         </div>
                       </td>
@@ -1409,6 +1518,39 @@ export function ReportesPage() {
         onClose={() => !deleteBusy && setConfirmDeleteOpen(false)}
         onConfirm={deleteRun}
       />
+      {previewPdfUrl && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
+          <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-white">Vista previa</div>
+                <div className="truncate text-xs text-white/60">{previewPdfTitle}</div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                  onClick={() => window.open(previewPdfUrl, "_blank", "noopener,noreferrer")}
+                >
+                  Abrir aparte
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                  onClick={() => {
+                    URL.revokeObjectURL(previewPdfUrl);
+                    setPreviewPdfUrl(null);
+                    setPreviewPdfTitle("");
+                  }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+            <iframe title="Vista previa PDF" src={previewPdfUrl} className="min-h-0 flex-1 bg-white" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
