@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import jsPDF from "jspdf";
-import logoUrl from "../assets/logoagebresf.png";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
@@ -208,25 +206,6 @@ function normalizeExtraFields(input: any): ExtraFieldCfg[] {
       } as ExtraFieldCfg;
     })
     .filter(Boolean) as ExtraFieldCfg[];
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-function toDataUrl(img: HTMLImageElement): string {
-  const canvas = document.createElement("canvas");
-  canvas.width = img.width;
-  canvas.height = img.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
-  ctx.drawImage(img, 0, 0);
-  return canvas.toDataURL("image/png");
 }
 
 function getTimeParts(value: string) {
@@ -1288,243 +1267,6 @@ export function FichaDinamicaPage() {
     }
   };
 
-  const exportPdf = async () => {
-    if (!template) return;
-    const doc = new jsPDF({ unit: "mm", format: "a4" });
-    const M = 14;
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    let y = 18;
-    const contentW = pageW - M * 2;
-    const lineH = 5;
-    const smallLineH = 4.2;
-
-    const ensureSpace = (need: number) => {
-      if (y + need > pageH - 14) {
-        doc.addPage();
-        y = 18;
-      }
-    };
-
-    const drawSectionHeader = (title: string) => {
-      ensureSpace(10);
-      doc.setFillColor(230, 236, 243);
-      doc.setDrawColor(160, 170, 185);
-      doc.rect(M, y - 2.5, contentW, 8, "FD");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text(title, M + 2, y + 2.5);
-      y += 10;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-    };
-
-    const drawKeyValueGrid = (pairs: Array<[string, string]>) => {
-      if (!pairs.length) return;
-      const cols = 2;
-      const colW = contentW / cols;
-      const rowH = 8;
-      const rows = Math.ceil(pairs.length / cols);
-      ensureSpace(rows * rowH + 4);
-      doc.setDrawColor(200);
-      for (let r = 0; r < rows; r += 1) {
-        for (let c = 0; c < cols; c += 1) {
-          const idx = r * cols + c;
-          const x = M + c * colW;
-          const yCell = y + r * rowH;
-          doc.rect(x, yCell, colW, rowH);
-          const pair = pairs[idx];
-          if (pair) {
-            doc.setFontSize(8);
-            doc.setTextColor(90);
-            doc.text(pair[0], x + 2, yCell + 3.5);
-            doc.setFontSize(9);
-            doc.setTextColor(20);
-            const valueLines = doc.splitTextToSize(pair[1] || "-", colW - 4);
-            doc.text(valueLines, x + 2, yCell + 7);
-          }
-        }
-      }
-      doc.setTextColor(20);
-      y += rows * rowH + 4;
-      doc.setFontSize(10);
-    };
-
-    try {
-      const img = await loadImage(logoUrl);
-      const imgW = 22;
-      const imgH = (img.height / img.width) * imgW;
-      const dataUrl = toDataUrl(img);
-      if (dataUrl) doc.addImage(dataUrl, "PNG", M, y - 8, imgW, imgH);
-    } catch {
-      // ignore
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text(template.titulo, M + 26, y);
-    y += 6;
-
-    if (template.subtitulo) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.text(template.subtitulo, M + 26, y);
-      y += 6;
-    }
-
-    doc.setDrawColor(220);
-    doc.line(M, y, pageW - M, y);
-    y += 10;
-
-    const headerPairs: Array<[string, string]> = [];
-    if (effectiveHeaderCfg?.institucion) headerPairs.push(["Institución educativa", header.institucion ?? ""]);
-    if (effectiveHeaderCfg?.codigo_modular) headerPairs.push(["Código modular", header.codigo_modular ?? ""]);
-    if (effectiveHeaderCfg?.codigo_local) headerPairs.push(["Código local", header.codigo_local ?? ""]);
-    if (effectiveHeaderCfg?.distrito) headerPairs.push(["Distrito / Lugar", header.distrito ?? ""]);
-    if (effectiveHeaderCfg?.rei) headerPairs.push(["REI", header.rei ?? ""]);
-    if (effectiveHeaderCfg?.monitor) headerPairs.push(["Monitor", header.monitor ?? ""]);
-    if (effectiveHeaderCfg?.monitor_doc_tipo) headerPairs.push(["Tipo doc. monitor", header.monitor_doc_tipo ?? ""]);
-    if (effectiveHeaderCfg?.monitor_numero_doc)
-      headerPairs.push(["Numero doc. monitor", header.monitor_numero_doc ?? ""]);
-    if (effectiveHeaderCfg?.monitoreado) headerPairs.push(["Monitoreado", header.monitoreado ?? ""]);
-    if (effectiveHeaderCfg?.monitoreado_doc_tipo)
-      headerPairs.push(["Tipo doc. monitoreado", header.monitoreado_doc_tipo ?? ""]);
-    if (effectiveHeaderCfg?.monitoreado_numero_doc)
-      headerPairs.push(["Numero doc. monitoreado", header.monitoreado_numero_doc ?? ""]);
-    if (effectiveHeaderCfg?.monitoreado_cargo)
-      headerPairs.push(["Cargo monitoreado", header.monitoreado_cargo ?? ""]);
-    if (effectiveHeaderCfg?.monitoreado_telefono)
-      headerPairs.push(["Telefono monitoreado", header.monitoreado_telefono ?? ""]);
-    if (effectiveHeaderCfg?.monitoreado_correo)
-      headerPairs.push(["Correo monitoreado", header.monitoreado_correo ?? ""]);
-    if (effectiveHeaderCfg?.condicion)
-      headerPairs.push(["Condición de monitoreado", header.condicion ?? ""]);
-    if (effectiveHeaderCfg?.area) headerPairs.push(["Área", header.area ?? ""]);
-    if (effectiveHeaderCfg?.numero_visitas)
-      headerPairs.push(["Numero de visitas a la IE", header.numero_visitas ?? ""]);
-    if (effectiveHeaderCfg?.fecha_aplicacion)
-      headerPairs.push(["Fecha de aplicacion", header.fecha_aplicacion ?? ""]);
-    if (effectiveHeaderCfg?.hora_inicio) headerPairs.push(["Hora de inicio", header.hora_inicio ?? ""]);
-    if (effectiveHeaderCfg?.hora_fin) headerPairs.push(["Hora de fin", header.hora_fin ?? ""]);
-    customHeaderFields.forEach((field) => {
-      headerPairs.push([field.label, header.custom_values?.[field.key] ?? ""]);
-    });
-
-    if (headerPairs.length) {
-      drawSectionHeader("Encabezado");
-      drawKeyValueGrid(headerPairs);
-    }
-
-    if (effectiveHeaderCfg?.nivel_avance && nivelInfoDisplay.length) {
-      const nivelPairs: Array<[string, string]> = nivelInfoDisplay.map((x) => [
-        `Nivel ${x.nivel}`,
-        x.descripcion ?? "",
-      ]);
-      drawSectionHeader("Niveles de respuesta (Sí)");
-      drawKeyValueGrid(nivelPairs);
-    }
-
-    sections.forEach((s) => {
-      drawSectionHeader(s.titulo);
-      questions.filter((q) => q.section_id === s.id).forEach((q) => {
-        const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
-        const lines = doc.splitTextToSize(title, contentW);
-        ensureSpace(lines.length * lineH + 6);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text(lines, M, y);
-        y += lines.length * lineH;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-
-        const p = answers[q.id] ?? {};
-        const parts: string[] = [];
-        if (q.tipo === "yes_no") parts.push(`Respuesta: ${p.yn ?? "-"}`);
-        if (q.tipo === "yes_no_nivel") {
-          const levelLabels = q.config_json?.levelLabels ?? [];
-          let nivelLabel = "-";
-          if (p.nivel) {
-            if (typeof p.nivel === "number") {
-              nivelLabel = levelLabels[p.nivel - 1] ?? String(p.nivel);
-            } else {
-              nivelLabel = String(p.nivel);
-            }
-          }
-          parts.push(`Respuesta: ${p.yn ?? "-"}`);
-          parts.push(`Nivel: ${nivelLabel}`);
-        }
-        if (q.tipo === "opciones") {
-          if (p.option) parts.push(`Opción: ${p.option}`);
-          if (p.options?.length) parts.push(`Opciones: ${p.options.join(", ")}`);
-          if (!p.option && !p.options?.length) parts.push("Opciones: -");
-        }
-        if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
-        if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
-        if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
-        if (q.config_json?.include_obs !== false) parts.push(`Observación: ${p.obs ?? "-"}`);
-        const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
-        extraFields.forEach((field) => {
-          const key = fieldKey(field.label);
-          const val =
-            field.mode === "elaboracion"
-              ? field.default_value ?? ""
-              : p?.extra?.[key] ??
-                (key === "evidencia" ? p.evidencia : key === "recomendacion" ? p.recomendacion : "");
-          parts.push(`${field.label}: ${val ?? "-"}`);
-        });
-
-        if (parts.length) {
-          const detail = parts.join(" | ");
-          const detailLines = doc.splitTextToSize(detail, contentW);
-          doc.text(detailLines, M, y);
-          y += detailLines.length * smallLineH;
-        }
-        y += 4;
-        doc.setDrawColor(235);
-        doc.line(M, y, pageW - M, y);
-        y += 3;
-      });
-    });
-
-    const footerPairs: Array<[string, string]> = [];
-    if (effectiveFooterCfg?.observacion) footerPairs.push(["Observación general", footer.observacion ?? ""]);
-    if (effectiveFooterCfg?.compromiso) footerPairs.push(["Compromiso", footer.compromiso ?? ""]);
-    if (effectiveFooterCfg?.lugar) footerPairs.push(["Lugar", footer.lugar ?? ""]);
-    if (effectiveFooterCfg?.fecha) footerPairs.push(["Fecha", footer.fecha ?? ""]);
-    if (effectiveFooterCfg?.docente_nombre) footerPairs.push(["Monitoreado", footer.docente_nombre ?? ""]);
-    if (effectiveFooterCfg?.docente_dni) {
-      footerPairs.push([
-        `${footer.docente_doc_tipo || "DNI"} Monitoreado`,
-        footer.docente_dni ?? "",
-      ]);
-    }
-    if (effectiveFooterCfg?.monitor_nombre) footerPairs.push(["Monitor", footer.monitor_nombre ?? ""]);
-    if (effectiveFooterCfg?.monitor_dni) {
-      footerPairs.push([
-        `${footer.monitor_doc_tipo || "DNI"} Monitor`,
-        footer.monitor_dni ?? "",
-      ]);
-    }
-
-    if (footerPairs.length) {
-      drawSectionHeader("Cierre");
-      drawKeyValueGrid(footerPairs);
-    }
-
-    if (y + 22 > pageH - 14) {
-      doc.addPage();
-      y = 18;
-    }
-    doc.setDrawColor(120);
-    doc.line(M, y + 12, M + 70, y + 12);
-    doc.line(pageW - M - 70, y + 12, pageW - M, y + 12);
-    doc.setFontSize(8);
-    doc.text("Firma docente monitoreado", M, y + 16);
-    doc.text("Firma monitor", pageW - M - 70, y + 16);
-
-    doc.save(`ficha_${template.codigo}.pdf`);
-  };
-
   if (loading) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
@@ -1545,7 +1287,7 @@ export function FichaDinamicaPage() {
     <div className="space-y-5 text-white">
       {toast && (
         <div
-          className={`fixed left-3 right-3 top-4 z-50 rounded-xl px-4 py-3 text-sm shadow-lg sm:left-auto sm:right-6 sm:top-6 ${
+          className={`fixed left-1/2 top-1/2 z-50 w-[min(calc(100vw-2rem),32rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl px-4 py-4 text-center text-sm shadow-2xl backdrop-blur ${
             toast.type === "ok"
               ? "border border-emerald-500/40 bg-emerald-500/20 text-emerald-100"
               : "border border-red-500/40 bg-red-500/20 text-red-100"
@@ -1932,7 +1674,6 @@ export function FichaDinamicaPage() {
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                   inputMode={field.type === "number" ? "numeric" : undefined}
                   value={header.custom_values?.[field.key] ?? ""}
-                  placeholder={field.placeholder || field.label}
                   onChange={(e) =>
                     setHeader((s) => ({
                       ...s,
@@ -2164,7 +1905,6 @@ export function FichaDinamicaPage() {
                             <textarea
                               className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
                               rows={2}
-                              placeholder={field.label}
                               value={current ?? ""}
                               onChange={(e) =>
                                 setAnswers((s) => ({
@@ -2354,13 +2094,6 @@ export function FichaDinamicaPage() {
           className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10 disabled:opacity-60"
         >
           Limpiar ficha
-        </button>
-        <button
-          type="button"
-          onClick={exportPdf}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-        >
-          Exportar PDF
         </button>
       </div>
 

@@ -418,6 +418,7 @@ export function GestionMonitoreosPage() {
   const [templateCustomFieldType, setTemplateCustomFieldType] = useState<HeaderFieldDef["type"]>("text");
   const [templateCustomFieldOptions, setTemplateCustomFieldOptions] = useState("");
   const [templateCustomFieldRequired, setTemplateCustomFieldRequired] = useState(false);
+  const [editingTemplateFieldId, setEditingTemplateFieldId] = useState<string | null>(null);
   const [editTemplateTitle, setEditTemplateTitle] = useState("");
   const [editTemplateCode, setEditTemplateCode] = useState("");
   const [editTemplateSubtitle, setEditTemplateSubtitle] = useState("");
@@ -2812,15 +2813,15 @@ export function GestionMonitoreosPage() {
                           {(templateHeader.custom_fields ?? []).map((field: HeaderFieldDef) => (
                             <div
                               key={field.id}
-                              className="grid gap-2 rounded-lg border border-white/10 bg-white/5 p-3 md:grid-cols-[1.5fr_130px_1fr_110px_auto]"
+                              className={`grid gap-2 rounded-lg border p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_130px_minmax(0,1fr)_110px_auto] ${editingTemplateFieldId === field.id ? "border-sky-400/40 bg-sky-500/10" : "border-white/10 bg-white/5"}`}
                             >
                               <input
-                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                className="min-w-0 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                                 value={field.label}
                                 onChange={(e) => patchTemplateCustomField(field.id, { label: e.target.value })}
                               />
                               <select
-                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                className="min-w-0 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                                 value={field.type}
                                 onChange={(e) =>
                                   patchTemplateCustomField(field.id, {
@@ -2839,7 +2840,7 @@ export function GestionMonitoreosPage() {
                                 ))}
                               </select>
                               <input
-                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                                className="min-w-0 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                                 placeholder={field.type === "select" ? "op1 | op2 | op3" : "Opcional"}
                                 value={field.type === "select" ? field.options.join(" | ") : field.placeholder ?? ""}
                                 onChange={(e) =>
@@ -2866,14 +2867,28 @@ export function GestionMonitoreosPage() {
                                 />
                                 Obligatorio
                               </label>
-                              <div className="flex gap-2">
+                              <div className="flex flex-wrap gap-2 xl:flex-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingTemplateFieldId((prev) => (prev === field.id ? null : field.id))}
+                                  className={`rounded-lg border px-2 py-2 text-xs ${editingTemplateFieldId === field.id ? "border-sky-400/40 bg-sky-500/15 text-sky-100" : "border-white/10 bg-white/5 text-white/80"}`}
+                                  title="Editar campo"
+                                >
+                                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                                    <path d="M3.5 13.5V16.5H6.5L15 8L12 5L3.5 13.5Z" />
+                                    <path d="M11.5 5.5L14.5 8.5" />
+                                  </svg>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => moveTemplateCustomField(field.id, -1)}
                                   className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-white/80"
                                   title="Subir"
                                 >
-                                  ↑
+                                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                                    <path d="M10 15V5" />
+                                    <path d="M6.5 8.5L10 5L13.5 8.5" />
+                                  </svg>
                                 </button>
                                 <button
                                   type="button"
@@ -2881,7 +2896,10 @@ export function GestionMonitoreosPage() {
                                   className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-white/80"
                                   title="Bajar"
                                 >
-                                  ↓
+                                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                                    <path d="M10 5V15" />
+                                    <path d="M6.5 11.5L10 15L13.5 11.5" />
+                                  </svg>
                                 </button>
                                 <button
                                   type="button"
