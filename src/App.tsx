@@ -30,6 +30,9 @@ const InstitucionesPage = lazy(() =>
 const GestionMonitoreosPage = lazy(() =>
   import("./pages/GestionMonitoreosPage").then((m) => ({ default: m.GestionMonitoreosPage }))
 );
+const IndicadoresCdDPage = lazy(() =>
+  import("./pages/IndicadoresCdDPage").then((m) => ({ default: m.IndicadoresCdDPage }))
+);
 
 function PageLoader() {
   return (
@@ -61,6 +64,10 @@ export default function App() {
             <Route path="seguimiento" element={<SeguimientoPage />} />
             <Route path="instituciones" element={<InstitucionesPage />} />
             <Route path="gestion-monitoreos" element={<GestionMonitoreosPage />} />
+
+            <Route element={<ProtectedRoute allowedRoles={["responsable_cdd", "admin", "jefe_area", "director"]} />}>
+              <Route path="indicadores-cdd" element={<IndicadoresCdDPage />} />
+            </Route>
 
             {/* Solo admin */}
             <Route element={<ProtectedRoute requireAdmin />}>

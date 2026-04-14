@@ -2,10 +2,11 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 import { canSeeAllRole } from "../lib/roles";
 
-export function ProtectedRoute({ requireAdmin = false }: { requireAdmin?: boolean }) {
+export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { requireAdmin?: boolean; allowedRoles?: string[] }) {
   const { loading, user, profile, profileLoading, profileError, refreshProfile } =
     useAuth();
   const location = useLocation();
+  const requiresProfileCheck = requireAdmin || Boolean(allowedRoles?.length);
 
   // Solo bloquea durante carga inicial de sesión (rápido)
   if (loading) {
@@ -26,7 +27,7 @@ export function ProtectedRoute({ requireAdmin = false }: { requireAdmin?: boolea
   // Si es ruta admin:
   // - si aún está cargando profile, muestra loader corto (solo aquí).
   // - si no es admin, afuera.
-  if (requireAdmin) {
+  if (requiresProfileCheck) {
     if (profileLoading) {
       return (
         <div className="min-h-screen bg-zinc-950 text-white grid place-items-center">
@@ -55,7 +56,10 @@ export function ProtectedRoute({ requireAdmin = false }: { requireAdmin?: boolea
     }
 
     const role = profile?.role;
-    if (!canSeeAllRole(role)) {
+    if (requireAdmin && !canSeeAllRole(role)) {
+      return <Navigate to="/app" replace />;
+    }
+    if (allowedRoles?.length && !allowedRoles.includes(String(role ?? ""))) {
       return <Navigate to="/app" replace />;
     }
   }

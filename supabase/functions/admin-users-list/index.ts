@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 type Body = {
   q?: string; // búsqueda (nombre/doc/correo)
-  rol?: "admin" | "user" | "jefe_area" | "director";
+  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
   area?: string;
   ugel?: string;
   rei?: string;

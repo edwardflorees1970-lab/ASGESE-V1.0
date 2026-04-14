@@ -3,7 +3,7 @@ import { supabase } from "./supabaseClient";
 /** Tipos */
 export type UsersListQuery = {
   q?: string;
-  rol?: "admin" | "user" | "jefe_area" | "director";
+  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
   area?: string;
   ugel?: string;
   rei?: string;
@@ -28,7 +28,7 @@ export type ProfileRow = {
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
   // OJO: en BD es "role", pero en el frontend usamos "rol"
-  rol: "admin" | "user" | "jefe_area" | "director";
+  rol: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
   created_at?: string;
   updated_at?: string;
 };
@@ -48,7 +48,7 @@ export type AdminCreateUserInput = {
   ugel?: string | null;
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
-  rol: "admin" | "user" | "jefe_area" | "director";
+  rol: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
   password: string;
 };
 

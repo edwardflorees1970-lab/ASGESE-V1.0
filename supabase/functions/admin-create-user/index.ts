@@ -16,7 +16,7 @@ type CreateBody = {
   ugel?: string | null;
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
-  rol?: "admin" | "user" | "jefe_area" | "director"; // OJO: tu tabla usa "role", no "rol"
+  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd"; // OJO: tu tabla usa "role", no "rol"
   password: string;                 // obligatorio
 };
 
@@ -125,7 +125,7 @@ serve(async (req) => {
       can_create_monitoreo: body.can_create_monitoreo ?? false,
 
       // IMPORTANTE: tu columna es "role"
-      role: (body.rol || "user") as "admin" | "user" | "jefe_area" | "director",
+      role: (body.rol || "user") as "admin" | "user" | "jefe_area" | "director" | "responsable_cdd",
 
       updated_at: new Date().toISOString(),
     };
