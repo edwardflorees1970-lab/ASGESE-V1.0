@@ -701,7 +701,10 @@ export function IndicadoresCdDPage() {
                             title={`Avance (valor): ${row.avance ?? "-"} | Avance: ${pct(row.avancePct).toFixed(1)}%`}
                           />
                         </div>
-                      <div className="w-20 text-center">
+                        <div className="w-20 text-center text-[9px] text-slate-500 md:text-[10px]">
+                          <div>Avance: {pct(row.avancePct).toFixed(1)}%</div>
+                        </div>
+                        <div className="w-20 text-center">
                           <div className="truncate text-[11px] font-bold text-slate-300">{row.monitoreoNombre}</div>
                           <div className="truncate text-[10px] text-slate-500">{row.monitorArea || "-"}</div>
                         </div>
@@ -780,14 +783,19 @@ export function IndicadoresCdDPage() {
                             {dte !== null ? ` | ${dte} dia(s)` : ""}
                           </div>
                         </div>
-                        <div
-                          className="relative h-5 rounded-full bg-[#0f0f0f]"
-                          title={`Rango: ${shortDate(row.fecha_inicio)} - ${shortDate(row.fecha_fin)} | Progreso temporal: ${pct(row.dateProgress).toFixed(1)}%`}
-                        >
-                          <div className="absolute inset-y-0 rounded-full bg-sky-950/60" style={{ left, width }} />
-                          <div className="absolute inset-y-0 rounded-full bg-sky-300/90 shadow-[0_0_12px_rgba(125,211,252,0.28)]" style={{ left, width: fill }} />
+                          <div>
+                            <div
+                              className="relative h-5 rounded-full bg-[#0f0f0f]"
+                              title={`Rango: ${shortDate(row.fecha_inicio)} - ${shortDate(row.fecha_fin)} | Progreso temporal: ${pct(row.dateProgress).toFixed(1)}%`}
+                            >
+                              <div className="absolute inset-y-0 rounded-full bg-sky-950/60" style={{ left, width }} />
+                              <div className="absolute inset-y-0 rounded-full bg-sky-300/90 shadow-[0_0_12px_rgba(125,211,252,0.28)]" style={{ left, width: fill }} />
+                            </div>
+                            <div className="mt-1 text-[10px] text-slate-500">
+                              Rango: {shortDate(row.fecha_inicio)} - {shortDate(row.fecha_fin)} | Progreso: {pct(row.dateProgress).toFixed(1)}%
+                            </div>
+                          </div>
                         </div>
-                      </div>
                       );
                     })
                   ) : (
