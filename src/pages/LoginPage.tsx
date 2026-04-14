@@ -55,8 +55,14 @@ export function LoginPage() {
       }
 
       if (!data?.session?.user) throw new Error("Login OK pero no se recibió sesión.");
-
-      navigate("/app", { replace: true });
+      const uid = data.session.user.id;
+      const { data: profRow } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", uid)
+        .maybeSingle();
+      const role = String((profRow as any)?.role || "");
+      navigate(role === "responsable_cdd" ? "/app/indicadores-cdd" : "/app", { replace: true });
     } catch (err: any) {
       if (import.meta.env.DEV) {
         console.warn("LOGIN FAIL:", err?.message || err);

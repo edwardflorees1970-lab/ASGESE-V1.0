@@ -102,6 +102,7 @@ export function AppShell() {
 
   const role = profile?.role;
   const canSeeAll = canSeeAllRole(role);
+  const isResponsableCdD = role === "responsable_cdd";
   const inFichaRoute = /^\/app\/monitoreo\/[^/]+\/ficha\/[^/]+$/i.test(location.pathname);
 
   const SidebarContent = ({
@@ -163,13 +164,15 @@ export function AppShell() {
       </div>
 
       <nav className="mt-4 space-y-1">
-        <Item
-          to="/app"
-          label="Inicio"
-          icon={<HomeIcon />}
-          onClick={onItemClick}
-          reloadOnClick={inFichaRoute}
-        />
+        {!isResponsableCdD && (
+          <Item
+            to="/app"
+            label="Inicio"
+            icon={<HomeIcon />}
+            onClick={onItemClick}
+            reloadOnClick={inFichaRoute}
+          />
+        )}
         <Item
           to="/app/monitoreo"
           label="Monitoreo"
@@ -177,20 +180,24 @@ export function AppShell() {
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
         />
-        <Item
-          to="/app/seguimiento"
-          label="Seguimiento"
-          icon={<TrackIcon />}
-          onClick={onItemClick}
-          reloadOnClick={inFichaRoute}
-        />
-        <Item
-          to="/app/gestion-monitoreos"
-          label={"Gesti\u00f3n de Monitoreos"}
-          icon={<FormIcon />}
-          onClick={onItemClick}
-          reloadOnClick={inFichaRoute}
-        />
+        {!isResponsableCdD && (
+          <Item
+            to="/app/seguimiento"
+            label="Seguimiento"
+            icon={<TrackIcon />}
+            onClick={onItemClick}
+            reloadOnClick={inFichaRoute}
+          />
+        )}
+        {!isResponsableCdD && (
+          <Item
+            to="/app/gestion-monitoreos"
+            label={"Gesti\u00f3n de Monitoreos"}
+            icon={<FormIcon />}
+            onClick={onItemClick}
+            reloadOnClick={inFichaRoute}
+          />
+        )}
         {canSeeAll && (
           <Item
             to="/app/asignaciones"

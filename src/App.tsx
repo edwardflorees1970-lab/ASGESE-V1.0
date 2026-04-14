@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { ProtectedRoute } from "./app/ProtectedRoute";
+import { useAuth } from "./app/AuthProvider";
 
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersPage })));
@@ -42,6 +43,14 @@ function PageLoader() {
   );
 }
 
+function HomeEntry() {
+  const { profile } = useAuth();
+  if (profile?.role === "responsable_cdd") {
+    return <Navigate to="/app/indicadores-cdd" replace />;
+  }
+  return <HomePage />;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -50,20 +59,26 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/app" element={<AppShell />}>
-            <Route index element={<HomePage />} />
+            <Route index element={<HomeEntry />} />
 
             {/* Monitoreo */}
-            <Route path="monitoreo" element={<MonitoreoPage />} />
-            <Route path="monitoreo/:monitoreoCodigo" element={<MonitoreoDetailPage />} />
-            <Route
-              path="monitoreo/:monitoreoCodigo/ficha/:fichaCodigo"
-              element={<FichaRouterPage />}
-            />
+            <Route element={<ProtectedRoute allowedRoles={["admin", "user", "jefe_area", "director", "responsable_cdd"]} />}>
+              <Route path="monitoreo" element={<MonitoreoPage />} />
+              <Route path="monitoreo/:monitoreoCodigo" element={<MonitoreoDetailPage />} />
+              <Route
+                path="monitoreo/:monitoreoCodigo/ficha/:fichaCodigo"
+                element={<FichaRouterPage />}
+              />
+            </Route>
 
             <Route path="reportes" element={<ReportesPage />} />
-            <Route path="seguimiento" element={<SeguimientoPage />} />
+            <Route element={<ProtectedRoute allowedRoles={["admin", "user", "jefe_area", "director"]} />}>
+              <Route path="seguimiento" element={<SeguimientoPage />} />
+            </Route>
             <Route path="instituciones" element={<InstitucionesPage />} />
-            <Route path="gestion-monitoreos" element={<GestionMonitoreosPage />} />
+            <Route element={<ProtectedRoute allowedRoles={["admin", "user", "jefe_area", "director"]} />}>
+              <Route path="gestion-monitoreos" element={<GestionMonitoreosPage />} />
+            </Route>
 
             <Route element={<ProtectedRoute allowedRoles={["responsable_cdd", "admin", "jefe_area", "director"]} />}>
               <Route path="indicadores-cdd" element={<IndicadoresCdDPage />} />
