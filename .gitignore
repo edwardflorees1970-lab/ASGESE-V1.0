@@ -17,6 +17,9 @@ dist-ssr
 !.env.example
 !.env*.example
 
+# Supabase SQL scripts (local/admin)
+supabase/sql/*.sql
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -207,6 +207,15 @@ export function AppShell() {
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
         />
+        {(role === "responsable_cdd" || canSeeAll) && (
+          <Item
+            to="/app/indicadores-cdd"
+            label="Indicadores CdD"
+            icon={<SparkIcon />}
+            onClick={onItemClick}
+            reloadOnClick={inFichaRoute}
+          />
+        )}
         <Item
           to="/app/instituciones"
           label="Instituciones"
@@ -406,6 +415,14 @@ function TrackIcon() {
         d="M4 18h16v2H4v-2Zm2-3h4v2H6v-2Zm6-4h4v2h-4v-2Zm6-4h2v2h-2V7ZM6 6h6v2H6V6Z"
         fill="currentColor"
       />
+    </svg>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path d="M4 18h16v2H4v-2Zm1-4 4-4 3 3 6-7 1.5 1.3-7 8.2-3-3-3 3L5 14Z" fill="currentColor" />
     </svg>
   );
 }
