@@ -41,7 +41,8 @@ export function MonitoreoPage() {
           return;
         }
 
-        const canSeeAll = canSeeAllRole(profile.role);
+        const isResponsableCdD = profile.role === "responsable_cdd";
+        const canSeeAll = !isResponsableCdD && canSeeAllRole(profile.role);
         let ids: string[] = [];
 
         if (!canSeeAll) {
@@ -69,7 +70,8 @@ export function MonitoreoPage() {
         const { data, error: monError } = canSeeAll ? await q : await q.in("id", ids);
         if (monError) throw new Error(monError.message);
 
-        const items = (data ?? []).map((m: any) => ({
+        const allowed = canSeeAll ? (data ?? []) : (data ?? []).filter((m: any) => ids.includes(m.id));
+        const items = allowed.map((m: any) => ({
           id: m.id,
           key: m.codigo,
           title: m.nombre,

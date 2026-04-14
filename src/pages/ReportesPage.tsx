@@ -245,6 +245,7 @@ export function ReportesPage() {
   const role = profile?.role;
   const isAdmin = isAdminRole(role);
   const canSeeAll = canSeeAllRole(role);
+  const isResponsableCdd = role === "responsable_cdd";
 
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
@@ -295,12 +296,37 @@ export function ReportesPage() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("monitoreo_catalog")
-        .select("id, codigo, nombre, anio, is_active")
+        .select("id, codigo, nombre, anio, is_active, solicitud_id")
         .eq("anio", Number(year))
         .eq("is_active", true)
         .order("nombre", { ascending: true });
+
+      if (isResponsableCdd && user?.id) {
+        const [{ data: asigData }, { data: solData }] = await Promise.all([
+          supabase
+            .from("monitoreo_asignacion")
+            .select("monitoreo_id")
+            .eq("user_id", user.id),
+          supabase
+            .from("monitoreo_solicitud")
+            .select("id")
+            .eq("cdd", true),
+        ]);
+
+        const assignedIds = Array.from(new Set((asigData ?? []).map((r: any) => r.monitoreo_id).filter(Boolean)));
+        const cddSolicitudIds = Array.from(new Set((solData ?? []).map((r: any) => r.id).filter(Boolean)));
+        if (!assignedIds.length || !cddSolicitudIds.length) {
+          if (!alive) return;
+          setMonitoreos([]);
+          if (selectedMonitoreo) setSelectedMonitoreo("");
+          return;
+        }
+        query = query.in("id", assignedIds).in("solicitud_id", cddSolicitudIds);
+      }
+
+      const { data } = await query;
       if (!alive) return;
       setMonitoreos((data ?? []) as MonitoreoRow[]);
       if (selectedMonitoreo && !(data ?? []).some((m: any) => m.codigo === selectedMonitoreo)) {
@@ -310,7 +336,7 @@ export function ReportesPage() {
     return () => {
       alive = false;
     };
-  }, [year, selectedMonitoreo]);
+  }, [year, selectedMonitoreo, isResponsableCdd, user?.id]);
 
   // Carga principal
   useEffect(() => {
