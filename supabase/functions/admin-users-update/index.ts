@@ -19,8 +19,8 @@ type UpdateBody = {
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
 
-  rol?: "admin" | "user" | "jefe_area" | "director" | null;
-  role?: "admin" | "user" | "jefe_area" | "director" | null;
+  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
+  role?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
 };
 
 function corsHeaders() {

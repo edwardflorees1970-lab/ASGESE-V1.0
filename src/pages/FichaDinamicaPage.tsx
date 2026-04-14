@@ -377,7 +377,7 @@ export function FichaDinamicaPage() {
   const [showUp, setShowUp] = useState(false);
   const [showDown, setShowDown] = useState(true);
   const [toast, setToast] = useState<ToastState | null>(null);
-  const monitorReadOnly = profile?.role === "user";
+  const monitorReadOnly = profile?.role === "user" || profile?.role === "responsable_cdd";
 
   const [ieQuery, setIeQuery] = useState("");
   const [ieOpen, setIeOpen] = useState(false);

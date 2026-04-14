@@ -157,7 +157,7 @@ export function UsersPage() {
 
   // Query UI
   const [q, setQ] = useState("");
-  const [rol, setRol] = useState<"" | "admin" | "user" | "jefe_area" | "director">("");
+  const [rol, setRol] = useState<"" | "admin" | "user" | "jefe_area" | "director" | "responsable_cdd">("");
   const [area, setArea] = useState("");
   const [ugel, setUgel] = useState("");
   const [rei, setRei] = useState("");
@@ -524,6 +524,7 @@ export function UsersPage() {
                   <option value="admin">Admin</option>
                   <option value="jefe_area">Jefe de área</option>
                   <option value="director">Director(a)</option>
+                  <option value="responsable_cdd">Responsable CdD</option>
                   <option value="user">User</option>
                 </Select>
               </Field>
@@ -843,6 +844,7 @@ export function UsersPage() {
                   <option value="admin">admin</option>
                   <option value="jefe_area">jefe_area</option>
                   <option value="director">director</option>
+                  <option value="responsable_cdd">responsable_cdd</option>
                 </Select>
               </Field>
             </div>
@@ -1049,6 +1051,7 @@ export function UsersPage() {
                   <option value="admin">admin</option>
                   <option value="jefe_area">jefe_area</option>
                   <option value="director">director</option>
+                  <option value="responsable_cdd">responsable_cdd</option>
                 </Select>
               </Field>
             </div>

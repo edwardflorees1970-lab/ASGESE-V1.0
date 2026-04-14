@@ -1,4 +1,4 @@
-export type AppRole = "admin" | "user" | "jefe_area" | "director" | string | null | undefined;
+export type AppRole = "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | string | null | undefined;
 
 export function isAdminRole(role: AppRole) {
   return role === "admin";
@@ -16,5 +16,6 @@ export function roleLabel(role: AppRole) {
   if (role === "admin") return "Administrador";
   if (role === "jefe_area") return "Jefe de area";
   if (role === "director") return "Director(a)";
+  if (role === "responsable_cdd") return "Responsable CdD";
   return "Monitor";
 }

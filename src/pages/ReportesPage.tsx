@@ -1265,6 +1265,7 @@ export function ReportesPage() {
                 <option value="admin">Administrador</option>
                 <option value="jefe_area">Jefe de área</option>
                 <option value="director">Director(a)</option>
+                <option value="responsable_cdd">Responsable CdD</option>
                 <option value="user">Usuario</option>
               </select>
             </label>
