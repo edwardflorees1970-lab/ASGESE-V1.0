@@ -1,9 +1,8 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+﻿import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 type UpdateBody = {
   id: string;
-
   tipo_documento?: string | null;
   numero_documento?: string | null;
   apellido_paterno?: string | null;
@@ -18,29 +17,51 @@ type UpdateBody = {
   ugel?: string | null;
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
-
   rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
   role?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
 };
 
-function corsHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-  };
+const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+
+function getAllowedOrigins() {
+  const raw = Deno.env.get("APP_ALLOWED_ORIGINS") ?? Deno.env.get("ALLOWED_ORIGINS") ?? "";
+  const fromEnv = raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return fromEnv.length ? fromEnv : DEFAULT_ALLOWED_ORIGINS;
 }
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: corsHeaders() });
+function responseHeaders(origin: string | null) {
+  const allowedOrigins = getAllowedOrigins();
+  const allowed = !origin || allowedOrigins.includes(origin);
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    Vary: "Origin",
+  };
+
+  if (origin && allowed) headers["Access-Control-Allow-Origin"] = origin;
+
+  return { headers, allowed };
+}
+
+function json(data: unknown, origin: string | null, status = 200) {
+  const { headers } = responseHeaders(origin);
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 async function requireAdmin(req: Request) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const serviceRole =
-    Deno.env.get("SB_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRole = Deno.env.get("SB_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!serviceRole) return { ok: false as const, status: 500, error: "Falta SB_SERVICE_ROLE_KEY en secrets." };
 
   const supaUser = createClient(supabaseUrl, anonKey, {
@@ -48,7 +69,7 @@ async function requireAdmin(req: Request) {
   });
 
   const { data: authData, error: authErr } = await supaUser.auth.getUser();
-  if (authErr || !authData?.user) return { ok: false as const, status: 401, error: "No autorizado (sin sesión)" };
+  if (authErr || !authData?.user) return { ok: false as const, status: 401, error: "No autorizado (sin sesion)" };
   const callerId = authData.user.id;
 
   const supaAdmin = createClient(supabaseUrl, serviceRole);
@@ -66,22 +87,24 @@ async function requireAdmin(req: Request) {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return json({ ok: true }, 200);
-  if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+  const origin = req.headers.get("Origin");
+  const { allowed } = responseHeaders(origin);
+
+  if (req.method === "OPTIONS") return json({ ok: allowed }, origin, allowed ? 200 : 403);
+  if (!allowed) return json({ error: "Origen no permitido por CORS" }, origin, 403);
+  if (req.method !== "POST") return json({ error: "Use POST" }, origin, 405);
 
   try {
     const guard = await requireAdmin(req);
-    if (!guard.ok) return json({ error: guard.error, details: (guard as any).details }, guard.status);
+    if (!guard.ok) return json({ error: guard.error, details: (guard as any).details }, origin, guard.status);
 
     const supaAdmin = guard.supaAdmin;
     const body = (await req.json().catch(() => ({}))) as Partial<UpdateBody>;
 
     const id = String(body.id ?? "").trim();
-    if (!id) return json({ error: "id es requerido" }, 400);
+    if (!id) return json({ error: "id es requerido" }, origin, 400);
 
     const nextRole = (body.role ?? body.rol ?? undefined) as any;
-
-    // Prepara update para profiles (solo campos presentes)
     const updates: Record<string, unknown> = {};
 
     const put = (k: string, v: unknown) => {
@@ -104,24 +127,23 @@ serve(async (req) => {
 
     if (body.correo !== undefined && body.correo !== null) {
       const correo = String(body.correo).trim().toLowerCase();
-      if (!correo.endsWith("@ugel06.gob.pe")) return json({ error: "Solo correos @ugel06.gob.pe" }, 400);
+      if (!correo.endsWith("@ugel06.gob.pe")) return json({ error: "Solo correos @ugel06.gob.pe" }, origin, 400);
       updates["correo"] = correo;
       updates["email"] = correo;
       updates["email_login"] = correo;
-      // opcional: también podrías actualizar auth email, pero eso exige manejo extra
     }
 
     if (nextRole !== undefined && nextRole !== null) updates["role"] = nextRole;
 
     if (Object.keys(updates).length === 0) {
-      return json({ ok: true, warning: "Nada para actualizar" });
+      return json({ ok: true, warning: "Nada para actualizar" }, origin);
     }
 
     const { error } = await supaAdmin.from("profiles").update(updates).eq("id", id);
-    if (error) return json({ error: "No se pudo actualizar profile", details: error.message }, 400);
+    if (error) return json({ error: "No se pudo actualizar profile", details: error.message }, origin, 400);
 
-    return json({ ok: true });
+    return json({ ok: true }, origin);
   } catch (e) {
-    return json({ error: "Error interno", details: String(e) }, 500);
+    return json({ error: "Error interno", details: String(e) }, origin, 500);
   }
 });
