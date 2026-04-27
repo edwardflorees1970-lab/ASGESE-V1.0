@@ -1,52 +1,96 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+﻿import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { enforceRateLimit, getClientIp, readPositiveIntEnv } from "../_shared/rateLimit.ts";
 
 type Body = {
-  q?: string; // búsqueda (nombre/doc/correo)
+  q?: string;
   rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
   area?: string;
   ugel?: string;
   rei?: string;
-
-  page?: number; // 1..N
-  pageSize?: number; // 1..100
+  page?: number;
+  pageSize?: number;
 };
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers":
-        "authorization, x-client-info, apikey, content-type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-    },
-  });
+const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const RATE_LIMIT_SCOPE = "admin-users-list";
+const RATE_LIMIT_MAX = readPositiveIntEnv("RATE_LIMIT_ADMIN_USERS_LIST_MAX", 60);
+const RATE_LIMIT_WINDOW_SECONDS = readPositiveIntEnv("RATE_LIMIT_ADMIN_USERS_LIST_WINDOW_SECONDS", 60);
+
+function getAllowedOrigins() {
+  const raw = Deno.env.get("APP_ALLOWED_ORIGINS") ?? Deno.env.get("ALLOWED_ORIGINS") ?? "";
+  const fromEnv = raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return fromEnv.length ? fromEnv : DEFAULT_ALLOWED_ORIGINS;
+}
+
+function responseHeaders(origin: string | null) {
+  const allowedOrigins = getAllowedOrigins();
+  const allowed = !origin || allowedOrigins.includes(origin);
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    Vary: "Origin",
+  };
+
+  if (origin && allowed) headers["Access-Control-Allow-Origin"] = origin;
+
+  return { headers, allowed };
+}
+
+function json(data: unknown, origin: string | null, status = 200, extraHeaders: Record<string, string> = {}) {
+  const { headers } = responseHeaders(origin);
+  return new Response(JSON.stringify(data), { status, headers: { ...headers, ...extraHeaders } });
 }
 
 function getAuthHeader(req: Request) {
   const raw = req.headers.get("Authorization") ?? "";
   if (!raw) return "";
-  // Si el front manda solo el token (sin "Bearer "), lo arreglamos.
   if (!raw.toLowerCase().startsWith("bearer ")) return `Bearer ${raw}`;
   return raw;
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return json({ ok: true }, 200);
-  if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+  const origin = req.headers.get("Origin");
+  const { allowed } = responseHeaders(origin);
+
+  if (req.method === "OPTIONS") return json({ ok: allowed }, origin, allowed ? 200 : 403);
+  if (!allowed) return json({ error: "Origen no permitido por CORS" }, origin, 403);
+  if (req.method !== "POST") return json({ error: "Use POST" }, origin, 405);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRole =
-      Deno.env.get("SB_SERVICE_ROLE_KEY") ||
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceRole = Deno.env.get("SB_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!serviceRole) return json({ error: "Falta SB_SERVICE_ROLE_KEY en secrets." }, 500);
+    if (!serviceRole) return json({ error: "Falta SB_SERVICE_ROLE_KEY en secrets." }, origin, 500);
 
-    // 1) Validar sesión del caller con JWT real
+    const rateLimit = await enforceRateLimit({
+      supabaseUrl,
+      serviceRoleKey: serviceRole,
+      scope: RATE_LIMIT_SCOPE,
+      identifier: getClientIp(req),
+      maxHits: RATE_LIMIT_MAX,
+      windowSeconds: RATE_LIMIT_WINDOW_SECONDS,
+    });
+    if (!rateLimit.allowed) {
+      return json(
+        { error: "Demasiadas solicitudes. Intenta nuevamente en unos segundos." },
+        origin,
+        429,
+        rateLimit.headers
+      );
+    }
+
     const authHeader = getAuthHeader(req);
 
     const supaUser = createClient(supabaseUrl, anonKey, {
@@ -55,24 +99,21 @@ serve(async (req) => {
 
     const { data: authData, error: authErr } = await supaUser.auth.getUser();
 
-    // Si el JWT es inválido, devolvemos 401 claro
     if (authErr || !authData?.user) {
       return json(
         {
-          error: "No autorizado (JWT inválido o sin sesión)",
+          error: "No autorizado (JWT invalido o sin sesion)",
           details: authErr?.message ?? "Sin user",
-          hint: "Asegúrate de enviar Authorization: Bearer <access_token>",
+          hint: "Asegurate de enviar Authorization: Bearer <access_token>",
         },
+        origin,
         401
       );
     }
 
     const callerId = authData.user.id;
-
-    // 2) Admin client (Service Role)
     const supaAdmin = createClient(supabaseUrl, serviceRole);
 
-    // 3) Verificar que el caller sea admin (columna REAL: role)
     const { data: prof, error: profErr } = await supaAdmin
       .from("profiles")
       .select("role")
@@ -80,10 +121,10 @@ serve(async (req) => {
       .single();
 
     if (profErr) {
-      return json({ error: "No se pudo verificar rol", details: profErr.message }, 403);
+      return json({ error: "No se pudo verificar rol", details: profErr.message }, origin, 403);
     }
     if (!prof || prof.role !== "admin") {
-      return json({ error: "Solo admin puede listar usuarios" }, 403);
+      return json({ error: "Solo admin puede listar usuarios" }, origin, 403);
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
@@ -93,7 +134,6 @@ serve(async (req) => {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    // 4) Listar usuarios (columna REAL: role)
     let query = supaAdmin
       .from("profiles")
       .select(
@@ -119,26 +159,26 @@ serve(async (req) => {
       );
     }
 
-    const { data, error, count } = await query
-      .order("updated_at", { ascending: false })
-      .range(from, to);
+    const { data, error, count } = await query.order("updated_at", { ascending: false }).range(from, to);
 
-    if (error) return json({ error: "No se pudo listar", details: error.message }, 400);
+    if (error) return json({ error: "No se pudo listar", details: error.message }, origin, 400);
 
-    // 5) Compatibilidad: devolvemos rol (alias) además de role
     const items = (data ?? []).map((row: any) => ({
       ...row,
-      rol: row.role, // alias para tu front
+      rol: row.role,
     }));
 
-    return json({
-      ok: true,
-      page,
-      pageSize,
-      total: count ?? 0,
-      items,
-    });
+    return json(
+      {
+        ok: true,
+        page,
+        pageSize,
+        total: count ?? 0,
+        items,
+      },
+      origin
+    );
   } catch (e) {
-    return json({ error: "Error interno", details: String(e) }, 500);
+    return json({ error: "Error interno", details: String(e) }, origin, 500);
   }
 });
