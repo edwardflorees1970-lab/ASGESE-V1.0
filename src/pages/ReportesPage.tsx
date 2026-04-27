@@ -255,6 +255,8 @@ export function ReportesPage() {
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [monitorQuery, setMonitorQuery] = useState("");
   const [colegioQuery, setColegioQuery] = useState("");
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [years, setYears] = useState<string[]>([]);
   const [monitoreos, setMonitoreos] = useState<MonitoreoRow[]>([]);
@@ -544,6 +546,28 @@ export function ReportesPage() {
       return true;
     });
   }, [runs, profiles, monitorQuery, colegioQuery]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(visibleRuns.length / pageSize)),
+    [visibleRuns.length, pageSize]
+  );
+
+  const pagedRuns = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return visibleRuns.slice(start, start + pageSize);
+  }, [visibleRuns, currentPage, pageSize]);
+
+  const pageStart = visibleRuns.length ? (currentPage - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min(currentPage * pageSize, visibleRuns.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [year, month, selectedMonitoreo, status, roleFilter, monitorQuery, colegioQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const selectedMonitoreoRow = useMemo(
     () => monitoreos.find((m) => m.codigo === selectedMonitoreo) ?? null,
     [monitoreos, selectedMonitoreo]
@@ -1322,6 +1346,19 @@ export function ReportesPage() {
               {loading ? "Cargando..." : `${visibleRuns.length} resultado(s)`}
             </div>
           </div>
+
+          <label className="block">
+            <div className="mb-2 text-xs font-medium text-white/70">Mostrar</div>
+            <select
+              value={String(pageSize)}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+            >
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
         </div>
       </div>}
 
@@ -1342,7 +1379,7 @@ export function ReportesPage() {
             Sin registros.
           </div>
         ) : (
-          visibleRuns.map((r) => {
+          pagedRuns.map((r) => {
             const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
             const mon = ficha ? monById[ficha.monitoreo_id] : null;
             const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "-" : "-";
@@ -1418,12 +1455,83 @@ export function ReportesPage() {
         )}
       </div>}
 
+      {selectedMonitoreo && !loading && visibleRuns.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 md:hidden">
+          <div>
+            Mostrando {pageStart}-{pageEnd} de {visibleRuns.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className={cls(
+                "rounded-lg border px-2 py-1",
+                currentPage <= 1 ? "border-white/10 text-white/30" : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
+              )}
+            >
+              Anterior
+            </button>
+            <span>
+              Pagina {currentPage} de {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className={cls(
+                "rounded-lg border px-2 py-1",
+                currentPage >= totalPages
+                  ? "border-white/10 text-white/30"
+                  : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
+              )}
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabla desktop */}
       {selectedMonitoreo && <div className="mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:block">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <div className="text-sm text-white/70">
             Total: <span className="text-white">{visibleRuns.length}</span>
           </div>
+          {!loading && visibleRuns.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-white/70">
+              <span>
+                Mostrando {pageStart}-{pageEnd}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className={cls(
+                  "rounded-lg border px-2 py-1",
+                  currentPage <= 1 ? "border-white/10 text-white/30" : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
+                )}
+              >
+                Anterior
+              </button>
+              <span>
+                Pagina {currentPage} de {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className={cls(
+                  "rounded-lg border px-2 py-1",
+                  currentPage >= totalPages
+                    ? "border-white/10 text-white/30"
+                    : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
+                )}
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
         </div>
         <div className="w-full overflow-x-auto">
           <table className="min-w-[980px] w-full">
@@ -1450,7 +1558,7 @@ export function ReportesPage() {
                   </td>
                 </tr>
               ) : (
-                visibleRuns.map((r) => {
+                pagedRuns.map((r) => {
                   const ficha = r.template_id ? fichasByTemplate[r.template_id] : null;
                   const mon = ficha ? monById[ficha.monitoreo_id] : null;
                   const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "-" : "-";
