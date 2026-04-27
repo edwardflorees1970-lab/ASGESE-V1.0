@@ -1,5 +1,6 @@
 ﻿import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { enforceRateLimit, getClientIp, readPositiveIntEnv } from "../_shared/rateLimit.ts";
 
 type UpdateBody = {
   id: string;
@@ -22,6 +23,9 @@ type UpdateBody = {
 };
 
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const RATE_LIMIT_SCOPE = "admin-users-update";
+const RATE_LIMIT_MAX = readPositiveIntEnv("RATE_LIMIT_ADMIN_USERS_UPDATE_MAX", 30);
+const RATE_LIMIT_WINDOW_SECONDS = readPositiveIntEnv("RATE_LIMIT_ADMIN_USERS_UPDATE_WINDOW_SECONDS", 60);
 
 function getAllowedOrigins() {
   const raw = Deno.env.get("APP_ALLOWED_ORIGINS") ?? Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -53,9 +57,9 @@ function responseHeaders(origin: string | null) {
   return { headers, allowed };
 }
 
-function json(data: unknown, origin: string | null, status = 200) {
+function json(data: unknown, origin: string | null, status = 200, extraHeaders: Record<string, string> = {}) {
   const { headers } = responseHeaders(origin);
-  return new Response(JSON.stringify(data), { status, headers });
+  return new Response(JSON.stringify(data), { status, headers: { ...headers, ...extraHeaders } });
 }
 
 async function requireAdmin(req: Request) {
@@ -95,6 +99,27 @@ serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Use POST" }, origin, 405);
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRole = Deno.env.get("SB_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceRole) return json({ error: "Falta SB_SERVICE_ROLE_KEY en secrets." }, origin, 500);
+
+    const rateLimit = await enforceRateLimit({
+      supabaseUrl,
+      serviceRoleKey: serviceRole,
+      scope: RATE_LIMIT_SCOPE,
+      identifier: getClientIp(req),
+      maxHits: RATE_LIMIT_MAX,
+      windowSeconds: RATE_LIMIT_WINDOW_SECONDS,
+    });
+    if (!rateLimit.allowed) {
+      return json(
+        { error: "Demasiadas solicitudes. Intenta nuevamente en unos segundos." },
+        origin,
+        429,
+        rateLimit.headers
+      );
+    }
+
     const guard = await requireAdmin(req);
     if (!guard.ok) return json({ error: guard.error, details: (guard as any).details }, origin, guard.status);
 
