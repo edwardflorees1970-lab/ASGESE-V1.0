@@ -63,9 +63,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const alive = useRef(true);
   const inflight = useRef<Promise<void> | null>(null);
 
-  const loadProfile = async (uid: string) => {
-    setProfileLoading(true);
-    setProfileError(null);
+  const loadProfile = async (uid: string, opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) {
+      setProfileLoading(true);
+      setProfileError(null);
+    }
 
     const { data, error } = await fetchProfile(uid);
 
@@ -73,14 +76,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error) {
       console.warn("AuthProvider: no se pudo cargar profile:", error.message);
-      setProfile(null);
+      // En refresh silencioso por foco, conserva el perfil previo para no
+      // desmontar vistas protegidas mientras el usuario edita.
+      if (!silent) setProfile(null);
       setProfileError(error.message);
     } else {
       setProfile((data as Profile) ?? null);
       setProfileError(null);
     }
 
-    setProfileLoading(false);
+    if (!silent) {
+      setProfileLoading(false);
+    }
   };
 
   const refreshProfile = async () => {
@@ -88,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (inflight.current) return;
 
     inflight.current = (async () => {
-      await loadProfile(user.id);
+      await loadProfile(user.id, { silent: true });
     })().finally(() => {
       inflight.current = null;
     });
