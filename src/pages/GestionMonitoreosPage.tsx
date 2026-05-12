@@ -97,6 +97,14 @@ type Template = {
   orden: number;
 };
 
+type GlobalTemplateOption = Template & {
+  monitoreo_nombre: string;
+  monitoreo_codigo: string;
+  metadata: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 type Question = {
   id: string;
   template_id: string;
@@ -403,12 +411,18 @@ export function GestionMonitoreosPage() {
   const [solSearch, setSolSearch] = useState("");
   const [solStatusFilter, setSolStatusFilter] = useState("ALL");
   const [solPage, setSolPage] = useState(1);
-  const [solPageSize, setSolPageSize] = useState(10);
+  const [solPageSize, setSolPageSize] = useState(5);
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateTitle, setTemplateTitle] = useState("");
   const [templateCode, setTemplateCode] = useState("");
   const [templateSubtitle, setTemplateSubtitle] = useState("");
+  const [reuseSourceTemplateId, setReuseSourceTemplateId] = useState("");
+  const [reuseTemplateSearch, setReuseTemplateSearch] = useState("");
+  const [allTemplates, setAllTemplates] = useState<GlobalTemplateOption[]>([]);
+  const [reuseTemplateTitle, setReuseTemplateTitle] = useState("");
+  const [reuseTemplateCode, setReuseTemplateCode] = useState("");
+  const [reuseTemplateSubtitle, setReuseTemplateSubtitle] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateHeader, setTemplateHeader] = useState<any>({});
   const [templateFooter, setTemplateFooter] = useState<any>({});
@@ -445,6 +459,7 @@ export function GestionMonitoreosPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<Record<string, any>>({});
   const [showTemplateDetail, setShowTemplateDetail] = useState(true);
+  const [solicitudDetailModal, setSolicitudDetailModal] = useState<Solicitud | null>(null);
 
   const selected = useMemo(() => items.find((s) => s.id === selectedId) ?? null, [items, selectedId]);
   const selectedExpired = useMemo(
@@ -492,6 +507,18 @@ export function GestionMonitoreosPage() {
     if (selected.created_by === user?.id) return selected.status === "pending" && canCreate;
     return false;
   }, [selected, isAdmin, user?.id, canCreate]);
+  const reuseTemplateResults = useMemo(() => {
+    const term = reuseTemplateSearch.trim().toLowerCase();
+    const rows = !term
+      ? allTemplates
+      : allTemplates.filter((t) => {
+          const title = String(t.titulo || "").toLowerCase();
+          const code = String(t.codigo || "").toLowerCase();
+          const mon = String(t.monitoreo_nombre || "").toLowerCase();
+          return title.includes(term) || code.includes(term) || mon.includes(term);
+        });
+    return rows.slice(0, 7);
+  }, [allTemplates, reuseTemplateSearch]);
 
   const loadSolicitudes = async () => {
     setLoading(true);
@@ -520,6 +547,81 @@ export function GestionMonitoreosPage() {
     if (data && data.length > 0) setSelectedTemplateId((data as Template[])[0].id);
   };
 
+  const loadGlobalTemplates = async () => {
+    let { data: tData, error: tErr } = await supabase
+      .from("form_template")
+      .select("id, solicitud_id, titulo, codigo, subtitulo, header_config, footer_config, orden, created_at, updated_at")
+      .order("updated_at", { ascending: false });
+    if (tErr) {
+      const fallback = await supabase
+        .from("form_template")
+        .select("id, solicitud_id, titulo, codigo, subtitulo, header_config, footer_config, orden");
+      tData = fallback.data as any;
+      tErr = fallback.error;
+    }
+    if (tErr) {
+      setToast({ type: "err", msg: tErr.message });
+      setAllTemplates([]);
+      return;
+    }
+    const base = (tData ?? []) as Array<Template & { created_at?: string | null; updated_at?: string | null }>;
+    const templateIds = base.map((t) => t.id);
+    if (!templateIds.length) {
+      setAllTemplates([]);
+      return;
+    }
+
+    const { data: fichaRows, error: fichaErr } = await supabase
+      .from("ficha_catalog")
+      .select("form_template_id, monitoreo_id, titulo")
+      .in("form_template_id", templateIds);
+    if (fichaErr) {
+      setToast({ type: "err", msg: fichaErr.message });
+      setAllTemplates([]);
+      return;
+    }
+
+    const templateToMon = new Map<string, { monitoreo_id: string; ficha_titulo?: string | null }>();
+    const monIds = new Set<string>();
+    (fichaRows ?? []).forEach((row: any) => {
+      if (!row?.form_template_id || !row?.monitoreo_id) return;
+      if (!templateToMon.has(row.form_template_id)) {
+        templateToMon.set(row.form_template_id, {
+          monitoreo_id: row.monitoreo_id,
+          ficha_titulo: row.titulo ?? null,
+        });
+      }
+      monIds.add(row.monitoreo_id);
+    });
+
+    const monMap = new Map<string, { nombre: string; codigo: string }>();
+    if (monIds.size > 0) {
+      const { data: monRows, error: monErr } = await supabase
+        .from("monitoreo_catalog")
+        .select("id, nombre, codigo")
+        .in("id", Array.from(monIds));
+      if (monErr) {
+        setToast({ type: "err", msg: monErr.message });
+      } else {
+        (monRows ?? []).forEach((m: any) => {
+          monMap.set(m.id, { nombre: m.nombre ?? "Monitoreo", codigo: m.codigo ?? "-" });
+        });
+      }
+    }
+
+    const result: GlobalTemplateOption[] = base.map((t) => {
+      const link = templateToMon.get(t.id);
+      const mon = link ? monMap.get(link.monitoreo_id) : null;
+      return {
+        ...t,
+        monitoreo_nombre: mon?.nombre ?? "Sin monitoreo",
+        monitoreo_codigo: mon?.codigo ?? "-",
+        metadata: t.subtitulo?.trim() || link?.ficha_titulo?.trim() || "",
+      };
+    });
+    setAllTemplates(result);
+  };
+
   const loadSections = async (templateId: string) => {
     const { data } = await supabase
       .from("form_section")
@@ -543,6 +645,7 @@ export function GestionMonitoreosPage() {
 
   useEffect(() => {
     loadSolicitudes();
+    loadGlobalTemplates();
   }, []);
 
   useEffect(() => {
@@ -1462,6 +1565,130 @@ export function GestionMonitoreosPage() {
     loadTemplates(selectedId);
   };
 
+  const reuseTemplate = async () => {
+    if (!selectedId) return;
+    if (!reuseSourceTemplateId) {
+      setToast({ type: "err", msg: "Selecciona una ficha origen para reutilizar." });
+      return;
+    }
+    const newTitle = reuseTemplateTitle.trim();
+    if (!newTitle) {
+      setToast({ type: "err", msg: "El nuevo título de ficha es obligatorio." });
+      return;
+    }
+    const source = allTemplates.find((t) => t.id === reuseSourceTemplateId);
+    if (!source) {
+      setToast({ type: "err", msg: "No se encontró la ficha origen seleccionada." });
+      return;
+    }
+
+    const existsTitle = templates.some(
+      (t) => t.id !== source.id && t.titulo.trim().toLowerCase() === newTitle.toLowerCase()
+    );
+    if (existsTitle) {
+      setToast({ type: "err", msg: "Ya existe una ficha con ese título en este monitoreo." });
+      return;
+    }
+
+    const newCode = (reuseTemplateCode.trim() || `F${templates.length + 1}`).toUpperCase();
+    const existsCode = templates.some(
+      (t) => t.id !== source.id && String(t.codigo || "").trim().toUpperCase() === newCode
+    );
+    if (existsCode) {
+      setToast({ type: "err", msg: "Ya existe una ficha con ese código en este monitoreo." });
+      return;
+    }
+
+    setSavingConfig(true);
+    try {
+      const cloneJson = <T,>(value: T): T => JSON.parse(JSON.stringify(value ?? null));
+
+      const { data: secData, error: secErr } = await supabase
+        .from("form_section")
+        .select("id, titulo, orden")
+        .eq("template_id", source.id)
+        .order("orden", { ascending: true });
+      if (secErr) throw new Error(secErr.message);
+
+      const { data: qData, error: qErr } = await supabase
+        .from("form_question")
+        .select("id, section_id, tipo, texto, orden, orden_in_section, required, config_json")
+        .eq("template_id", source.id)
+        .order("orden", { ascending: true });
+      if (qErr) throw new Error(qErr.message);
+
+      const { data: newTemplate, error: insTplErr } = await supabase
+        .from("form_template")
+        .insert({
+          solicitud_id: selectedId,
+          titulo: newTitle,
+          codigo: newCode,
+          subtitulo: reuseTemplateSubtitle.trim() || source.subtitulo || null,
+          header_config: cloneJson(source.header_config ?? DEFAULT_HEADER_CONFIG),
+          footer_config: cloneJson(source.footer_config ?? {}),
+          orden: templates.length + 1,
+        })
+        .select("id")
+        .single();
+      if (insTplErr) throw new Error(insTplErr.message);
+
+      const sectionIdMap = new Map<string, string>();
+      const sections = (secData ?? []) as Array<{ id: string; titulo: string; orden: number }>;
+      for (const section of sections) {
+        const { data: newSec, error: insSecErr } = await supabase
+          .from("form_section")
+          .insert({
+            template_id: newTemplate.id,
+            titulo: section.titulo,
+            orden: section.orden,
+          })
+          .select("id")
+          .single();
+        if (insSecErr) throw new Error(insSecErr.message);
+        sectionIdMap.set(section.id, newSec.id);
+      }
+
+      const questions = (qData ?? []) as Array<{
+        id: string;
+        section_id: string | null;
+        tipo: string;
+        texto: string;
+        orden: number;
+        orden_in_section: number | null;
+        required: boolean;
+        config_json: any;
+      }>;
+      if (questions.length) {
+        const rows = questions.map((q) => ({
+          template_id: newTemplate.id,
+          section_id: q.section_id ? sectionIdMap.get(q.section_id) ?? null : null,
+          tipo: q.tipo,
+          texto: q.texto,
+          orden: q.orden,
+          orden_in_section: q.orden_in_section,
+          required: q.required,
+          config_json: cloneJson(q.config_json ?? {}),
+        }));
+        const { error: insQErr } = await supabase.from("form_question").insert(rows);
+        if (insQErr) throw new Error(insQErr.message);
+      }
+
+      setReuseTemplateTitle("");
+      setReuseTemplateCode("");
+      setReuseTemplateSubtitle("");
+      setReuseSourceTemplateId("");
+      setReuseTemplateSearch("");
+      await loadTemplates(selectedId);
+      await loadGlobalTemplates();
+      setSelectedTemplateId(newTemplate.id);
+      setToast({ type: "ok", msg: "Ficha reutilizada correctamente como nueva copia." });
+    } catch (e: any) {
+      setToast({ type: "err", msg: e?.message || "No se pudo reutilizar la ficha." });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   const buildHeaderConfig = () => {
     let nivelInfo = (templateHeaderNiveles ?? "")
       .split("\n")
@@ -2115,7 +2342,7 @@ export function GestionMonitoreosPage() {
                   setSolPage(1);
                 }}
               >
-                {[10, 20, 50].map((n) => (
+                {[5, 10, 15].map((n) => (
                   <option key={n} value={n}>
                     {n}
                   </option>
@@ -2125,39 +2352,81 @@ export function GestionMonitoreosPage() {
             <div className="text-xs text-white/50">{filteredSolicitudes.length} resultados</div>
           </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-2.5">
             {pageSolicitudes.map((s) => (
-              <button
+              <div
                 key={s.id}
                 onClick={() => setSelectedId(s.id)}
-                className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  setSelectedId(s.id);
+                }}
+                role="button"
+                tabIndex={0}
+                className={`w-full min-h-[134px] rounded-xl border px-3 py-2.5 text-left transition sm:min-h-[126px] sm:px-3.5 sm:py-2.5 ${
                   selectedId === s.id ? "border-[var(--app-accent)] bg-white/10" : "border-white/10 bg-white/5"
                 }`}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold">
-                    {s.nombre}
-                    {s.cdd && (
-                      <span className="ml-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-100">
-                        CdD
-                      </span>
+                <div className="flex h-full flex-col">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div
+                        className="line-clamp-2 text-[13px] font-semibold sm:text-sm"
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {s.nombre}
+                      </div>
+                      {s.cdd && (
+                        <span className="mt-1 inline-block rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-100 sm:text-[11px]">
+                          CdD
+                        </span>
+                      )}
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] sm:text-[11px] ${statusTone(s.status)}`}>
+                      {statusLabel(s.status)}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-white/60 sm:text-xs">
+                    {s.fecha_inicio} → {s.fecha_fin}
+                    {s.status === "approved" && isMonitoreoExpired(s.fecha_fin) ? " • Vencido" : ""}
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <div className="text-[11px] text-white/50 sm:text-xs">Código: SOL-{s.id.slice(0, 8).toUpperCase()}</div>
+                    {((s.nombre || "").length > 80 || (s.detalle || "").length > 140) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSolicitudDetailModal(s);
+                        }}
+                        className="shrink-0 rounded-md border border-white/15 bg-white/10 px-2 py-1 text-[10px] text-white/80 hover:bg-white/15 sm:text-[11px]"
+                      >
+                        Ver más
+                      </button>
                     )}
                   </div>
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] ${statusTone(s.status)}`}>
-                    {statusLabel(s.status)}
-                  </span>
+                  {s.motivo_rechazo && (
+                    <div
+                      className="mt-1 text-[11px] text-red-100 sm:text-xs"
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      Rechazo: {s.motivo_rechazo}
+                    </div>
+                  )}
                 </div>
-                <div className="mt-1 text-xs text-white/60">
-                  {s.fecha_inicio} → {s.fecha_fin}
-                  {s.status === "approved" && isMonitoreoExpired(s.fecha_fin) ? " • Vencido" : ""}
-                </div>
-                <div className="mt-1 text-xs text-white/50">
-                  Código: SOL-{s.id.slice(0, 8).toUpperCase()}
-                </div>
-                {s.motivo_rechazo && (
-                  <div className="mt-2 text-xs text-red-100">Rechazo: {s.motivo_rechazo}</div>
-                )}
-              </button>
+              </div>
             ))}
             {!pageSolicitudes.length && (
               <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
@@ -2165,6 +2434,41 @@ export function GestionMonitoreosPage() {
               </div>
             )}
           </div>
+
+          {solicitudDetailModal && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
+              <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-white/50">Solicitud</div>
+                    <div className="text-lg font-semibold text-white">{solicitudDetailModal.nombre}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSolicitudDetailModal(null)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-2 text-xs text-white/65 md:grid-cols-2">
+                  <div>Estado: {statusLabel(solicitudDetailModal.status)}</div>
+                  <div>Código: SOL-{solicitudDetailModal.id.slice(0, 8).toUpperCase()}</div>
+                  <div>Inicio: {solicitudDetailModal.fecha_inicio}</div>
+                  <div>Fin: {solicitudDetailModal.fecha_fin}</div>
+                  <div className="md:col-span-2">Creado: {solicitudDetailModal.created_at}</div>
+                </div>
+                <div className="mt-3 max-h-[50vh] overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white/85 whitespace-pre-wrap">
+                  {solicitudDetailModal.detalle?.trim() || "Sin descripción."}
+                </div>
+                {solicitudDetailModal.motivo_rechazo && (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+                    Rechazo: {solicitudDetailModal.motivo_rechazo}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
             <div>
@@ -2616,32 +2920,120 @@ export function GestionMonitoreosPage() {
                 </div>
 
                 {canEditSolicitud && (
-                  <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
-                    <input
-                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                      placeholder="Título de ficha"
-                      value={templateTitle}
-                      onChange={(e) => setTemplateTitle(e.target.value)}
-                    />
-                    <input
-                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                      placeholder="Código"
-                      value={templateCode}
-                      onChange={(e) => setTemplateCode(e.target.value)}
-                    />
-                    <input
-                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                      placeholder="Subtítulo"
-                      value={templateSubtitle}
-                      onChange={(e) => setTemplateSubtitle(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={addTemplate}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
-                    >
-                      Agregar ficha
-                    </button>
+                  <div className="mt-3 space-y-3">
+                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
+                      <input
+                        className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                        placeholder="Título de ficha"
+                        value={templateTitle}
+                        onChange={(e) => setTemplateTitle(e.target.value)}
+                      />
+                      <input
+                        className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                        placeholder="Código"
+                        value={templateCode}
+                        onChange={(e) => setTemplateCode(e.target.value)}
+                      />
+                      <input
+                        className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                        placeholder="Subtítulo"
+                        value={templateSubtitle}
+                        onChange={(e) => setTemplateSubtitle(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={addTemplate}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                      >
+                        Agregar ficha
+                      </button>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                      <div className="text-xs font-semibold text-white/80">Crear desde template existente</div>
+                      <div className="mt-2 space-y-2">
+                        <input
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                          placeholder="Buscar por ficha/template o monitoreo origen"
+                          value={reuseTemplateSearch}
+                          onChange={(e) => setReuseTemplateSearch(e.target.value)}
+                        />
+                        <div className="grid gap-2 md:grid-cols-2">
+                          {reuseTemplateResults.map((t) => {
+                            const active = reuseSourceTemplateId === t.id;
+                            const dateText = (() => {
+                              const source = t.updated_at || t.created_at || "";
+                              if (!source) return "Sin fecha";
+                              try {
+                                return new Intl.DateTimeFormat("es-PE", {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                  timeZone: "America/Lima",
+                                }).format(new Date(source));
+                              } catch {
+                                return source;
+                              }
+                            })();
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setReuseSourceTemplateId(t.id)}
+                                className={`h-24 rounded-lg border px-3 py-2 text-left ${
+                                  active
+                                    ? "border-[var(--app-accent)] bg-white/10"
+                                    : "border-white/10 bg-black/30 hover:bg-white/5"
+                                }`}
+                              >
+                                <div className="truncate text-xs font-semibold text-white/90">
+                                  {t.titulo} ({t.codigo})
+                                </div>
+                                <div className="truncate text-[11px] text-white/65">
+                                  {t.monitoreo_nombre} ({t.monitoreo_codigo})
+                                </div>
+                                <div className="truncate text-[11px] text-white/55">
+                                  {t.metadata || "Sin metadata"}
+                                </div>
+                                <div className="mt-1 text-[10px] text-white/45">{dateText}</div>
+                              </button>
+                            );
+                          })}
+                          {!reuseTemplateResults.length && (
+                            <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/60 md:col-span-2">
+                              No hay templates que coincidan con la búsqueda.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
+                        <input
+                          className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                          placeholder="Nuevo título"
+                          value={reuseTemplateTitle}
+                          onChange={(e) => setReuseTemplateTitle(e.target.value)}
+                        />
+                        <input
+                          className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                          placeholder="Nuevo código"
+                          value={reuseTemplateCode}
+                          onChange={(e) => setReuseTemplateCode(e.target.value)}
+                        />
+                        <input
+                          className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                          placeholder="Subtítulo"
+                          value={reuseTemplateSubtitle}
+                          onChange={(e) => setReuseTemplateSubtitle(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={reuseTemplate}
+                          disabled={savingConfig || !allTemplates.length}
+                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 disabled:opacity-50"
+                        >
+                          Reutilizar
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
