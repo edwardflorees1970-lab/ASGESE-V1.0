@@ -10,6 +10,7 @@ type MonitoreoCard = {
   key: string;
   title: string;
   subtitle: string;
+  descriptionFull: string;
   to: string;
   fecha_fin?: string | null;
 };
@@ -26,6 +27,7 @@ export function MonitoreoPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<"ALL" | "DISPONIBLE" | "VENCIDO">("ALL");
+  const [descModal, setDescModal] = useState<MonitoreoCard | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -76,6 +78,7 @@ export function MonitoreoPage() {
           key: m.codigo,
           title: m.nombre,
           subtitle: m.descripcion?.trim() || `${m.anio}`,
+          descriptionFull: m.descripcion?.trim() || `${m.anio}`,
           to: `/app/monitoreo/${m.codigo}`,
           fecha_fin: m.fecha_fin ?? null,
         })) as MonitoreoCard[];
@@ -159,16 +162,24 @@ export function MonitoreoPage() {
           cards.map((m) => {
             const expired = isMonitoreoExpired(m.fecha_fin);
             const days = daysFromToday(m.fecha_fin);
+            const hasLongDescription = (m.descriptionFull || "").length > 140;
             return (
-              <button
+              <div
                 key={m.id}
-                type="button"
                 onClick={() => {
                   if (expired) return;
                   nav(m.to);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  if (expired) return;
+                  nav(m.to);
+                }}
+                role="button"
+                tabIndex={0}
                 className={cls(
-                  "text-left rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5",
+                  "flex h-full min-h-[240px] flex-col text-left rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5",
                   expired ? "cursor-not-allowed opacity-80" : "hover:bg-white/10 transition"
                 )}
               >
@@ -185,7 +196,32 @@ export function MonitoreoPage() {
                     </span>
                   )}
                 </div>
-                <div className="mt-2 text-sm text-white/70">{m.subtitle}</div>
+                <div
+                  className="mt-2 text-sm text-white/70"
+                  style={{
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {m.subtitle}
+                </div>
+                {hasLongDescription ? (
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDescModal(m);
+                      }}
+                      className="rounded-md border border-white/15 bg-white/10 px-2 py-1 text-[11px] text-white/80 hover:bg-white/15"
+                    >
+                      Ver más
+                    </button>
+                  </div>
+                ) : null}
                 <div className="mt-2 text-xs text-white/60">
                   {days == null
                     ? "Sin fecha fin"
@@ -196,14 +232,38 @@ export function MonitoreoPage() {
                     : `Faltan ${days} dias para vencer`}
                 </div>
 
-                <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
+                <div className="mt-auto pt-4">
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
                   {expired ? "Bloqueado 🔒" : "Elegir ficha →"}
+                  </div>
                 </div>
-              </button>
+              </div>
             );
           })
         )}
       </div>
+      {descModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs text-white/50">Monitoreo</div>
+                <div className="text-lg font-semibold">{descModal.title}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDescModal(null)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="mt-3 max-h-[55vh] overflow-y-auto whitespace-pre-wrap text-sm text-white/80">
+              {descModal.descriptionFull || "Sin descripción."}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -102,6 +102,15 @@ type ExtraFieldCfg = {
   default_value?: string | null;
 };
 
+type LocalDraftSnapshot = {
+  runId: string | null;
+  runStatus: string | null;
+  header: HeaderState;
+  footer: FooterState;
+  answers: Record<string, any>;
+  updatedAt: string;
+};
+
 const DUP_RULE_NONE = "none";
 const DUP_RULE_LOCAL = "codigo_local";
 const DUP_RULE_MODULAR = "codigo_modular";
@@ -406,13 +415,15 @@ export function FichaDinamicaPage() {
   const effectiveProfileMonitorName = profileMonitorName || monitorIdentity.name;
   const effectiveProfileMonitorDocTipo = profileMonitorDocTipo || monitorIdentity.docTipo;
   const effectiveProfileMonitorDocNumero = profileMonitorDocNumero || monitorIdentity.docNumero;
-  const sessionDraftKey = useMemo(
+  const localDraftKey = useMemo(
     () =>
-      `ficha-dyn:${user?.id || "anon"}:${midParam || monitoreoCodigo || "-"}:${fichaCodigo || "-"}:${
+      `ficha-dyn-local:${user?.id || "anon"}:${midParam || monitoreoCodigo || "-"}:${fichaCodigo || "-"}:${
         runIdParam || "new"
       }:${isTestMode ? "test" : "prod"}`,
     [user?.id, midParam, monitoreoCodigo, fichaCodigo, runIdParam, isTestMode]
   );
+  const [localDraftPromptOpen, setLocalDraftPromptOpen] = useState(false);
+  const [localDraftPending, setLocalDraftPending] = useState<LocalDraftSnapshot | null>(null);
   const shouldAutoFillMonitor = monitorReadOnly && !runIdParam && !runId;
   const isEditMode = Boolean(runIdParam);
 
@@ -487,8 +498,22 @@ export function FichaDinamicaPage() {
     go("/app/monitoreo");
   };
 
+  const clearLocalDraft = () => {
+    localStorage.removeItem(localDraftKey);
+    setLocalDraftPending(null);
+    setLocalDraftPromptOpen(false);
+  };
+
+  const applyLocalDraft = (snapshot: LocalDraftSnapshot) => {
+    setRunId(snapshot.runId ?? null);
+    setRunStatus(snapshot.runStatus ?? null);
+    setHeader((s) => ({ ...s, ...(snapshot.header ?? {}) }));
+    setFooter((s) => ({ ...s, ...(snapshot.footer ?? {}) }));
+    setAnswers(snapshot.answers ?? {});
+  };
+
   const resetFormState = () => {
-    sessionStorage.removeItem(sessionDraftKey);
+    clearLocalDraft();
     setRunId(null);
     setRunStatus(null);
     setHeader({
@@ -683,19 +708,18 @@ export function FichaDinamicaPage() {
     (async () => {
       setRunHydrating(true);
       if (!runIdParam) {
-        const localDraftRaw = sessionStorage.getItem(sessionDraftKey);
+        let parsedLocalDraft: LocalDraftSnapshot | null = null;
+        const localDraftRaw = localStorage.getItem(localDraftKey);
         if (localDraftRaw) {
           try {
-            const localDraft = JSON.parse(localDraftRaw);
-            if (alive) {
-              setRunId(localDraft.runId ?? null);
-              setRunStatus(localDraft.runStatus ?? null);
-              setHeader((s) => ({ ...s, ...(localDraft.header ?? {}) }));
-              setFooter((s) => ({ ...s, ...(localDraft.footer ?? {}) }));
-              setAnswers(localDraft.answers ?? {});
+            const localDraft = JSON.parse(localDraftRaw) as LocalDraftSnapshot;
+            if (localDraft && typeof localDraft === "object" && localDraft.updatedAt) {
+              parsedLocalDraft = localDraft;
+            } else {
+              localStorage.removeItem(localDraftKey);
             }
           } catch {
-            sessionStorage.removeItem(sessionDraftKey);
+            localStorage.removeItem(localDraftKey);
           }
         }
         const { data: draft } = await supabase
@@ -709,7 +733,11 @@ export function FichaDinamicaPage() {
           .limit(1)
           .maybeSingle();
         if (!draft || !alive) {
-          if (!localDraftRaw) resetFormState();
+          if (!parsedLocalDraft) resetFormState();
+          if (parsedLocalDraft) {
+            setLocalDraftPending(parsedLocalDraft);
+            setLocalDraftPromptOpen(true);
+          }
           return;
         }
         setRunId(draft.id);
@@ -742,7 +770,25 @@ export function FichaDinamicaPage() {
           next[r.question_id] = r.value_json;
         });
         setAnswers(next);
+        if (parsedLocalDraft) {
+          setLocalDraftPending(parsedLocalDraft);
+          setLocalDraftPromptOpen(true);
+        }
         return;
+      }
+      let parsedLocalDraft: LocalDraftSnapshot | null = null;
+      const localDraftRaw = localStorage.getItem(localDraftKey);
+      if (localDraftRaw) {
+        try {
+          const localDraft = JSON.parse(localDraftRaw) as LocalDraftSnapshot;
+          if (localDraft && typeof localDraft === "object" && localDraft.updatedAt) {
+            parsedLocalDraft = localDraft;
+          } else {
+            localStorage.removeItem(localDraftKey);
+          }
+        } catch {
+          localStorage.removeItem(localDraftKey);
+        }
       }
       const { data } = await supabase
         .from("form_run")
@@ -784,6 +830,10 @@ export function FichaDinamicaPage() {
         next[r.question_id] = r.value_json;
       });
       setAnswers(next);
+      if (parsedLocalDraft) {
+        setLocalDraftPending(parsedLocalDraft);
+        setLocalDraftPromptOpen(true);
+      }
     })().finally(() => {
       if (alive) setRunHydrating(false);
     });
@@ -795,23 +845,52 @@ export function FichaDinamicaPage() {
     user?.id,
     isTestMode,
     runIdParam,
-    sessionDraftKey,
+    localDraftKey,
   ]);
 
   useEffect(() => {
     if (!template?.id) return;
     if (runHydrating) return;
-    sessionStorage.setItem(
-      sessionDraftKey,
-      JSON.stringify({
-        runId,
-        runStatus,
-        header,
-        footer,
-        answers,
-      })
-    );
-  }, [template?.id, sessionDraftKey, runId, runStatus, header, footer, answers, runHydrating]);
+    if (localDraftPromptOpen) return;
+    const snapshot: LocalDraftSnapshot = {
+      runId,
+      runStatus,
+      header,
+      footer,
+      answers,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(localDraftKey, JSON.stringify(snapshot));
+  }, [template?.id, localDraftKey, runId, runStatus, header, footer, answers, runHydrating, localDraftPromptOpen]);
+
+  useEffect(() => {
+    if (!localDraftPromptOpen || !localDraftPending) return;
+    const timeText = (() => {
+      try {
+        return new Intl.DateTimeFormat("es-PE", {
+          dateStyle: "short",
+          timeStyle: "short",
+          timeZone: "America/Lima",
+        }).format(new Date(localDraftPending.updatedAt));
+      } catch {
+        return localDraftPending.updatedAt;
+      }
+    })();
+    showToast(`Tienes un borrador local (${timeText}).`, "ok");
+  }, [localDraftPromptOpen, localDraftPending]);
+
+  const recoverLocalDraft = () => {
+    if (!localDraftPending) return;
+    applyLocalDraft(localDraftPending);
+    setLocalDraftPromptOpen(false);
+    setLocalDraftPending(null);
+    showToast("Borrador local recuperado.", "ok");
+  };
+
+  const discardLocalDraft = () => {
+    clearLocalDraft();
+    showToast("Se descartó el borrador local.", "ok");
+  };
 
   useEffect(() => {
     if (!profileMonitorName && !profileMonitorDocNumero && !profileMonitorDocTipo) return;
@@ -1253,12 +1332,14 @@ export function FichaDinamicaPage() {
     }
     setSaving(false);
     if (status === "draft" && isEditMode) {
+      clearLocalDraft();
       showToast("Cambios realizados.", "ok");
       setTimeout(() => {
         window.location.assign("/app/reportes");
       }, 700);
       return;
     }
+    clearLocalDraft();
     showToast(status === "draft" ? "Ficha guardada en BD." : "Borrador guardado.", "ok");
     if (status === "draft") {
       resetFormState();
@@ -1299,6 +1380,30 @@ export function FichaDinamicaPage() {
       {error && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
           {error}
+        </div>
+      )}
+      {localDraftPromptOpen && localDraftPending && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <div className="text-sm font-semibold text-amber-100">Borrador local detectado</div>
+          <div className="mt-1 text-xs text-amber-50/90">
+            Tienes un borrador guardado en este navegador. ¿Deseas recuperarlo?
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={recoverLocalDraft}
+              className="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-3 py-1.5 text-xs text-emerald-100"
+            >
+              Recuperar borrador
+            </button>
+            <button
+              type="button"
+              onClick={discardLocalDraft}
+              className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white/85"
+            >
+              Descartar
+            </button>
+          </div>
         </div>
       )}
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6">

@@ -28,7 +28,7 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { require
   // - si aún está cargando profile, muestra loader corto (solo aquí).
   // - si no es admin, afuera.
   if (requiresProfileCheck) {
-    if (profileLoading) {
+    if (profileLoading && !profile) {
       return (
         <div className="min-h-screen bg-zinc-950 text-white grid place-items-center">
           <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/70">
