@@ -460,6 +460,8 @@ export function GestionMonitoreosPage() {
   const [previewData, setPreviewData] = useState<Record<string, any>>({});
   const [showTemplateDetail, setShowTemplateDetail] = useState(true);
   const [solicitudDetailModal, setSolicitudDetailModal] = useState<Solicitud | null>(null);
+  const [templateEnabledMap, setTemplateEnabledMap] = useState<Record<string, boolean>>({});
+  const [templateToggleBusyId, setTemplateToggleBusyId] = useState<string | null>(null);
 
   const selected = useMemo(() => items.find((s) => s.id === selectedId) ?? null, [items, selectedId]);
   const selectedExpired = useMemo(
@@ -507,6 +509,17 @@ export function GestionMonitoreosPage() {
     if (selected.created_by === user?.id) return selected.status === "pending" && canCreate;
     return false;
   }, [selected, isAdmin, user?.id, canCreate]);
+  const canOwnerOrAdmin = useMemo(() => {
+    if (!selected) return false;
+    if (isAdmin) return true;
+    return selected.created_by === user?.id;
+  }, [selected, isAdmin, user?.id]);
+  const canManageInactiveTemplates = useMemo(() => {
+    if (!selected) return false;
+    if (!canOwnerOrAdmin) return false;
+    return selected.status === "inactive" || (selected.status === "approved" && selectedExpired);
+  }, [selected, canOwnerOrAdmin, selectedExpired]);
+  const canEditTemplates = canEditSolicitud || canManageInactiveTemplates;
   const reuseTemplateResults = useMemo(() => {
     const term = reuseTemplateSearch.trim().toLowerCase();
     const rows = !term
@@ -543,8 +556,47 @@ export function GestionMonitoreosPage() {
       .select("id, solicitud_id, titulo, codigo, subtitulo, header_config, footer_config, orden")
       .eq("solicitud_id", solicitudId)
       .order("orden", { ascending: true });
-    setTemplates((data as Template[]) ?? []);
-    if (data && data.length > 0) setSelectedTemplateId((data as Template[])[0].id);
+    const rows = (data as Template[]) ?? [];
+    setTemplates(rows);
+    if (rows.length > 0) setSelectedTemplateId(rows[0].id);
+    await loadTemplateEnabledMap(solicitudId, rows);
+  };
+
+  const getLinkedMonitoreo = async (solicitudId: string) => {
+    const { data, error } = await supabase
+      .from("monitoreo_catalog")
+      .select("id")
+      .eq("solicitud_id", solicitudId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as { id: string } | null) ?? null;
+  };
+
+  const loadTemplateEnabledMap = async (solicitudId: string, tplRows: Template[]) => {
+    if (!tplRows.length) {
+      setTemplateEnabledMap({});
+      return;
+    }
+    const linked = await getLinkedMonitoreo(solicitudId);
+    if (!linked?.id) {
+      const fallback: Record<string, boolean> = {};
+      tplRows.forEach((t) => (fallback[t.id] = true));
+      setTemplateEnabledMap(fallback);
+      return;
+    }
+    const templateIds = tplRows.map((t) => t.id);
+    const { data, error } = await supabase
+      .from("ficha_catalog")
+      .select("form_template_id, is_active")
+      .eq("monitoreo_id", linked.id)
+      .in("form_template_id", templateIds);
+    if (error) throw new Error(error.message);
+    const map: Record<string, boolean> = {};
+    tplRows.forEach((t) => (map[t.id] = true));
+    (data ?? []).forEach((r: any) => {
+      if (r.form_template_id) map[r.form_template_id] = r.is_active !== false;
+    });
+    setTemplateEnabledMap(map);
   };
 
   const loadGlobalTemplates = async () => {
@@ -763,7 +815,7 @@ export function GestionMonitoreosPage() {
   };
 
   const updateSolicitud = async () => {
-    if (!selected || !isAdmin) return;
+    if (!selected || !canOwnerOrAdmin) return;
     setSaving(true);
     setError(null);
     const { error } = await supabase
@@ -779,6 +831,21 @@ export function GestionMonitoreosPage() {
     if (error) {
       setError(error.message);
     } else {
+      const { error: monSyncErr } = await supabase
+        .from("monitoreo_catalog")
+        .update({
+          nombre: editNombre,
+          descripcion: editDetalle,
+          fecha_inicio: editFechaInicio,
+          fecha_fin: editFechaFin,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("solicitud_id", selected.id);
+      if (monSyncErr) {
+        setError(monSyncErr.message);
+        setSaving(false);
+        return;
+      }
       const { error: delErr } = await supabase
         .from("monitoreo_solicitud_filtro")
         .delete()
@@ -1540,29 +1607,80 @@ export function GestionMonitoreosPage() {
   const addTemplate = async () => {
     if (!selectedId || !templateTitle.trim()) return;
     const code = templateCode.trim() || `F${templates.length + 1}`;
-    await supabase.from("form_template").insert({
-      solicitud_id: selectedId,
-      titulo: templateTitle.trim(),
-      codigo: code,
-      subtitulo: templateSubtitle.trim() || null,
-      header_config: DEFAULT_HEADER_CONFIG,
-      footer_config: {
-        observacion: true,
-        compromiso: true,
-        lugar: true,
-        fecha: true,
-        docente_nombre: true,
-        docente_dni: true,
-        monitor_nombre: true,
-        monitor_dni: true,
-        firmas: true,
-      },
-      orden: templates.length + 1,
-    });
+    const nextTitle = templateTitle.trim();
+    const { data: insertedTemplate, error: tplErr } = await supabase
+      .from("form_template")
+      .insert({
+        solicitud_id: selectedId,
+        titulo: nextTitle,
+        codigo: code,
+        subtitulo: templateSubtitle.trim() || null,
+        header_config: DEFAULT_HEADER_CONFIG,
+        footer_config: {
+          observacion: true,
+          compromiso: true,
+          lugar: true,
+          fecha: true,
+          docente_nombre: true,
+          docente_dni: true,
+          monitor_nombre: true,
+          monitor_dni: true,
+          firmas: true,
+        },
+        orden: templates.length + 1,
+      })
+      .select("id")
+      .single();
+    if (tplErr) {
+      setToast({ type: "err", msg: tplErr.message });
+      return;
+    }
     setTemplateTitle("");
     setTemplateCode("");
     setTemplateSubtitle("");
+    if (selectedId) {
+      try {
+        const linked = await getLinkedMonitoreo(selectedId);
+        if (linked?.id && insertedTemplate?.id) {
+          await supabase.from("ficha_catalog").insert({
+            monitoreo_id: linked.id,
+            codigo: code,
+            titulo: nextTitle,
+            version: 1,
+            orden: templates.length + 1,
+            is_active: true,
+            form_template_id: insertedTemplate.id,
+          });
+        }
+      } catch {
+        // no-op: keeps existing flow if linked monitoreo does not exist yet
+      }
+    }
     loadTemplates(selectedId);
+  };
+
+  const toggleTemplateEnabled = async (templateId: string, enabled: boolean) => {
+    if (!selectedId || !canManageInactiveTemplates) return;
+    setTemplateToggleBusyId(templateId);
+    try {
+      const linked = await getLinkedMonitoreo(selectedId);
+      if (!linked?.id) {
+        setToast({ type: "err", msg: "Este monitoreo aún no está publicado." });
+        return;
+      }
+      const { error } = await supabase
+        .from("ficha_catalog")
+        .update({ is_active: enabled, updated_at: new Date().toISOString() })
+        .eq("monitoreo_id", linked.id)
+        .eq("form_template_id", templateId);
+      if (error) throw new Error(error.message);
+      setTemplateEnabledMap((prev) => ({ ...prev, [templateId]: enabled }));
+      setToast({ type: "ok", msg: enabled ? "Ficha habilitada." : "Ficha inhabilitada." });
+    } catch (e: any) {
+      setToast({ type: "err", msg: e?.message || "No se pudo actualizar estado de ficha." });
+    } finally {
+      setTemplateToggleBusyId(null);
+    }
   };
 
   const reuseTemplate = async () => {
@@ -1671,6 +1789,20 @@ export function GestionMonitoreosPage() {
         }));
         const { error: insQErr } = await supabase.from("form_question").insert(rows);
         if (insQErr) throw new Error(insQErr.message);
+      }
+
+      const linked = await getLinkedMonitoreo(selectedId);
+      if (linked?.id) {
+        const { error: fichaErr } = await supabase.from("ficha_catalog").insert({
+          monitoreo_id: linked.id,
+          codigo: newCode,
+          titulo: newTitle,
+          version: 1,
+          orden: templates.length + 1,
+          is_active: true,
+          form_template_id: newTemplate.id,
+        });
+        if (fichaErr) throw new Error(fichaErr.message);
       }
 
       setReuseTemplateTitle("");
@@ -2781,7 +2913,7 @@ export function GestionMonitoreosPage() {
                 </div>
               )}
 
-              {isAdmin && (
+              {canOwnerOrAdmin && (
                 <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
                   <div className="text-sm font-semibold">Editar solicitud</div>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -2918,8 +3050,32 @@ export function GestionMonitoreosPage() {
                     </button>
                   ))}
                 </div>
+                {canManageInactiveTemplates && templates.length > 0 && (
+                  <div className="mt-2 grid gap-2">
+                    {templates.map((t) => (
+                      <label
+                        key={`toggle-${t.id}`}
+                        className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/75"
+                      >
+                        <span className="truncate pr-3">{t.titulo}</span>
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={templateEnabledMap[t.id] !== false}
+                            disabled={templateToggleBusyId === t.id}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              void toggleTemplateEnabled(t.id, e.target.checked);
+                            }}
+                          />
+                          {templateEnabledMap[t.id] !== false ? "Habilitada" : "Inhabilitada"}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
 
-                {canEditSolicitud && (
+                {canEditTemplates && (
                   <div className="mt-3 space-y-3">
                     <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
                       <input
@@ -3056,7 +3212,7 @@ export function GestionMonitoreosPage() {
                 {selectedTemplateId && showTemplateDetail && (
                   <div>
                     <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
-                      {canEditSolicitud && (
+                      {canEditTemplates && (
                         <div className="mb-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
                           <input
                             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
@@ -3352,7 +3508,7 @@ export function GestionMonitoreosPage() {
                             >
                               {s.titulo}
                             </button>
-                            {canEditSolicitud && (
+                            {canEditTemplates && (
                               <>
                                 <button
                                   type="button"
@@ -3380,7 +3536,7 @@ export function GestionMonitoreosPage() {
                           </div>
                         ))}
                       </div>
-                      {canEditSolicitud && (
+                      {canEditTemplates && (
                         <div className="mt-3 flex flex-wrap gap-2">
                           <input
                             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
@@ -3429,7 +3585,7 @@ export function GestionMonitoreosPage() {
                               </div>
                             ) : null}
                           </div>
-                          {canEditSolicitud && (
+                          {canEditTemplates && (
                             <div className="flex gap-2">
                               <button
                                 type="button"
@@ -3471,7 +3627,7 @@ export function GestionMonitoreosPage() {
                       ))}
                     </div>
 
-                    {canEditSolicitud && (
+                    {canEditTemplates && (
                       <div className="mt-3 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <button
