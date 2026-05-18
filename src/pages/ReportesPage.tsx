@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import logoUrl from "../assets/ugel06_3.jpg";
@@ -68,7 +68,7 @@ function fmtDateShort(iso: string) {
 
 function monthOptions() {
   return [
-    { value: "ALL", label: "Todo el año" },
+    { value: "ALL", label: "Todo el aÃ±o" },
     { value: "1", label: "Enero" },
     { value: "2", label: "Febrero" },
     { value: "3", label: "Marzo" },
@@ -276,7 +276,7 @@ export function ReportesPage() {
   const [templates, setTemplates] = useState<Record<string, TemplateRow>>({});
   const [monById, setMonById] = useState<Record<string, MonitoreoRow>>({});
 
-  // Años disponibles
+  // AÃ±os disponibles
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -294,7 +294,7 @@ export function ReportesPage() {
     };
   }, []);
 
-  // Monitoreos por año
+  // Monitoreos por aÃ±o
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -1209,7 +1209,7 @@ export function ReportesPage() {
         <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-sm font-semibold">Selecciona un monitoreo</div>
           <div className="mt-1 text-xs text-white/60">
-            Primero elige el monitoreo y luego verás sus reportes.
+            Primero elige el monitoreo y luego verÃ¡s sus reportes.
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
             <select
@@ -1260,7 +1260,7 @@ export function ReportesPage() {
       {selectedMonitoreo && <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
           <label className="block">
-            <div className="mb-2 text-xs font-medium text-white/70">Año</div>
+            <div className="mb-2 text-xs font-medium text-white/70">AÃ±o</div>
             <select
               value={year}
               onChange={(e) => setYear(e.target.value)}
@@ -1313,7 +1313,7 @@ export function ReportesPage() {
               >
                 <option value="ALL">Todos</option>
                 <option value="admin">Administrador</option>
-                <option value="jefe_area">Jefe de área</option>
+                <option value="jefe_area">Jefe de Ã¡rea</option>
                 <option value="director">Director(a)</option>
                 <option value="responsable_cdd">Responsable CdD</option>
                 <option value="user">Usuario</option>
@@ -1534,7 +1534,7 @@ export function ReportesPage() {
           )}
         </div>
         <div className="w-full overflow-x-auto">
-          <table className="min-w-[980px] w-full">
+          <table className="min-w-[820px] w-full">
             <thead className="bg-black/20">
               <tr className="text-left text-xs text-white/60">
                 <th className="px-4 py-3">Monitoreo / Ficha</th>
@@ -1645,7 +1645,7 @@ export function ReportesPage() {
       <ConfirmDialog
         open={confirmDeleteOpen}
         title="Eliminar registro"
-        description="¿Seguro que deseas eliminar este registro? Esta acción no se puede deshacer."
+        description="Â¿Seguro que deseas eliminar este registro? Esta acciÃ³n no se puede deshacer."
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="danger"
@@ -1689,6 +1689,7 @@ export function ReportesPage() {
     </div>
   );
 }
+
 
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { canSeeAllRole } from "../lib/roles";
@@ -685,7 +685,7 @@ export function IndicadoresCdDPage() {
                 </div>
               </div>
               <div className="overflow-x-auto pb-2">
-                <div className="flex min-w-[720px] items-end gap-5 px-3 pt-6">
+                <div className="flex min-w-[620px] items-end gap-5 px-3 pt-6">
                   {groupedByCompromiso.length ? (
                     groupedByCompromiso.map((row) => (
                       <div key={row.runId} className="flex w-16 flex-col items-center gap-3">
@@ -758,7 +758,7 @@ export function IndicadoresCdDPage() {
               <div className="text-xs text-slate-500">Hoy: {shortDate(new Date().toISOString())}</div>
             </div>
             <div className="overflow-x-auto pb-2">
-              <div className="min-w-[820px]">
+              <div className="min-w-[700px]">
                 <div className="mb-4 grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4 border-b border-white/10 pb-2">
                   <div />
                   <div className="grid grid-cols-12 gap-2">
@@ -876,3 +876,4 @@ function KpiCard({
     </div>
   );
 }
+
