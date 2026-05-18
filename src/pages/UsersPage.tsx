@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type AdminCreateUserInput,
   type ProfileRow,
@@ -323,7 +323,7 @@ export function UsersPage() {
   const submitCreate = async () => {
     if (!canManageUsers) return;
     if (!createForm.password || createForm.password.trim().length < 8) {
-      setToast({ type: "err", msg: "La contraseña debe tener mínimo 8 caracteres." });
+      setToast({ type: "err", msg: "La contraseÃ±a debe tener mÃ­nimo 8 caracteres." });
       return;
     }
     if (
@@ -359,7 +359,7 @@ export function UsersPage() {
 
       const res = await adminCreateUser(payload);
       if (res.ok) {
-        setToast({ type: "ok", msg: "Usuario creado correctamente ✅" });
+        setToast({ type: "ok", msg: "Usuario creado correctamente âœ…" });
       } else {
         setToast({
           type: "err",
@@ -404,7 +404,7 @@ export function UsersPage() {
         rol: editUser.rol,
       });
 
-      setToast({ type: "ok", msg: "Usuario actualizado ✅" });
+      setToast({ type: "ok", msg: "Usuario actualizado âœ…" });
       if (res.warning) {
         setToast({ type: "err", msg: `${res.warning}: ${res.details ?? ""}` });
       }
@@ -425,7 +425,7 @@ export function UsersPage() {
     setResetBusy(true);
     try {
       await adminResetPassword(resetUser.id, resetPass.trim());
-      setToast({ type: "ok", msg: "Contraseña reseteada ✅" });
+      setToast({ type: "ok", msg: "ContraseÃ±a reseteada âœ…" });
       setOpenReset(false);
       setResetUser(null);
       setResetPass("");
@@ -443,7 +443,7 @@ export function UsersPage() {
     setDeleteBusyId(u.id);
     try {
       await adminUsersDelete(u.id);
-      setToast({ type: "ok", msg: "Usuario eliminado ✅" });
+      setToast({ type: "ok", msg: "Usuario eliminado âœ…" });
       setPage(1);
       void load();
     } catch (e: any) {
@@ -479,7 +479,7 @@ export function UsersPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
             <p className="mt-1 text-sm text-white/60">
               {canManageUsers
-                ? "Administra cuentas, roles y contraseñas."
+                ? "Administra cuentas, roles y contraseÃ±as."
                 : "Consulta usuarios registrados."}
             </p>
           </div>
@@ -522,7 +522,7 @@ export function UsersPage() {
                 <Select value={rol} onChange={(e) => setRol(e.target.value as any)}>
                   <option value="">Todos</option>
                   <option value="admin">Admin</option>
-                  <option value="jefe_area">Jefe de área</option>
+                  <option value="jefe_area">Jefe de Ã¡rea</option>
                   <option value="director">Director(a)</option>
                   <option value="responsable_cdd">Responsable CdD</option>
                   <option value="user">User</option>
@@ -531,7 +531,7 @@ export function UsersPage() {
             </div>
 
             <div className="md:col-span-3">
-              <Field label="Área">
+              <Field label="Ãrea">
                 <Input
                   value={areaInput}
                   onChange={(e) => setAreaInput(e.target.value)}
@@ -621,7 +621,7 @@ export function UsersPage() {
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
                   <div>Documento: {maskDoc(u.tipo_documento, u.numero_documento)}</div>
-                  <div>Área: {u.area || "-"}</div>
+                  <div>Ãrea: {u.area || "-"}</div>
                   <div>UGEL: {u.ugel || "-"}</div>
                   <div>REI: {u.rei || "SIN REI"}</div>
                 </div>
@@ -664,7 +664,7 @@ export function UsersPage() {
 
         <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 md:hidden">
           <div>
-            Mostrando {items.length} de {total} · Página {page}/{totalPages}
+            Mostrando {items.length} de {total} Â· PÃ¡gina {page}/{totalPages}
           </div>
           <div className="flex gap-2">
             <Button
@@ -673,7 +673,7 @@ export function UsersPage() {
               disabled={page <= 1 || loading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              ← Anterior
+              â† Anterior
             </Button>
             <Button
               variant="ghost"
@@ -681,7 +681,7 @@ export function UsersPage() {
               disabled={page >= totalPages || loading}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              Siguiente →
+              Siguiente â†’
             </Button>
           </div>
         </div>
@@ -694,7 +694,7 @@ export function UsersPage() {
             </div>
 
             <div className="flex items-center gap-2 text-xs text-white/60">
-              <span>Página</span>
+              <span>PÃ¡gina</span>
               <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-white">
                 {page}/{totalPages}
               </span>
@@ -702,13 +702,13 @@ export function UsersPage() {
           </div>
 
           <div className="w-full overflow-x-auto">
-            <table className="min-w-[900px] w-full">
+            <table className="min-w-[780px] w-full">
               <thead className="bg-black/20">
                 <tr className="text-left text-xs text-white/60">
                   <th className="px-4 py-3">Usuario</th>
                   <th className="px-4 py-3">Documento</th>
                   <th className="px-4 py-3">Rol</th>
-                  <th className="px-4 py-3">Área</th>
+                  <th className="px-4 py-3">Ãrea</th>
                   <th className="px-4 py-3">UGEL</th>
                   <th className="px-4 py-3">REI</th>
                   {canManageUsers && <th className="px-4 py-3 text-right">Acciones</th>}
@@ -780,7 +780,7 @@ export function UsersPage() {
             </table>
           </div>
 
-          {/* Paginación */}
+          {/* PaginaciÃ³n */}
           <div className="flex flex-col gap-2 border-t border-white/10 px-4 py-3 md:flex-row md:items-center md:justify-between">
             <div className="text-xs text-white/50">
               Mostrando {items.length} de {total}
@@ -791,14 +791,14 @@ export function UsersPage() {
                 disabled={page <= 1 || loading}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                ← Anterior
+                â† Anterior
               </Button>
               <Button
                 variant="ghost"
                 disabled={page >= totalPages || loading}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
-                Siguiente →
+                Siguiente â†’
               </Button>
             </div>
           </div>
@@ -827,7 +827,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-3">
-            <Field label="N° documento">
+            <Field label="NÂ° documento">
               <Input
                 value={createForm.numero_documento}
                 onChange={(e) => setCreateForm((s) => ({ ...s, numero_documento: e.target.value }))}
@@ -859,7 +859,7 @@ export function UsersPage() {
                       setCreateForm((s) => ({ ...s, can_create_monitoreo: e.target.checked }))
                     }
                   />
-                  Habilitar creación de monitoreos
+                  Habilitar creaciÃ³n de monitoreos
                 </label>
               </Field>
             </div>
@@ -926,7 +926,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-3">
-            <Field label="Teléfono">
+            <Field label="TelÃ©fono">
               <Input
                 value={createForm.telefono ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, telefono: e.target.value }))}
@@ -954,7 +954,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-4">
-            <Field label="Área">
+            <Field label="Ãrea">
               <Input
                 value={createForm.area ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, area: e.target.value }))}
@@ -962,7 +962,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-4">
-            <Field label="Comisión">
+            <Field label="ComisiÃ³n">
               <Input
                 value={createForm.comision ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, comision: e.target.value }))}
@@ -971,7 +971,7 @@ export function UsersPage() {
           </div>
 
           <div className="md:col-span-6">
-            <Field label="Contraseña inicial (mín 8)">
+            <Field label="ContraseÃ±a inicial (mÃ­n 8)">
               <Input
                 type="password"
                 value={createForm.password}
@@ -1030,7 +1030,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-3">
-              <Field label="N° documento">
+              <Field label="NÂ° documento">
                 <Input
                   value={editUser.numero_documento}
                   onChange={(e) =>
@@ -1068,7 +1068,7 @@ export function UsersPage() {
                         )
                       }
                     />
-                    Habilitar creación de monitoreos
+                    Habilitar creaciÃ³n de monitoreos
                   </label>
                 </Field>
               </div>
@@ -1142,7 +1142,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-3">
-              <Field label="Teléfono">
+              <Field label="TelÃ©fono">
                 <Input
                   value={editUser.telefono ?? ""}
                   onChange={(e) =>
@@ -1174,7 +1174,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-4">
-              <Field label="Área">
+              <Field label="Ãrea">
                 <Input
                   value={editUser.area ?? ""}
                   onChange={(e) =>
@@ -1184,7 +1184,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-4">
-              <Field label="Comisión">
+              <Field label="ComisiÃ³n">
                 <Input
                   value={editUser.comision ?? ""}
                   onChange={(e) =>
@@ -1211,7 +1211,7 @@ export function UsersPage() {
       {canManageUsers && (
         <Modal
           open={openReset}
-          title="Resetear contraseña"
+          title="Resetear contraseÃ±a"
           onClose={() => !resetBusy && setOpenReset(false)}
         >
           {!resetUser ? (
@@ -1223,7 +1223,7 @@ export function UsersPage() {
               <div className="text-xs text-white/60">{resetUser.correo}</div>
             </div>
 
-            <Field label="Nueva contraseña (mín 8)">
+            <Field label="Nueva contraseÃ±a (mÃ­n 8)">
               <Input
                 type="password"
                 value={resetPass}
@@ -1253,8 +1253,8 @@ export function UsersPage() {
         title="Eliminar usuario"
         description={
           confirmDeleteUser
-            ? `Se eliminará a ${formatName(confirmDeleteUser)} (${confirmDeleteUser.correo}).`
-            : "Se eliminará el usuario seleccionado."
+            ? `Se eliminarÃ¡ a ${formatName(confirmDeleteUser)} (${confirmDeleteUser.correo}).`
+            : "Se eliminarÃ¡ el usuario seleccionado."
         }
         confirmText="Eliminar"
         cancelText="Cancelar"
@@ -1266,4 +1266,5 @@ export function UsersPage() {
     </div>
   );
 }
+
 

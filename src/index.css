@@ -45,6 +45,23 @@ body {
   min-height: 100dvh;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+:where(.flex, .grid) > * {
+  min-width: 0;
+}
+
 #root {
   width: 100%;
   max-width: 100%;
@@ -215,5 +232,15 @@ select option:checked {
   select,
   textarea {
     font-size: 16px !important;
+  }
+
+  body {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 1024px) and (orientation: landscape) {
+  .fixed.inset-0 > div {
+    max-height: 92dvh;
   }
 }
