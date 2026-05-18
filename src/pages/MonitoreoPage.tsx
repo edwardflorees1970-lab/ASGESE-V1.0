@@ -135,7 +135,7 @@ export function MonitoreoPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar monitoreo"
-            className="min-w-[220px] flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="w-full min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm sm:min-w-[220px]"
           />
           <select
             value={estadoFilter}
