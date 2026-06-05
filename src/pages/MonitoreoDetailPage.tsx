@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { getFichasByMonitoreo } from "../lib/monitoreoApi";
 import { canSeeAllRole } from "../lib/roles";
-import { isMonitoreoExpired } from "../lib/monitoreoVigencia";
+import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
 
 type FichaCard = {
   key: string; // "ESCRIBE" | "LEE" | "ORAL"
@@ -21,8 +21,74 @@ type MonitoreoRow = {
   fecha_fin: string;
 };
 
-function cls(...xs: Array<string | false | null | undefined>) {
-  return xs.filter(Boolean).join(" ");
+function FormIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M7 3.5h7l3 3V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 5 20V5A1.5 1.5 0 0 1 6.5 3.5H7Z" />
+      <path d="M14 3.5V7h3.5" />
+      <path d="M8 11h8M8 15h8M8 18h5" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M7 3v4M17 3v4M4 9h16" />
+      <rect x="4" y="5" width="16" height="16" rx="2.5" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M2.6 12S6 5 12 5s9.4 7 9.4 7-3.4 7-9.4 7-9.4-7-9.4-7Z" />
+      <circle cx="12" cy="12" r="2.6" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="agebre-action-icon h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 10.8v5" />
+      <path d="M12 7.5h.01" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+function formatDate(date?: string | null) {
+  if (!date) return "Sin fecha fin";
+  const [y, m, d] = date.split("-");
+  if (!y || !m || !d) return date;
+  return `${d}/${m}/${y}`;
+}
+
+function temporalLabel(date?: string | null) {
+  const days = daysFromToday(date);
+  if (days == null) return "Sin fecha de vencimiento";
+  if (days < 0) return `Vencido hace ${Math.abs(days)} días`;
+  if (days === 0) return "Vence hoy";
+  return `Faltan ${days} días`;
 }
 
 export function MonitoreoDetailPage() {
@@ -36,6 +102,7 @@ export function MonitoreoDetailPage() {
   const [fichas, setFichas] = useState<FichaCard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
+  const [descModal, setDescModal] = useState<FichaCard | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -164,7 +231,7 @@ export function MonitoreoDetailPage() {
         </div>
       ) : expired ? (
         <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
-          Este monitoreo esta vencido. Solicita al administrador una ampliacion.
+          Este monitoreo está vencido. Solicita al administrador una ampliación.
         </div>
       ) : !assigned ? (
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
@@ -175,32 +242,153 @@ export function MonitoreoDetailPage() {
           No hay fichas configuradas para este monitoreo.
         </div>
       ) : (
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {cards.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() =>
-                nav(
-                  `/app/monitoreo/${monitoreoCodigo}/ficha/${f.key}?mid=${encodeURIComponent(monitoreo.id)}`
-                )
-              }
-              className={cls(
-                "text-left rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5",
-                "hover:bg-white/10 transition"
-              )}
-            >
-              <div className="text-xs text-white/50">Ficha</div>
-              <div className="mt-1 text-lg font-semibold">{f.title}</div>
-              <div className="mt-2 text-sm text-white/70">{f.subtitle}</div>
+        <div className="mt-6 grid auto-rows-[260px] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((f) => {
+            const fichaUrl = `/app/monitoreo/${monitoreoCodigo}/ficha/${f.key}?mid=${encodeURIComponent(monitoreo.id)}`;
+            return (
+              <div
+                key={f.key}
+                onClick={() => nav(fichaUrl)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  nav(fichaUrl);
+                }}
+                role="button"
+                tabIndex={0}
+                className="agebre-uniform-card flex h-[260px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 text-left shadow-lg shadow-black/10 hover:bg-white/10"
+              >
+                <div className="mb-4 flex h-10 shrink-0 items-start justify-between gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
+                    <FormIcon />
+                  </div>
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-100">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                    Disponible
+                  </span>
+                </div>
 
-              <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
-                Abrir ficha →
+                <h2 className="agebre-card-title h-12 shrink-0 text-base font-bold leading-[1.35] tracking-tight text-white">
+                  {f.title}
+                </h2>
+
+                <div className="flex flex-1 flex-col pt-4">
+                  <div className="flex h-5 shrink-0 items-center gap-2 text-xs text-white/60">
+                    <CalendarIcon />
+                    <span className="truncate">Monitoreo vence: {formatDate(monitoreo.fecha_fin)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-auto grid shrink-0 gap-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDescModal(f);
+                    }}
+                    className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white/80 transition hover:border-white/25 hover:bg-white/15"
+                  >
+                    <EyeIcon />
+                    Ver más
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      nav(fichaUrl);
+                    }}
+                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white px-3 text-xs font-semibold text-zinc-950 transition hover:bg-white/90"
+                  >
+                    Abrir ficha
+                    <ArrowIcon />
+                  </button>
+                </div>
               </div>
-            </button>
-          ))}
+            );
+          })}
+        </div>
+      )}
+      {descModal && (
+        <div className="agebre-modal-overlay fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="agebre-modal-content w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/40">
+            <div className="border-b border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-white/80">
+                    <FormIcon />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-white/45">Ficha</div>
+                    <h2 className="agebre-modal-title mt-1 max-h-[78px] text-lg font-bold leading-[1.3] text-white sm:text-xl">
+                      {descModal.title}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  title="Cerrar"
+                  aria-label="Cerrar"
+                  onClick={() => setDescModal(null)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 sm:p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                  <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                  Disponible
+                </span>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65">
+                  <CalendarIcon />
+                  <span>Monitoreo vence: {formatDate(monitoreo?.fecha_fin)}</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65">
+                  {temporalLabel(monitoreo?.fecha_fin)}
+                </div>
+              </div>
+
+              <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                  <InfoIcon />
+                  Detalle de ficha
+                </div>
+                <div className="max-h-[34vh] overflow-y-auto whitespace-pre-wrap pr-1 text-sm leading-6 text-white/75">
+                  {descModal.subtitle || descModal.title}
+                </div>
+              </section>
+
+              <div className="flex flex-col gap-2 border-t border-white/10 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDescModal(null)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/75 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+                >
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!monitoreo) return;
+                    nav(`/app/monitoreo/${monitoreoCodigo}/ficha/${descModal.key}?mid=${encodeURIComponent(monitoreo.id)}`);
+                  }}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-white/90"
+                >
+                  Abrir ficha
+                  <ArrowIcon />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
+

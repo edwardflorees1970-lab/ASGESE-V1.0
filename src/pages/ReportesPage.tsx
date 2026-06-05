@@ -33,6 +33,7 @@ type FichaRow = {
   id: string;
   codigo: string;
   monitoreo_id: string;
+  titulo?: string | null;
   form_template_id?: string | null;
 };
 
@@ -48,6 +49,8 @@ type MonitoreoRow = {
   nombre: string;
   anio: number;
   is_active: boolean;
+  descripcion?: string | null;
+  fecha_fin?: string | null;
 };
 
 function cls(...xs: Array<string | false | null | undefined>) {
@@ -66,22 +69,34 @@ function fmtDateShort(iso: string) {
   }
 }
 
-function monthOptions() {
-  return [
-    { value: "ALL", label: "Todo el aÃ±o" },
-    { value: "1", label: "Enero" },
-    { value: "2", label: "Febrero" },
-    { value: "3", label: "Marzo" },
-    { value: "4", label: "Abril" },
-    { value: "5", label: "Mayo" },
-    { value: "6", label: "Junio" },
-    { value: "7", label: "Julio" },
-    { value: "8", label: "Agosto" },
-    { value: "9", label: "Septiembre" },
-    { value: "10", label: "Octubre" },
-    { value: "11", label: "Noviembre" },
-    { value: "12", label: "Diciembre" },
-  ];
+function formatDateOnly(date?: string | null) {
+  if (!date) return "Sin fecha fin";
+  const [y, m, d] = date.split("-");
+  if (!y || !m || !d) return date;
+  return `${d}/${m}/${y}`;
+}
+
+function daysFromTodayLocal(date?: string | null) {
+  if (!date) return null;
+  const [y, m, d] = date.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const target = new Date(y, m - 1, d);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+function isMonitoreoExpiredLocal(date?: string | null) {
+  const days = daysFromTodayLocal(date);
+  return days !== null && days < 0;
+}
+
+function temporalLabel(date?: string | null) {
+  const days = daysFromTodayLocal(date);
+  if (days == null) return "Sin fecha de vencimiento";
+  if (days < 0) return `Vencido hace ${Math.abs(days)} días`;
+  if (days === 0) return "Vence hoy";
+  return `Faltan ${days} días`;
 }
 
 function statusLabel(s: string) {
@@ -125,6 +140,61 @@ function IconEye() {
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
       <path d="M2.2 10C3.9 6.9 6.6 5.3 10 5.3C13.4 5.3 16.1 6.9 17.8 10C16.1 13.1 13.4 14.7 10 14.7C6.6 14.7 3.9 13.1 2.2 10Z" />
       <circle cx="10" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
+function IconReport() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+      <path d="M5 19V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z" />
+      <path d="M14 3v5h5" />
+      <path d="M8.5 16v-3M12 16V9.5M15.5 16v-5" />
+    </svg>
+  );
+}
+
+function IconCalendar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+      <path d="M7 3v4M17 3v4M4 9h16" />
+      <rect x="4" y="5" width="16" height="16" rx="2.5" />
+    </svg>
+  );
+}
+
+function IconArrow() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="agebre-action-icon h-4 w-4" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function IconInfo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 10.8v5" />
+      <path d="M12 7.5h.01" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-4 w-4" aria-hidden="true">
+      <path d="M6 6l12 12M18 6 6 18" />
     </svg>
   );
 }
@@ -249,7 +319,7 @@ export function ReportesPage() {
 
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
-  const [month, setMonth] = useState("ALL");
+  const [selectedFicha, setSelectedFicha] = useState("ALL");
   const [selectedMonitoreo, setSelectedMonitoreo] = useState("");
   const [status, setStatus] = useState("ALL");
   const [roleFilter, setRoleFilter] = useState("ALL");
@@ -257,9 +327,13 @@ export function ReportesPage() {
   const [colegioQuery, setColegioQuery] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [monitoreoSearch, setMonitoreoSearch] = useState("");
+  const [monitoreoPageSize, setMonitoreoPageSize] = useState(10);
+  const [monitoreoPage, setMonitoreoPage] = useState(1);
 
   const [years, setYears] = useState<string[]>([]);
   const [monitoreos, setMonitoreos] = useState<MonitoreoRow[]>([]);
+  const [monitoreoFichas, setMonitoreoFichas] = useState<FichaRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -269,6 +343,7 @@ export function ReportesPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfTitle, setPreviewPdfTitle] = useState("");
+  const [reportMonitoreoModal, setReportMonitoreoModal] = useState<MonitoreoRow | null>(null);
 
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
@@ -276,7 +351,7 @@ export function ReportesPage() {
   const [templates, setTemplates] = useState<Record<string, TemplateRow>>({});
   const [monById, setMonById] = useState<Record<string, MonitoreoRow>>({});
 
-  // AÃ±os disponibles
+  // Años disponibles
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -294,13 +369,13 @@ export function ReportesPage() {
     };
   }, []);
 
-  // Monitoreos por aÃ±o
+  // Monitoreos por año
   useEffect(() => {
     let alive = true;
     (async () => {
       let query = supabase
         .from("monitoreo_catalog")
-        .select("id, codigo, nombre, anio, is_active, solicitud_id")
+        .select("id, codigo, nombre, anio, is_active, solicitud_id, descripcion, fecha_fin")
         .eq("anio", Number(year))
         .eq("is_active", true)
         .order("nombre", { ascending: true });
@@ -367,9 +442,8 @@ export function ReportesPage() {
         }
 
         const y = Number(year);
-        const m = month === "ALL" ? null : Number(month);
-        const start = m ? new Date(y, m - 1, 1) : new Date(y, 0, 1);
-        const end = m ? new Date(y, m, 1) : new Date(y + 1, 0, 1);
+        const start = new Date(y, 0, 1);
+        const end = new Date(y + 1, 0, 1);
 
         let templateIdsByMon: string[] | null = null;
         const mon = monitoreos.find((x) => x.codigo === selectedMonitoreo);
@@ -379,7 +453,10 @@ export function ReportesPage() {
             .select("id, codigo, monitoreo_id, form_template_id")
             .eq("monitoreo_id", mon.id);
           if (fichasErr) throw new Error(fichasErr.message);
-          templateIdsByMon = (fichasData ?? [])
+          const fichasRows = ((fichasData ?? []) as FichaRow[]).filter((f) =>
+            selectedFicha === "ALL" ? true : f.form_template_id === selectedFicha
+          );
+          templateIdsByMon = fichasRows
             .map((f: any) => f.form_template_id)
             .filter(Boolean);
         } else {
@@ -521,7 +598,7 @@ export function ReportesPage() {
     return () => {
       alive = false;
     };
-  }, [year, month, selectedMonitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll, isTestMode]);
+  }, [year, selectedFicha, selectedMonitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll, isTestMode]);
 
   useEffect(() => {
     if (!toast) return;
@@ -562,7 +639,7 @@ export function ReportesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [year, month, selectedMonitoreo, status, roleFilter, monitorQuery, colegioQuery]);
+  }, [year, selectedFicha, selectedMonitoreo, status, roleFilter, monitorQuery, colegioQuery]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -572,6 +649,49 @@ export function ReportesPage() {
     () => monitoreos.find((m) => m.codigo === selectedMonitoreo) ?? null,
     [monitoreos, selectedMonitoreo]
   );
+
+  const filteredMonitoreos = useMemo(() => {
+    const term = monitoreoSearch.trim().toLowerCase();
+    if (!term) return monitoreos;
+    return monitoreos.filter((m) => m.nombre.toLowerCase().includes(term));
+  }, [monitoreos, monitoreoSearch]);
+
+  const monitoreoTotalPages = Math.max(1, Math.ceil(filteredMonitoreos.length / monitoreoPageSize));
+  const monitoreoPageSafe = Math.min(monitoreoPage, monitoreoTotalPages);
+  const monitoreoStart = filteredMonitoreos.length ? (monitoreoPageSafe - 1) * monitoreoPageSize + 1 : 0;
+  const monitoreoEnd = Math.min(monitoreoPageSafe * monitoreoPageSize, filteredMonitoreos.length);
+  const pagedMonitoreos = useMemo(() => {
+    const start = (monitoreoPageSafe - 1) * monitoreoPageSize;
+    return filteredMonitoreos.slice(start, start + monitoreoPageSize);
+  }, [filteredMonitoreos, monitoreoPageSafe, monitoreoPageSize]);
+
+  useEffect(() => {
+    setMonitoreoPage(1);
+  }, [monitoreoSearch, monitoreoPageSize, year, monitoreos.length]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setSelectedFicha("ALL");
+      setMonitoreoFichas([]);
+      if (!selectedMonitoreoRow?.id) return;
+      const { data, error } = await supabase
+        .from("ficha_catalog")
+        .select("id, codigo, monitoreo_id, form_template_id, titulo")
+        .eq("monitoreo_id", selectedMonitoreoRow.id)
+        .order("codigo", { ascending: true });
+      if (!alive || error) return;
+      setMonitoreoFichas(((data ?? []) as any[]).filter((f) => f.form_template_id) as FichaRow[]);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selectedMonitoreoRow?.id]);
+
+  const enterReportes = (codigo: string) => {
+    setSelectedMonitoreo(codigo);
+    setCurrentPage(1);
+  };
 
   const canEditOrDelete = (run: RunRow) => {
     if (isAdmin) return true;
@@ -1206,37 +1326,272 @@ export function ReportesPage() {
       </div>
 
       {!selectedMonitoreo && (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="text-sm font-semibold">Selecciona un monitoreo</div>
-          <div className="mt-1 text-xs text-white/60">
-            Primero elige el monitoreo y luego verÃ¡s sus reportes.
+        <div className="mt-5">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+                <IconReport />
+              </div>
+              <div>
+                <div className="text-sm font-semibold">Selecciona un monitoreo</div>
+                <div className="mt-1 text-xs text-white/60">
+                  Primero elige el monitoreo y luego verás sus reportes y resultados.
+                </div>
+              </div>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                <div className="relative min-w-0 flex-1 lg:w-72">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/45">
+                    <IconSearch />
+                  </span>
+                  <input
+                    value={monitoreoSearch}
+                    onChange={(e) => setMonitoreoSearch(e.target.value)}
+                    placeholder="Buscar monitoreo..."
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-white/35 focus:ring-2 focus:ring-white/10"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-xs text-white/60">
+                  Mostrar:
+                  <select
+                    value={String(monitoreoPageSize)}
+                    onChange={(e) => setMonitoreoPageSize(Number(e.target.value))}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-white/10"
+                  >
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                  </select>
+                </label>
+              </div>
+            </div>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <select
-              value={selectedMonitoreo}
-              onChange={(e) => setSelectedMonitoreo(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
-            >
-              <option value="">Seleccionar monitoreo...</option>
-              {monitoreos.map((m) => (
-                <option key={m.codigo} value={m.codigo}>
-                  {m.nombre}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setSelectedMonitoreo((v) => v)}
-              disabled={!selectedMonitoreo}
-              className={cls(
-                "rounded-xl border px-4 py-2.5 text-sm",
-                selectedMonitoreo
-                  ? "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
-                  : "border-white/10 text-white/30"
+
+          <div className="mt-4 grid auto-rows-[260px] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {monitoreos.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60 sm:col-span-2 xl:col-span-3">
+                No hay monitoreos disponibles para el año seleccionado.
+              </div>
+            ) : filteredMonitoreos.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60 sm:col-span-2 xl:col-span-3">
+                No se encontraron monitoreos.
+              </div>
+            ) : (
+              pagedMonitoreos.map((m) => {
+                const expired = isMonitoreoExpiredLocal(m.fecha_fin);
+                const locked = !m.is_active;
+                const disabled = locked;
+                return (
+                  <div
+                    key={m.codigo}
+                    className={cls(
+                      "agebre-uniform-card flex h-[260px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 text-left shadow-lg shadow-black/10",
+                      disabled ? "is-disabled opacity-80" : "hover:bg-white/10"
+                    )}
+                  >
+                    <div className="mb-4 flex h-10 shrink-0 items-start justify-between gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
+                        <IconReport />
+                      </div>
+                      {locked ? (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-amber-100">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+                          Bloqueado
+                        </span>
+                      ) : expired ? (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-red-100">
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-300" />
+                          Vencido
+                        </span>
+                      ) : (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-100">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                          Disponible
+                        </span>
+                      )}
+                    </div>
+
+                    <h2 className="agebre-card-title h-12 shrink-0 text-base font-bold leading-[1.35] tracking-tight text-white">
+                      {m.nombre}
+                    </h2>
+
+                    <div className="flex flex-1 flex-col pt-4">
+                      <div className="flex h-5 shrink-0 items-center gap-2 text-xs text-white/60">
+                        <IconCalendar />
+                        <span className="truncate">Vence: {formatDateOnly(m.fecha_fin)}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto grid shrink-0 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setReportMonitoreoModal(m)}
+                        className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white/80 transition hover:border-white/25 hover:bg-white/15"
+                      >
+                        <IconEye />
+                        Ver más
+                      </button>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => enterReportes(m.codigo)}
+                        className={cls(
+                          "inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition",
+                          disabled
+                            ? "cursor-not-allowed border-white/10 bg-black/20 text-white/45"
+                            : "border-white/10 bg-white text-zinc-950 hover:bg-white/90"
+                        )}
+                      >
+                        Ingresar a reportes
+                        <IconArrow />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          {filteredMonitoreos.length > 0 && (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                Mostrando {monitoreoStart}-{monitoreoEnd} de {filteredMonitoreos.length} monitoreos
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={monitoreoPageSafe <= 1}
+                  onClick={() => setMonitoreoPage((p) => Math.max(1, p - 1))}
+                  className={cls(
+                    "rounded-xl border px-3 py-2 text-xs transition",
+                    monitoreoPageSafe <= 1
+                      ? "border-white/10 text-white/30"
+                      : "border-white/10 bg-white/10 text-white/85 hover:bg-white/15"
+                  )}
+                >
+                  Anterior
+                </button>
+                <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white/75">
+                  {monitoreoPageSafe} / {monitoreoTotalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={monitoreoPageSafe >= monitoreoTotalPages}
+                  onClick={() => setMonitoreoPage((p) => Math.min(monitoreoTotalPages, p + 1))}
+                  className={cls(
+                    "rounded-xl border px-3 py-2 text-xs transition",
+                    monitoreoPageSafe >= monitoreoTotalPages
+                      ? "border-white/10 text-white/30"
+                      : "border-white/10 bg-white/10 text-white/85 hover:bg-white/15"
+                  )}
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {reportMonitoreoModal && (
+        <div className="agebre-modal-overlay fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="agebre-modal-content w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/40">
+            <div className="border-b border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-white/80">
+                    <IconReport />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-white/45">Reportes</div>
+                    <h2 className="agebre-modal-title mt-1 max-h-[78px] text-lg font-bold leading-[1.3] text-white sm:text-xl">
+                      {reportMonitoreoModal.nombre}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  title="Cerrar"
+                  aria-label="Cerrar"
+                  onClick={() => setReportMonitoreoModal(null)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+                >
+                  <IconClose />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 sm:p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                {!reportMonitoreoModal.is_active ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-100">
+                    <span className="h-2 w-2 rounded-full bg-amber-300" />
+                    Bloqueado
+                  </span>
+                ) : isMonitoreoExpiredLocal(reportMonitoreoModal.fecha_fin) ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-100">
+                    <span className="h-2 w-2 rounded-full bg-red-300" />
+                    Vencido
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                    <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                    Disponible
+                  </span>
+                )}
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65">
+                  <IconCalendar />
+                  <span>Vence: {formatDateOnly(reportMonitoreoModal.fecha_fin)}</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65">
+                  {temporalLabel(reportMonitoreoModal.fecha_fin)}
+                </div>
+              </div>
+
+              {!reportMonitoreoModal.is_active && (
+                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  Este monitoreo está bloqueado para reportes.
+                </div>
               )}
-            >
-              Ingresar
-            </button>
+
+              <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                  <IconInfo />
+                  Detalle
+                </div>
+                <div className="max-h-[34vh] overflow-y-auto whitespace-pre-wrap pr-1 text-sm leading-6 text-white/75">
+                  {reportMonitoreoModal.descripcion || `Monitoreo ${reportMonitoreoModal.codigo} - Año ${reportMonitoreoModal.anio}.`}
+                </div>
+              </section>
+
+              <div className="flex flex-col gap-2 border-t border-white/10 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setReportMonitoreoModal(null)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/75 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+                >
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  disabled={!reportMonitoreoModal.is_active}
+                  onClick={() => {
+                    if (!reportMonitoreoModal.is_active) return;
+                    enterReportes(reportMonitoreoModal.codigo);
+                    setReportMonitoreoModal(null);
+                  }}
+                  className={cls(
+                    "inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition",
+                    reportMonitoreoModal.is_active
+                      ? "border-white/10 bg-white text-zinc-950 hover:bg-white/90"
+                      : "cursor-not-allowed border-white/10 bg-white/5 text-white/40"
+                  )}
+                >
+                  Ingresar a reportes
+                  <IconArrow />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1260,7 +1615,7 @@ export function ReportesPage() {
       {selectedMonitoreo && <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
           <label className="block">
-            <div className="mb-2 text-xs font-medium text-white/70">AÃ±o</div>
+            <div className="mb-2 text-xs font-medium text-white/70">Año</div>
             <select
               value={year}
               onChange={(e) => setYear(e.target.value)}
@@ -1276,15 +1631,16 @@ export function ReportesPage() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-xs font-medium text-white/70">Mes</div>
+            <div className="mb-2 text-xs font-medium text-white/70">Ficha</div>
             <select
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
+              value={selectedFicha}
+              onChange={(e) => setSelectedFicha(e.target.value)}
               className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
             >
-              {monthOptions().map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
+              <option value="ALL">Seleccionar ficha...</option>
+              {monitoreoFichas.map((f) => (
+                <option key={f.id} value={f.form_template_id ?? ""}>
+                  {f.titulo || f.codigo}
                 </option>
               ))}
             </select>
@@ -1313,7 +1669,7 @@ export function ReportesPage() {
               >
                 <option value="ALL">Todos</option>
                 <option value="admin">Administrador</option>
-                <option value="jefe_area">Jefe de Ã¡rea</option>
+                <option value="jefe_area">Jefe de área</option>
                 <option value="director">Director(a)</option>
                 <option value="responsable_cdd">Responsable CdD</option>
                 <option value="user">Usuario</option>
@@ -1645,7 +2001,7 @@ export function ReportesPage() {
       <ConfirmDialog
         open={confirmDeleteOpen}
         title="Eliminar registro"
-        description="Â¿Seguro que deseas eliminar este registro? Esta acciÃ³n no se puede deshacer."
+        description="¿Seguro que deseas eliminar este registro? Esta acción no se puede deshacer."
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="danger"
@@ -1689,6 +2045,7 @@ export function ReportesPage() {
     </div>
   );
 }
+
 
 
 

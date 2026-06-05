@@ -116,6 +116,40 @@ const DUP_RULE_LOCAL = "codigo_local";
 const DUP_RULE_MODULAR = "codigo_modular";
 const DUP_RULE_MARKER = "__restriccion_duplicado__";
 
+type SolicitudFilters = {
+  gestiones: string[];
+  modalidades: string[];
+  niveles: string[];
+};
+
+function normalizeFilterText(value: string | null | undefined) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim();
+}
+
+function sameCatalogFilter(catalogName: string | null | undefined, filterValue: string) {
+  const catalog = normalizeFilterText(catalogName);
+  const filter = normalizeFilterText(filterValue);
+  if (!catalog || !filter) return false;
+  if (catalog === filter || catalog.includes(filter) || filter.includes(catalog)) return true;
+  if (filter === "PRONOEI") {
+    return catalog.includes("PRONOEI") || catalog.includes("NO ESCOLARIZADO");
+  }
+  return false;
+}
+
+function normalizeInstitucionRow(row: any): InstitucionLite {
+  return {
+    ...row,
+    nivel: Array.isArray(row?.nivel) ? row.nivel[0] ?? null : row?.nivel ?? null,
+    distrito: Array.isArray(row?.distrito) ? row.distrito[0] ?? null : row?.distrito ?? null,
+  } as InstitucionLite;
+}
+
 const FIXED_HEADER_KEYS = [
   "institucion",
   "codigo_modular",
@@ -982,8 +1016,82 @@ export function FichaDinamicaPage() {
         .eq("solicitud_id", solicitudId)
         .limit(10000);
       if (!alive) return;
-      const list = (data ?? []).map((r: any) => r.institucion_educativa) as InstitucionLite[];
-      setIePool(list);
+      const focalizadas = (data ?? [])
+        .map((r: any) => r.institucion_educativa)
+        .filter(Boolean)
+        .map(normalizeInstitucionRow);
+      if (focalizadas.length > 0) {
+        setIePool(focalizadas);
+        setIeLoading(false);
+        return;
+      }
+
+      const { data: filtroRows } = await supabase
+        .from("monitoreo_solicitud_filtro")
+        .select("gestion, modalidad, tipo, nivel")
+        .eq("solicitud_id", solicitudId);
+      if (!alive) return;
+
+      const realFiltroRows = (filtroRows ?? []).filter((r: any) => r.tipo !== DUP_RULE_MARKER);
+      const filters: SolicitudFilters = {
+        gestiones: Array.from(new Set(realFiltroRows.map((r: any) => r.gestion).filter(Boolean))) as string[],
+        modalidades: Array.from(new Set(realFiltroRows.map((r: any) => r.modalidad).filter(Boolean))) as string[],
+        niveles: Array.from(new Set(realFiltroRows.map((r: any) => r.nivel).filter(Boolean))) as string[],
+      };
+
+      if (!filters.gestiones.length && !filters.modalidades.length && !filters.niveles.length) {
+        setIePool([]);
+        setIeLoading(false);
+        return;
+      }
+
+      const [{ data: modalidadCatalog }, { data: nivelCatalog }] = await Promise.all([
+        supabase.from("cat_modalidad").select("id, nombre"),
+        supabase.from("cat_nivel").select("id, nombre"),
+      ]);
+      if (!alive) return;
+
+      const modalidadIds = ((modalidadCatalog ?? []) as Array<{ id: string; nombre: string | null }>)
+        .filter((m) => filters.modalidades.some((f) => sameCatalogFilter(m.nombre, f)))
+        .map((m) => m.id);
+      const nivelIds = ((nivelCatalog ?? []) as Array<{ id: string; nombre: string | null }>)
+        .filter((n) => filters.niveles.some((f) => sameCatalogFilter(n.nombre, f)))
+        .map((n) => n.id);
+
+      let ieQuery = supabase
+        .from("institucion_educativa")
+        .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre), distrito:cat_distrito(nombre)")
+        .order("nombre", { ascending: true })
+        .limit(10000);
+
+      if (filters.modalidades.length) {
+        if (!modalidadIds.length) {
+          setIePool([]);
+          setIeLoading(false);
+          return;
+        }
+        ieQuery = ieQuery.in("modalidad_id", modalidadIds);
+      }
+      if (filters.niveles.length) {
+        if (!nivelIds.length) {
+          setIePool([]);
+          setIeLoading(false);
+          return;
+        }
+        ieQuery = ieQuery.in("nivel_id", nivelIds);
+      }
+      if (filters.gestiones.length) {
+        ieQuery = ieQuery.in("gestion", filters.gestiones);
+      }
+
+      const { data: filteredIe, error: filteredErr } = await ieQuery;
+      if (!alive) return;
+      if (filteredErr) {
+        setIePool([]);
+        setIeLoading(false);
+        return;
+      }
+      setIePool(((filteredIe ?? []) as any[]).map(normalizeInstitucionRow));
       setIeLoading(false);
     })();
     return () => {

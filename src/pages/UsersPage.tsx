@@ -148,6 +148,85 @@ function Button({
   return <button {...props} className={cls(base, styles, props.className)} />;
 }
 
+function IconButton({
+  variant = "ghost",
+  title,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "ghost" | "danger";
+  title: string;
+}) {
+  const styles =
+    variant === "danger"
+      ? "border-red-500/25 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+      : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white";
+  return (
+    <button
+      {...props}
+      type={props.type ?? "button"}
+      title={title}
+      aria-label={title}
+      className={cls(
+        "inline-flex h-8 w-8 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-50",
+        styles,
+        props.className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 20h4.5L19 9.5a2.1 2.1 0 0 0 0-3L17.5 5a2.1 2.1 0 0 0-3 0L4 15.5V20Z" />
+      <path d="m13.5 6 4.5 4.5" />
+    </svg>
+  );
+}
+
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="8" cy="12" r="3.25" />
+      <path d="M11.25 12H21m-4 0v3m-3-3v2" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7h16" />
+      <path d="M10 11v6m4-6v6" />
+      <path d="M6 7l1 13h10l1-13" />
+      <path d="M9 7V4h6v3" />
+    </svg>
+  );
+}
+
+function EyeIcon({ closed = false }: { closed?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      {closed ? (
+        <>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" />
+          <path d="M9.3 5.4A9.4 9.4 0 0 1 12 5c5 0 8.3 4.2 9.4 6a13.5 13.5 0 0 1-2.5 3.1" />
+          <path d="M6.1 6.9A13.7 13.7 0 0 0 2.6 11C3.7 12.8 7 17 12 17c1 0 2-.2 2.8-.5" />
+        </>
+      ) : (
+        <>
+          <path d="M2.6 12S6 5 12 5s9.4 7 9.4 7-3.4 7-9.4 7-9.4-7-9.4-7Z" />
+          <circle cx="12" cy="12" r="2.6" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export function UsersPage() {
   const { profile } = useAuth();
   const role = profile?.role;
@@ -203,6 +282,7 @@ export function UsersPage() {
   const [openReset, setOpenReset] = useState(false);
   const [resetUser, setResetUser] = useState<ProfileRow | null>(null);
   const [resetPass, setResetPass] = useState("");
+  const [showResetPass, setShowResetPass] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
 
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
@@ -317,13 +397,14 @@ export function UsersPage() {
   const openResetModal = (u: ProfileRow) => {
     setResetUser(u);
     setResetPass("");
+    setShowResetPass(false);
     setOpenReset(true);
   };
 
   const submitCreate = async () => {
     if (!canManageUsers) return;
     if (!createForm.password || createForm.password.trim().length < 8) {
-      setToast({ type: "err", msg: "La contraseÃ±a debe tener mÃ­nimo 8 caracteres." });
+      setToast({ type: "err", msg: "La contraseña debe tener mínimo 8 caracteres." });
       return;
     }
     if (
@@ -359,7 +440,7 @@ export function UsersPage() {
 
       const res = await adminCreateUser(payload);
       if (res.ok) {
-        setToast({ type: "ok", msg: "Usuario creado correctamente âœ…" });
+        setToast({ type: "ok", msg: "Usuario creado correctamente." });
       } else {
         setToast({
           type: "err",
@@ -404,7 +485,7 @@ export function UsersPage() {
         rol: editUser.rol,
       });
 
-      setToast({ type: "ok", msg: "Usuario actualizado âœ…" });
+      setToast({ type: "ok", msg: "Usuario actualizado." });
       if (res.warning) {
         setToast({ type: "err", msg: `${res.warning}: ${res.details ?? ""}` });
       }
@@ -425,10 +506,11 @@ export function UsersPage() {
     setResetBusy(true);
     try {
       await adminResetPassword(resetUser.id, resetPass.trim());
-      setToast({ type: "ok", msg: "ContraseÃ±a reseteada âœ…" });
+      setToast({ type: "ok", msg: "Contraseña reseteada." });
       setOpenReset(false);
       setResetUser(null);
       setResetPass("");
+      setShowResetPass(false);
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message || "No se pudo resetear" });
     } finally {
@@ -443,7 +525,7 @@ export function UsersPage() {
     setDeleteBusyId(u.id);
     try {
       await adminUsersDelete(u.id);
-      setToast({ type: "ok", msg: "Usuario eliminado âœ…" });
+      setToast({ type: "ok", msg: "Usuario eliminado." });
       setPage(1);
       void load();
     } catch (e: any) {
@@ -479,7 +561,7 @@ export function UsersPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
             <p className="mt-1 text-sm text-white/60">
               {canManageUsers
-                ? "Administra cuentas, roles y contraseÃ±as."
+                ? "Administra cuentas, roles y contraseñas."
                 : "Consulta usuarios registrados."}
             </p>
           </div>
@@ -522,7 +604,7 @@ export function UsersPage() {
                 <Select value={rol} onChange={(e) => setRol(e.target.value as any)}>
                   <option value="">Todos</option>
                   <option value="admin">Admin</option>
-                  <option value="jefe_area">Jefe de Ã¡rea</option>
+                  <option value="jefe_area">Jefe de área</option>
                   <option value="director">Director(a)</option>
                   <option value="responsable_cdd">Responsable CdD</option>
                   <option value="user">User</option>
@@ -531,7 +613,7 @@ export function UsersPage() {
             </div>
 
             <div className="md:col-span-3">
-              <Field label="Ãrea">
+              <Field label="Área">
                 <Input
                   value={areaInput}
                   onChange={(e) => setAreaInput(e.target.value)}
@@ -621,38 +703,30 @@ export function UsersPage() {
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
                   <div>Documento: {maskDoc(u.tipo_documento, u.numero_documento)}</div>
-                  <div>Ãrea: {u.area || "-"}</div>
+                  <div>Área: {u.area || "-"}</div>
                   <div>UGEL: {u.ugel || "-"}</div>
                   <div>REI: {u.rei || "SIN REI"}</div>
                 </div>
 
                 {canManageUsers ? (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      variant="ghost"
-                      className="px-3 py-2 text-xs"
-                      onClick={() => openEditModal(u)}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="px-3 py-2 text-xs"
-                      onClick={() => openResetModal(u)}
-                    >
-                      Reset pass
-                    </Button>
-                    <Button
+                    <IconButton title="Editar usuario" onClick={() => openEditModal(u)}>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton title="Resetear contraseña" onClick={() => openResetModal(u)}>
+                      <KeyIcon />
+                    </IconButton>
+                    <IconButton
                       variant="danger"
-                      className="px-3 py-2 text-xs"
+                      title={deleteBusyId === u.id ? "Eliminando..." : "Eliminar usuario"}
                       disabled={deleteBusyId === u.id}
                       onClick={() => {
                         setConfirmDeleteUser(u);
                         setConfirmDeleteOpen(true);
                       }}
                     >
-                      {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
-                    </Button>
+                      <TrashIcon />
+                    </IconButton>
                   </div>
                 ) : (
                   <div className="mt-3 text-xs text-white/50">Solo lectura</div>
@@ -664,7 +738,7 @@ export function UsersPage() {
 
         <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 md:hidden">
           <div>
-            Mostrando {items.length} de {total} Â· PÃ¡gina {page}/{totalPages}
+            Mostrando {items.length} de {total} · Página {page}/{totalPages}
           </div>
           <div className="flex gap-2">
             <Button
@@ -673,7 +747,7 @@ export function UsersPage() {
               disabled={page <= 1 || loading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              â† Anterior
+              Anterior
             </Button>
             <Button
               variant="ghost"
@@ -681,7 +755,7 @@ export function UsersPage() {
               disabled={page >= totalPages || loading}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              Siguiente â†’
+              Siguiente
             </Button>
           </div>
         </div>
@@ -694,7 +768,7 @@ export function UsersPage() {
             </div>
 
             <div className="flex items-center gap-2 text-xs text-white/60">
-              <span>PÃ¡gina</span>
+              <span>Página</span>
               <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-white">
                 {page}/{totalPages}
               </span>
@@ -708,7 +782,7 @@ export function UsersPage() {
                   <th className="px-4 py-3">Usuario</th>
                   <th className="px-4 py-3">Documento</th>
                   <th className="px-4 py-3">Rol</th>
-                  <th className="px-4 py-3">Ãrea</th>
+                  <th className="px-4 py-3">Área</th>
                   <th className="px-4 py-3">UGEL</th>
                   <th className="px-4 py-3">REI</th>
                   {canManageUsers && <th className="px-4 py-3 text-right">Acciones</th>}
@@ -754,22 +828,23 @@ export function UsersPage() {
                       {canManageUsers && (
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" onClick={() => openEditModal(u)}>
-                              Editar
-                            </Button>
-                            <Button variant="ghost" onClick={() => openResetModal(u)}>
-                              Reset pass
-                            </Button>
-                            <Button
+                            <IconButton title="Editar usuario" onClick={() => openEditModal(u)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton title="Resetear contraseña" onClick={() => openResetModal(u)}>
+                              <KeyIcon />
+                            </IconButton>
+                            <IconButton
                               variant="danger"
+                              title={deleteBusyId === u.id ? "Eliminando..." : "Eliminar usuario"}
                               disabled={deleteBusyId === u.id}
                               onClick={() => {
                                 setConfirmDeleteUser(u);
                                 setConfirmDeleteOpen(true);
                               }}
                             >
-                              {deleteBusyId === u.id ? "Eliminando..." : "Eliminar"}
-                            </Button>
+                              <TrashIcon />
+                            </IconButton>
                           </div>
                         </td>
                       )}
@@ -780,7 +855,7 @@ export function UsersPage() {
             </table>
           </div>
 
-          {/* PaginaciÃ³n */}
+          {/* Paginación */}
           <div className="flex flex-col gap-2 border-t border-white/10 px-4 py-3 md:flex-row md:items-center md:justify-between">
             <div className="text-xs text-white/50">
               Mostrando {items.length} de {total}
@@ -791,14 +866,14 @@ export function UsersPage() {
                 disabled={page <= 1 || loading}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                â† Anterior
+                Anterior
               </Button>
               <Button
                 variant="ghost"
                 disabled={page >= totalPages || loading}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
-                Siguiente â†’
+                Siguiente
               </Button>
             </div>
           </div>
@@ -827,7 +902,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-3">
-            <Field label="NÂ° documento">
+            <Field label="N° documento">
               <Input
                 value={createForm.numero_documento}
                 onChange={(e) => setCreateForm((s) => ({ ...s, numero_documento: e.target.value }))}
@@ -859,7 +934,7 @@ export function UsersPage() {
                       setCreateForm((s) => ({ ...s, can_create_monitoreo: e.target.checked }))
                     }
                   />
-                  Habilitar creaciÃ³n de monitoreos
+                  Habilitar creación de monitoreos
                 </label>
               </Field>
             </div>
@@ -926,7 +1001,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-3">
-            <Field label="TelÃ©fono">
+            <Field label="Teléfono">
               <Input
                 value={createForm.telefono ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, telefono: e.target.value }))}
@@ -954,7 +1029,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-4">
-            <Field label="Ãrea">
+            <Field label="Área">
               <Input
                 value={createForm.area ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, area: e.target.value }))}
@@ -962,7 +1037,7 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-4">
-            <Field label="ComisiÃ³n">
+            <Field label="Comisión">
               <Input
                 value={createForm.comision ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, comision: e.target.value }))}
@@ -971,7 +1046,7 @@ export function UsersPage() {
           </div>
 
           <div className="md:col-span-6">
-            <Field label="ContraseÃ±a inicial (mÃ­n 8)">
+            <Field label="Contraseña inicial (mín. 8)">
               <Input
                 type="password"
                 value={createForm.password}
@@ -1030,7 +1105,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-3">
-              <Field label="NÂ° documento">
+              <Field label="N° documento">
                 <Input
                   value={editUser.numero_documento}
                   onChange={(e) =>
@@ -1068,7 +1143,7 @@ export function UsersPage() {
                         )
                       }
                     />
-                    Habilitar creaciÃ³n de monitoreos
+                    Habilitar creación de monitoreos
                   </label>
                 </Field>
               </div>
@@ -1142,7 +1217,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-3">
-              <Field label="TelÃ©fono">
+              <Field label="Teléfono">
                 <Input
                   value={editUser.telefono ?? ""}
                   onChange={(e) =>
@@ -1174,7 +1249,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-4">
-              <Field label="Ãrea">
+              <Field label="Área">
                 <Input
                   value={editUser.area ?? ""}
                   onChange={(e) =>
@@ -1184,7 +1259,7 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-4">
-              <Field label="ComisiÃ³n">
+              <Field label="Comisión">
                 <Input
                   value={editUser.comision ?? ""}
                   onChange={(e) =>
@@ -1211,7 +1286,7 @@ export function UsersPage() {
       {canManageUsers && (
         <Modal
           open={openReset}
-          title="Resetear contraseÃ±a"
+          title="Resetear contraseña"
           onClose={() => !resetBusy && setOpenReset(false)}
         >
           {!resetUser ? (
@@ -1223,13 +1298,25 @@ export function UsersPage() {
               <div className="text-xs text-white/60">{resetUser.correo}</div>
             </div>
 
-            <Field label="Nueva contraseÃ±a (mÃ­n 8)">
-              <Input
-                type="password"
-                value={resetPass}
-                onChange={(e) => setResetPass(e.target.value)}
-                placeholder="NuevaClave123!"
-              />
+            <Field label="Nueva contraseña (mín. 8)">
+              <div className="relative">
+                <Input
+                  type={showResetPass ? "text" : "password"}
+                  value={resetPass}
+                  onChange={(e) => setResetPass(e.target.value)}
+                  placeholder="NuevaClave123!"
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  title={showResetPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={showResetPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  onClick={() => setShowResetPass((s) => !s)}
+                  className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white"
+                >
+                  <EyeIcon closed={showResetPass} />
+                </button>
+              </div>
             </Field>
 
             <div className="flex justify-end gap-2">
@@ -1253,8 +1340,8 @@ export function UsersPage() {
         title="Eliminar usuario"
         description={
           confirmDeleteUser
-            ? `Se eliminarÃ¡ a ${formatName(confirmDeleteUser)} (${confirmDeleteUser.correo}).`
-            : "Se eliminarÃ¡ el usuario seleccionado."
+            ? `Se eliminará a ${formatName(confirmDeleteUser)} (${confirmDeleteUser.correo}).`
+            : "Se eliminará el usuario seleccionado."
         }
         confirmText="Eliminar"
         cancelText="Cancelar"
@@ -1266,5 +1353,6 @@ export function UsersPage() {
     </div>
   );
 }
+
 
 
