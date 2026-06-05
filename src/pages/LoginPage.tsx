@@ -12,6 +12,26 @@ const docToEmail = (tipoDoc: string, numeroDoc: string) => {
   return `${t}-${n}@ugel06.gob.pe`.toLowerCase();
 };
 
+function EyeIcon({ closed = false }: { closed?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      {closed ? (
+        <>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" />
+          <path d="M9.3 5.4A9.4 9.4 0 0 1 12 5c5 0 8.3 4.2 9.4 6a13.5 13.5 0 0 1-2.5 3.1" />
+          <path d="M6.1 6.9A13.7 13.7 0 0 0 2.6 11C3.7 12.8 7 17 12 17c1 0 2-.2 2.8-.5" />
+        </>
+      ) : (
+        <>
+          <path d="M2.6 12S6 5 12 5s9.4 7 9.4 7-3.4 7-9.4 7-9.4-7-9.4-7Z" />
+          <circle cx="12" cy="12" r="2.6" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
 
@@ -41,7 +61,7 @@ export function LoginPage() {
       }
       if (!password) throw new Error("Ingresa tu contraseña");
 
-      // ✅ solo limpia legado, NO borra la sesión real
+      // Solo limpia legado, no borra la sesión real.
       clearLegacyAuthStorage();
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -177,9 +197,11 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPass((s) => !s)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-3 py-1 text-xs text-white/70 hover:bg-white/5"
+                  title={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-white/65 transition hover:bg-white/10 hover:text-white"
                 >
-                  {showPass ? "Ocultar" : "Ver"}
+                  <EyeIcon closed={showPass} />
                 </button>
               </div>
             </label>
@@ -200,8 +222,13 @@ export function LoginPage() {
             </button>
           </div>
         </div>
-        <div className="mt-4 text-center text-[11px] text-white/50">
-          v1.0 Propietario UGEL 06®
+        <div className="mt-5 space-y-2 text-center text-[11px] leading-relaxed text-white/45">
+          <div>
+            <div className="font-medium text-white/55">Creadores:</div>
+            <div>Ing. Alex Alberto Quispe Pillaca</div>
+            <div>Ing. Diego Axel Arce Muñoz</div>
+          </div>
+          <div className="text-white/35">v1.0 Propietario UGEL 06®</div>
         </div>
       </div>
     </div>
