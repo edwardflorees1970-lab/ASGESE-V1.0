@@ -8,15 +8,25 @@ import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
+import {
+  exportAnalyticsCsv,
+  exportAnalyticsExcel,
+  type AnalyticsColumn,
+  type AnalyticsRow,
+} from "../lib/analyticsExport";
 
 type RunRow = {
   id: string;
   status: string;
   created_by: string;
   created_at: string;
+  updated_at?: string | null;
+  is_test?: boolean | null;
   template_id?: string;
   institucion_educativa: string | null;
   docente: string | null;
+  header_json?: Record<string, any> | null;
+  footer_json?: Record<string, any> | null;
 };
 
 type ProfileRow = {
@@ -199,6 +209,16 @@ function IconClose() {
   );
 }
 
+function IconDownload() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 20h14" />
+    </svg>
+  );
+}
+
 function IconFinalize() {
   return (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
@@ -206,6 +226,40 @@ function IconFinalize() {
       <path d="M7 10.2L9.2 12.4L13.2 8.4" />
     </svg>
   );
+}
+
+function parseDateValue(value: unknown) {
+  if (!value) return null;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseDateOnlyValue(value: unknown) {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return parseDateValue(value);
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day), 12);
+}
+
+function jsonText(value: unknown) {
+  if (value == null) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function answerPrimary(value: any) {
+  if (!value || typeof value !== "object") return "";
+  if (value.option != null && value.option !== "") return String(value.option);
+  if (Array.isArray(value.options) && value.options.length) return value.options.join(" | ");
+  if (value.yn != null && value.yn !== "") return String(value.yn);
+  if (value.text != null && value.text !== "") return String(value.text);
+  if (value.number != null && value.number !== "") return String(value.number);
+  if (value.fileName != null && value.fileName !== "") return String(value.fileName);
+  return "";
 }
 
 function IconDraft() {
@@ -281,18 +335,6 @@ function toDataUrl(img: HTMLImageElement): string {
   return canvas.toDataURL("image/png");
 }
 
-function downloadCsv(filename: string, rows: string[][]) {
-  const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-}
-
 function RunSummary({
   monitoreado,
   institucion,
@@ -336,6 +378,9 @@ export function ReportesPage() {
   const [monitoreoFichas, setMonitoreoFichas] = useState<FichaRow[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -475,7 +520,7 @@ export function ReportesPage() {
 
         let formQuery = supabase
           .from("form_run")
-          .select("id, status, created_by, created_at, template_id, header_json, footer_json")
+          .select("id, status, created_by, created_at, updated_at, is_test, template_id, header_json, footer_json")
           .gte("created_at", start.toISOString())
           .lt("created_at", end.toISOString())
           .order("created_at", { ascending: false })
@@ -524,9 +569,13 @@ export function ReportesPage() {
           status: r.status,
           created_by: r.created_by,
           created_at: r.created_at,
+          updated_at: r.updated_at,
+          is_test: r.is_test,
           template_id: r.template_id,
           institucion_educativa: r.header_json?.institucion ?? null,
           docente: r.header_json?.monitoreado ?? null,
+          header_json: r.header_json ?? {},
+          footer_json: r.footer_json ?? {},
         }));
 
         const runRows = [...dynRuns].sort((a, b) =>
@@ -1183,40 +1232,264 @@ export function ReportesPage() {
     setPreviewPdfTitle(built.tpl.titulo || built.tpl.codigo || "Vista previa");
   };
 
-  const exportExcel = () => {
-    const rows: string[][] = [
-      [
-        "Monitoreo",
-        "Ficha",
-        "Fecha",
-        "Estado",
-        "Creador",
-        "Rol creador",
-        "Monitoreado",
-        "Institucion",
-      ],
-    ];
+  const fetchExportRows = async (
+    table: string,
+    select: string,
+    inColumn: string,
+    values: string[]
+  ) => {
+    const result: any[] = [];
+    const chunkSize = 100;
+    const pageSize = 1000;
+    for (let chunkStart = 0; chunkStart < values.length; chunkStart += chunkSize) {
+      const chunk = values.slice(chunkStart, chunkStart + chunkSize);
+      for (let pageStart = 0; ; pageStart += pageSize) {
+        const { data, error } = await (supabase
+          .from(table)
+          .select(select)
+          .in(inColumn, chunk)
+          .range(pageStart, pageStart + pageSize - 1) as any);
+        if (error) throw new Error(error.message);
+        const page = data ?? [];
+        result.push(...page);
+        if (page.length < pageSize) break;
+      }
+    }
+    return result;
+  };
 
-    visibleRuns.forEach((r) => {
-      const dynFicha = r.template_id ? fichasByTemplate[r.template_id] : null;
-      const mon = dynFicha ? monById[dynFicha.monitoreo_id] : null;
-      const fichaCodigo = r.template_id ? templates[r.template_id]?.codigo || "" : "";
-      const creator = profiles[r.created_by];
-      const creatorName = getCreatorName(creator);
-      rows.push([
-        mon?.nombre || "",
-        fichaCodigo,
-        fmtDateShort(r.created_at),
-        statusLabel(r.status),
-        creatorName,
-        roleLabel(creator?.role),
-        r.docente || "",
-        r.institucion_educativa || "",
-      ]);
+  const buildAnalyticsExport = async () => {
+    const runIds = visibleRuns.map((run) => run.id);
+    const templateIds = Array.from(
+      new Set(visibleRuns.map((run) => run.template_id).filter(Boolean) as string[])
+    );
+    if (!runIds.length) return { columns: [] as AnalyticsColumn[], rows: [] as AnalyticsRow[] };
+
+    setExportProgress(15);
+    const [answers, questions, sections] = await Promise.all([
+      fetchExportRows(
+        "form_answer",
+        "id, run_id, question_id, value_json, created_at, updated_at",
+        "run_id",
+        runIds
+      ),
+      templateIds.length
+        ? fetchExportRows(
+            "form_question",
+            "id, template_id, section_id, tipo, texto, orden, orden_in_section, required, config_json",
+            "template_id",
+            templateIds
+          )
+        : Promise.resolve([]),
+      templateIds.length
+        ? fetchExportRows(
+            "form_section",
+            "id, template_id, titulo, orden",
+            "template_id",
+            templateIds
+          )
+        : Promise.resolve([]),
+    ]);
+
+    setExportProgress(55);
+    const questionsById = new Map(questions.map((question: any) => [question.id, question]));
+    const sectionsById = new Map(sections.map((section: any) => [section.id, section]));
+    const answersByRun = new Map<string, any[]>();
+    answers.forEach((answer: any) => {
+      const current = answersByRun.get(answer.run_id) ?? [];
+      current.push(answer);
+      answersByRun.set(answer.run_id, current);
     });
 
-    const stamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(`reporte_monitoreo_${stamp}.csv`, rows);
+    const columns: AnalyticsColumn[] = [
+      { key: "run_id", header: "run_id", width: 38 },
+      { key: "answer_id", header: "answer_id", width: 38 },
+      { key: "monitoreo_id", header: "monitoreo_id", width: 38 },
+      { key: "monitoreo_codigo", header: "monitoreo_codigo" },
+      { key: "monitoreo_nombre", header: "monitoreo_nombre", width: 34 },
+      { key: "monitoreo_anio", header: "monitoreo_anio", kind: "number" },
+      { key: "ficha_id", header: "ficha_id", width: 38 },
+      { key: "ficha_codigo", header: "ficha_codigo" },
+      { key: "ficha_titulo", header: "ficha_titulo", width: 38 },
+      { key: "template_id", header: "template_id", width: 38 },
+      { key: "template_codigo", header: "template_codigo" },
+      { key: "template_titulo", header: "template_titulo", width: 38 },
+      { key: "run_status", header: "run_status" },
+      { key: "is_test", header: "is_test", kind: "number" },
+      { key: "run_created_at", header: "run_created_at", kind: "datetime", width: 21 },
+      { key: "run_updated_at", header: "run_updated_at", kind: "datetime", width: 21 },
+      { key: "creator_id", header: "creator_id", width: 38 },
+      { key: "creator_name", header: "creator_name", width: 28 },
+      { key: "creator_role", header: "creator_role" },
+      { key: "creator_email", header: "creator_email", width: 28 },
+      { key: "institucion_educativa", header: "institucion_educativa", width: 34 },
+      { key: "codigo_modular", header: "codigo_modular" },
+      { key: "codigo_local", header: "codigo_local" },
+      { key: "distrito", header: "distrito" },
+      { key: "rei", header: "rei" },
+      { key: "monitor", header: "monitor", width: 28 },
+      { key: "monitor_doc_tipo", header: "monitor_doc_tipo" },
+      { key: "monitor_numero_doc", header: "monitor_numero_doc" },
+      { key: "monitoreado", header: "monitoreado", width: 28 },
+      { key: "monitoreado_doc_tipo", header: "monitoreado_doc_tipo" },
+      { key: "monitoreado_numero_doc", header: "monitoreado_numero_doc" },
+      { key: "monitoreado_cargo", header: "monitoreado_cargo" },
+      { key: "monitoreado_telefono", header: "monitoreado_telefono" },
+      { key: "monitoreado_correo", header: "monitoreado_correo", width: 28 },
+      { key: "condicion", header: "condicion" },
+      { key: "area", header: "area" },
+      { key: "numero_visitas", header: "numero_visitas" },
+      { key: "fecha_aplicacion", header: "fecha_aplicacion", kind: "date" },
+      { key: "hora_inicio", header: "hora_inicio" },
+      { key: "hora_fin", header: "hora_fin" },
+      { key: "section_id", header: "section_id", width: 38 },
+      { key: "seccion_orden", header: "seccion_orden", kind: "number" },
+      { key: "seccion_titulo", header: "seccion_titulo", width: 32 },
+      { key: "question_id", header: "question_id", width: 38 },
+      { key: "orden_item", header: "orden_item", kind: "number" },
+      { key: "orden_in_section", header: "orden_in_section", kind: "number" },
+      { key: "pregunta_tipo", header: "pregunta_tipo" },
+      { key: "pregunta", header: "pregunta", width: 45 },
+      { key: "required", header: "required", kind: "boolean" },
+      { key: "respuesta_principal", header: "respuesta_principal", width: 26 },
+      { key: "respuesta_si_no", header: "respuesta_si_no" },
+      { key: "respuesta_nivel", header: "respuesta_nivel" },
+      { key: "respuesta_numero", header: "respuesta_numero", kind: "number" },
+      { key: "respuesta_texto", header: "respuesta_texto", width: 36 },
+      { key: "respuesta_opcion", header: "respuesta_opcion", width: 26 },
+      { key: "respuesta_opciones", header: "respuesta_opciones", width: 34 },
+      { key: "observacion", header: "observacion", width: 40 },
+      { key: "archivo_nombre", header: "archivo_nombre" },
+      { key: "answer_created_at", header: "answer_created_at", kind: "datetime", width: 21 },
+      { key: "answer_updated_at", header: "answer_updated_at", kind: "datetime", width: 21 },
+      { key: "header_json", header: "header_json", width: 45 },
+      { key: "footer_json", header: "footer_json", width: 45 },
+      { key: "question_config_json", header: "question_config_json", width: 45 },
+      { key: "value_json", header: "value_json", width: 45 },
+    ];
+
+    const rows: AnalyticsRow[] = [];
+    visibleRuns.forEach((run) => {
+      const ficha = run.template_id ? fichasByTemplate[run.template_id] : null;
+      const mon = ficha ? monById[ficha.monitoreo_id] : null;
+      const template = run.template_id ? templates[run.template_id] : null;
+      const creator = profiles[run.created_by];
+      const header = run.header_json ?? {};
+      const runAnswers = answersByRun.get(run.id) ?? [null];
+
+      runAnswers.forEach((answer: any) => {
+        const question = answer ? questionsById.get(answer.question_id) : null;
+        const section = question?.section_id ? sectionsById.get(question.section_id) : null;
+        const value = answer?.value_json ?? {};
+        const numericAnswer =
+          value?.number === "" || value?.number == null || Number.isNaN(Number(value.number))
+            ? null
+            : Number(value.number);
+
+        rows.push({
+          run_id: run.id,
+          answer_id: answer?.id ?? null,
+          monitoreo_id: mon?.id ?? ficha?.monitoreo_id ?? null,
+          monitoreo_codigo: mon?.codigo ?? selectedMonitoreo,
+          monitoreo_nombre: mon?.nombre ?? selectedMonitoreoRow?.nombre ?? "",
+          monitoreo_anio: mon?.anio ?? Number(year),
+          ficha_id: ficha?.id ?? null,
+          ficha_codigo: ficha?.codigo ?? "",
+          ficha_titulo: template?.titulo ?? ficha?.titulo ?? "",
+          template_id: run.template_id ?? null,
+          template_codigo: template?.codigo ?? "",
+          template_titulo: template?.titulo ?? "",
+          run_status: run.status,
+          is_test: run.is_test ? 1 : 0,
+          run_created_at: parseDateValue(run.created_at),
+          run_updated_at: parseDateValue(run.updated_at),
+          creator_id: run.created_by,
+          creator_name: getCreatorName(creator),
+          creator_role: roleLabel(creator?.role),
+          creator_email: creator?.correo ?? creator?.email ?? "",
+          institucion_educativa:
+            header.institucion ?? header.institucion_educativa ?? header.ie ?? run.institucion_educativa ?? "",
+          codigo_modular: header.codigo_modular ?? header.cod_modular ?? "",
+          codigo_local: header.codigo_local ?? header.cod_local ?? "",
+          distrito: header.distrito ?? header.lugar ?? header.lugar_ie ?? "",
+          rei: header.rei ?? "",
+          monitor: header.monitor ?? header.monitor_nombre ?? header.director_monitor ?? "",
+          monitor_doc_tipo: header.monitor_doc_tipo ?? "",
+          monitor_numero_doc: header.monitor_numero_doc ?? "",
+          monitoreado:
+            header.monitoreado ?? header.docente ?? header.docente_nombre ?? run.docente ?? "",
+          monitoreado_doc_tipo: header.monitoreado_doc_tipo ?? "",
+          monitoreado_numero_doc: header.monitoreado_numero_doc ?? "",
+          monitoreado_cargo: header.monitoreado_cargo ?? "",
+          monitoreado_telefono: header.monitoreado_telefono ?? "",
+          monitoreado_correo: header.monitoreado_correo ?? "",
+          condicion: header.condicion ?? header.condicion_docente ?? "",
+          area: header.area ?? header.area_monitoreo ?? "",
+          numero_visitas: header.numero_visitas ?? "",
+          fecha_aplicacion: parseDateOnlyValue(header.fecha_aplicacion),
+          hora_inicio: header.hora_inicio ?? "",
+          hora_fin: header.hora_fin ?? "",
+          section_id: section?.id ?? question?.section_id ?? null,
+          seccion_orden: section?.orden ?? null,
+          seccion_titulo: section?.titulo ?? "",
+          question_id: question?.id ?? answer?.question_id ?? null,
+          orden_item: question?.orden ?? null,
+          orden_in_section: question?.orden_in_section ?? null,
+          pregunta_tipo: question?.tipo ?? "",
+          pregunta: question?.texto ?? "",
+          required: question?.required ?? false,
+          respuesta_principal: answerPrimary(value),
+          respuesta_si_no: value?.yn ?? "",
+          respuesta_nivel: value?.nivel ?? "",
+          respuesta_numero: numericAnswer,
+          respuesta_texto: value?.text ?? "",
+          respuesta_opcion: value?.option ?? "",
+          respuesta_opciones: Array.isArray(value?.options) ? value.options.join(" | ") : "",
+          observacion: value?.obs ?? "",
+          archivo_nombre: value?.fileName ?? "",
+          answer_created_at: parseDateValue(answer?.created_at),
+          answer_updated_at: parseDateValue(answer?.updated_at),
+          header_json: jsonText(run.header_json),
+          footer_json: jsonText(run.footer_json),
+          question_config_json: jsonText(question?.config_json),
+          value_json: jsonText(value),
+        });
+      });
+    });
+
+    setExportProgress(80);
+    return { columns, rows };
+  };
+
+  const exportReport = async (format: "csv" | "xlsx") => {
+    if (exporting || !visibleRuns.length) return;
+    setExportMenuOpen(false);
+    setExporting(format);
+    setExportProgress(5);
+    try {
+      const { columns, rows } = await buildAnalyticsExport();
+      const stamp = new Date().toISOString().slice(0, 10);
+      const monCode = selectedMonitoreo || "monitoreo";
+      const baseName = `reporte_analitico_${monCode}_${stamp}`;
+      setExportProgress(90);
+      if (format === "csv") {
+        exportAnalyticsCsv(`${baseName}.csv`, columns, rows);
+      } else {
+        await exportAnalyticsExcel(`${baseName}.xlsx`, "Respuestas", columns, rows);
+      }
+      setExportProgress(100);
+      setToast({
+        type: "ok",
+        msg: `${rows.length} fila(s) exportadas correctamente en ${format.toUpperCase()}.`,
+      });
+    } catch (e: any) {
+      setToast({ type: "err", msg: e?.message || "No se pudo generar el archivo." });
+    } finally {
+      window.setTimeout(() => {
+        setExporting(null);
+        setExportProgress(0);
+      }, 400);
+    }
   };
 
   const handleEdit = (run: RunRow) => {
@@ -1308,22 +1581,64 @@ export function ReportesPage() {
               : "Tus registros con filtros por fecha y monitoreo."}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="relative flex gap-2">
           <button
             type="button"
-            onClick={exportExcel}
-            disabled={loading || visibleRuns.length === 0}
+            onClick={() => setExportMenuOpen((open) => !open)}
+            disabled={loading || exporting !== null || visibleRuns.length === 0}
             className={cls(
-              "rounded-xl border px-4 py-2 text-sm",
-              loading || visibleRuns.length === 0
+              "inline-flex min-w-44 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm transition",
+              loading || exporting !== null || visibleRuns.length === 0
                 ? "border-white/10 text-white/30"
                 : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
             )}
           >
-            Exportar Excel (CSV)
+            <IconDownload />
+            {exporting ? "Generando archivo..." : "Exportar datos"}
           </button>
+          {exportMenuOpen && !exporting && (
+            <div className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#122031] p-1.5 shadow-2xl">
+              <button
+                type="button"
+                onClick={() => void exportReport("csv")}
+                className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-white/10"
+              >
+                <span className="mt-0.5 text-emerald-300"><IconDownload /></span>
+                <span>
+                  <span className="block text-sm font-medium text-white">Exportar CSV</span>
+                  <span className="block text-xs text-white/50">UTF-8 con BOM para Excel y BI</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportReport("xlsx")}
+                className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-white/10"
+              >
+                <span className="mt-0.5 text-sky-300"><IconReport /></span>
+                <span>
+                  <span className="block text-sm font-medium text-white">Exportar Excel (.xlsx)</span>
+                  <span className="block text-xs text-white/50">Tipos, filtros y encabezado congelado</span>
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {exporting && (
+        <div className="mt-3 rounded-xl border border-sky-400/20 bg-sky-400/5 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 text-xs text-sky-100">
+            <span>Generando archivo analítico...</span>
+            <span>{exportProgress}%</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-sky-400 transition-[width] duration-300"
+              style={{ width: `${exportProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {!selectedMonitoreo && (
         <div className="mt-5">
