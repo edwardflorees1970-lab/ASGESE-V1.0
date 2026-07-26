@@ -255,7 +255,7 @@ export function IndicadoresCdDPage() {
           if (!alive) return;
           setMonitoreos([]);
           setRecords([]);
-          setToast({ type: "info", msg: "No se encontraron preguntas estandar de meta y avance CdD." });
+          setToast({ type: "info", msg: "No se encontraron preguntas estándar de meta y avance CdD." });
           return;
         }
 
@@ -564,7 +564,7 @@ export function IndicadoresCdDPage() {
       <section className="rounded-[28px] border border-slate-800 bg-[#0e0e0e] p-5 md:p-7 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">Compromiso de Desempeno</div>
+            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">Compromiso de Desempeño</div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <h1 className="font-headline text-3xl font-extrabold tracking-tight text-slate-100">Indicadores CdD</h1>
               <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">
