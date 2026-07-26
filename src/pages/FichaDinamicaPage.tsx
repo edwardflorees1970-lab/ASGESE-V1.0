@@ -541,7 +541,15 @@ export function FichaDinamicaPage() {
   const applyLocalDraft = (snapshot: LocalDraftSnapshot) => {
     setRunId(snapshot.runId ?? null);
     setRunStatus(snapshot.runStatus ?? null);
-    setHeader((s) => ({ ...s, ...(snapshot.header ?? {}) }));
+    setHeader((s) => {
+      const next = { ...s, ...(snapshot.header ?? {}) };
+      return {
+        ...next,
+        hora_inicio: cleanStoredTime(next.hora_inicio || ""),
+        hora_fin: cleanStoredTime(next.hora_fin || ""),
+        custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
+      };
+    });
     setFooter((s) => ({ ...s, ...(snapshot.footer ?? {}) }));
     setAnswers(snapshot.answers ?? {});
   };
@@ -1517,7 +1525,7 @@ export function FichaDinamicaPage() {
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm text-white/60">Ficha din?mica</div>
+            <div className="text-sm text-white/60">Ficha dinámica</div>
             <div className="mt-1 text-2xl font-semibold">{template.titulo}</div>
             {template.subtitulo ? (
               <div className="text-sm text-white/70">{template.subtitulo}</div>

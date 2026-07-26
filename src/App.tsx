@@ -51,11 +51,31 @@ function HomeEntry() {
   return <HomePage />;
 }
 
+function LoginRoute() {
+  const { loading, user } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white grid place-items-center">
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/70">
+          Verificando sesión...
+        </div>
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/app" replace />;
+  }
+
+  return <LoginPage />;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<LoginRoute />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/app" element={<AppShell />}>
