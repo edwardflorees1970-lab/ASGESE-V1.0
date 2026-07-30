@@ -355,8 +355,7 @@ export function UsersPage() {
       if (requestId !== requestIdRef.current) return;
       setToast({ type: "err", msg: e?.message || "No se pudo cargar usuarios" });
     } finally {
-      if (requestId !== requestIdRef.current) return;
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   };
 

@@ -21,6 +21,16 @@ type CreateBody = {
   password: string;
 };
 
+type AppRole = NonNullable<CreateBody["rol"]>;
+
+const APP_ROLES = new Set<AppRole>([
+  "admin",
+  "user",
+  "jefe_area",
+  "director",
+  "responsable_cdd",
+]);
+
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const RATE_LIMIT_SCOPE = "admin-create-user";
 const RATE_LIMIT_MAX = readPositiveIntEnv("RATE_LIMIT_ADMIN_CREATE_USER_MAX", 15);
@@ -124,10 +134,12 @@ serve(async (req) => {
 
     const correo = (body.correo || "").trim().toLowerCase();
     const password = (body.password || "").trim();
+    const role = body.rol ?? "user";
 
     if (!correo) return bad(origin, "correo es obligatorio");
     if (!correo.endsWith("@ugel06.gob.pe")) return bad(origin, "Solo correos @ugel06.gob.pe");
     if (password.length < 8) return bad(origin, "password debe tener minimo 8 caracteres");
+    if (!APP_ROLES.has(role)) return bad(origin, "Rol no permitido");
 
     const { data: created, error: createErr } = await supaAdmin.auth.admin.createUser({
       email: correo,
@@ -162,7 +174,7 @@ serve(async (req) => {
       ugel: (body.ugel ?? null) ? String(body.ugel).trim() : null,
       rei: (body.rei ?? null) ? String(body.rei).trim() : "SIN REI",
       can_create_monitoreo: body.can_create_monitoreo ?? false,
-      role: (body.rol || "user") as "admin" | "user" | "jefe_area" | "director" | "responsable_cdd",
+      role,
       updated_at: new Date().toISOString(),
     };
 
