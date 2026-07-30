@@ -302,8 +302,7 @@ export function SeguimientoPage() {
 
         // detalles pesados se cargan luego
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
     return () => {
@@ -331,8 +330,7 @@ export function SeguimientoPage() {
         if (!alive) return;
         setValidaciones((valRows ?? []) as ValidacionRow[]);
       } finally {
-        if (!alive) return;
-        setLoadingDetails(false);
+        if (alive) setLoadingDetails(false);
       }
     })();
     return () => {

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -62,8 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const alive = useRef(true);
   const inflight = useRef<Promise<void> | null>(null);
+  const currentUserId = useRef<string | null>(null);
 
-  const loadProfile = async (uid: string, opts?: { silent?: boolean }) => {
+  const loadProfile = useCallback(async (uid: string, opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
     if (!silent) {
       setProfileLoading(true);
@@ -72,7 +73,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error } = await fetchProfile(uid);
 
-    if (!alive.current) return;
+    // Descarta respuestas de una sesión anterior. Sin esta comprobación, una
+    // consulta lenta podía aplicar el perfil y los permisos del usuario previo.
+    if (!alive.current || currentUserId.current !== uid) return;
 
     if (error) {
       console.warn("AuthProvider: no se pudo cargar profile:", error.message);
@@ -88,21 +91,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!silent) {
       setProfileLoading(false);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
-    if (!user?.id) return;
+  const userId = user?.id;
+
+  const refreshProfile = useCallback(async () => {
+    if (!userId) return;
     if (inflight.current) return;
 
     inflight.current = (async () => {
-      await loadProfile(user.id, { silent: true });
+      await loadProfile(userId, { silent: true });
     })().finally(() => {
       inflight.current = null;
     });
-  };
+  }, [loadProfile, userId]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!userId) return;
     const onFocus = () => refreshProfile();
     window.addEventListener("focus", onFocus);
     const t = window.setTimeout(() => refreshProfile(), 500);
@@ -110,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", onFocus);
       window.clearTimeout(t);
     };
-  }, [user?.id]);
+  }, [refreshProfile, userId]);
 
   useEffect(() => {
     alive.current = true;
@@ -125,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const s = data.session ?? null;
       if (!alive.current) return;
 
+      currentUserId.current = s?.user?.id ?? null;
       setSession(s);
       setUser(s?.user ?? null);
 
@@ -145,6 +151,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (!alive.current) return;
 
+      const nextUserId = newSession?.user?.id ?? null;
+      const userChanged = currentUserId.current !== nextUserId;
+      currentUserId.current = nextUserId;
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
@@ -152,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
 
       if (newSession?.user?.id) {
+        if (userChanged) setProfile(null);
         loadProfile(newSession.user.id);
       } else {
         setProfile(null);
@@ -162,18 +173,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       alive.current = false;
+      currentUserId.current = null;
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    currentUserId.current = null;
     setSession(null);
     setUser(null);
     setProfile(null);
     setProfileError(null);
     setProfileLoading(false);
-  };
+  }, []);
 
   const value = useMemo<AuthCtx>(
     () => ({
@@ -186,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshProfile,
     }),
-    [loading, profileLoading, user, session, profile, profileError]
+    [loading, profileLoading, user, session, profile, profileError, signOut, refreshProfile]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

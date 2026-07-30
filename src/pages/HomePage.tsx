@@ -243,8 +243,7 @@ export function HomePage() {
         if (!alive) return;
         setErr(e?.message || "No se pudo cargar indicadores.");
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
     return () => {

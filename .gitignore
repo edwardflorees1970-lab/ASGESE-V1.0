@@ -17,8 +17,7 @@ dist-ssr
 !.env.example
 !.env*.example
 
-# Supabase SQL scripts (local/admin)
-supabase/sql/*.sql
+# Los scripts SQL de Supabase forman parte del despliegue y deben versionarse.
 
 # Editor directories and files
 .vscode/*

@@ -105,7 +105,7 @@ export function AppShell() {
   const isResponsableCdD = role === "responsable_cdd";
   const inFichaRoute = /^\/app\/monitoreo\/[^/]+\/ficha\/[^/]+$/i.test(location.pathname);
 
-  const SidebarContent = ({
+  const renderSidebarContent = ({
     onItemClick,
     onToggle,
   }: {
@@ -304,7 +304,7 @@ export function AppShell() {
           )}
         >
           <div className="h-full overflow-y-auto overscroll-contain p-4">
-            <SidebarContent onToggle={() => setSidebarHidden(true)} />
+            {renderSidebarContent({ onToggle: () => setSidebarHidden(true) })}
           </div>
         </aside>
 
@@ -327,7 +327,7 @@ export function AppShell() {
                   Cerrar
                 </button>
               </div>
-              <SidebarContent onItemClick={() => setMobileOpen(false)} />
+              {renderSidebarContent({ onItemClick: () => setMobileOpen(false) })}
             </aside>
           </div>
         )}

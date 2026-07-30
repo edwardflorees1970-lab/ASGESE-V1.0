@@ -102,7 +102,10 @@ serve(async (req) => {
     }
 
     const guard = await requireAdmin(req);
-    if (!guard.ok) return json({ error: guard.error, details: (guard as any).details }, origin, guard.status);
+    if (!guard.ok) {
+      const details = "details" in guard ? guard.details : undefined;
+      return json({ error: guard.error, details }, origin, guard.status);
+    }
 
     const supaAdmin = guard.supaAdmin;
     const callerId = guard.callerId;
@@ -113,15 +116,35 @@ serve(async (req) => {
 
     if (id === callerId) return json({ error: "No puedes eliminarte a ti mismo (admin)" }, origin, 400);
 
+    const { data: profileBackup, error: backupErr } = await supaAdmin
+      .from("profiles")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (backupErr) {
+      return json({ error: "No se pudo preparar la eliminación", details: backupErr.message }, origin, 400);
+    }
+
     const { error: profErr } = await supaAdmin.from("profiles").delete().eq("id", id);
     if (profErr) return json({ error: "No se pudo borrar profile", details: profErr.message }, origin, 400);
 
     const { error: delErr } = await supaAdmin.auth.admin.deleteUser(id);
     if (delErr) {
+      const { error: restoreErr } = profileBackup
+        ? await supaAdmin.from("profiles").upsert(profileBackup, { onConflict: "id" })
+        : { error: null };
       return json(
-        { ok: true, warning: "Profile borrado, pero no se pudo borrar Auth user", details: delErr.message },
+        {
+          error: restoreErr
+            ? "No se pudo borrar el usuario de Auth ni restaurar su profile"
+            : profileBackup
+              ? "No se pudo borrar el usuario de Auth; se restauró su profile"
+              : "No se pudo borrar el usuario de Auth",
+          details: delErr.message,
+          profile_restore_error: restoreErr?.message,
+        },
         origin,
-        200
+        400
       );
     }
 
