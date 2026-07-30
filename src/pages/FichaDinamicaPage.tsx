@@ -726,8 +726,7 @@ export function FichaDinamicaPage() {
         if (!alive) return;
         setError(e?.message || "No se pudo cargar la ficha.");
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
 

@@ -640,8 +640,7 @@ export function ReportesPage() {
         if (!alive) return;
         setErr(e?.message || "No se pudo cargar reportes.");
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
     return () => {

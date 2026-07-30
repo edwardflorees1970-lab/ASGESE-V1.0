@@ -22,6 +22,16 @@ type UpdateBody = {
   role?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
 };
 
+type AppRole = NonNullable<UpdateBody["role"]>;
+
+const APP_ROLES = new Set<AppRole>([
+  "admin",
+  "user",
+  "jefe_area",
+  "director",
+  "responsable_cdd",
+]);
+
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const RATE_LIMIT_SCOPE = "admin-users-update";
 const RATE_LIMIT_MAX = readPositiveIntEnv("RATE_LIMIT_ADMIN_USERS_UPDATE_MAX", 30);
@@ -121,7 +131,10 @@ serve(async (req) => {
     }
 
     const guard = await requireAdmin(req);
-    if (!guard.ok) return json({ error: guard.error, details: (guard as any).details }, origin, guard.status);
+    if (!guard.ok) {
+      const details = "details" in guard ? guard.details : undefined;
+      return json({ error: guard.error, details }, origin, guard.status);
+    }
 
     const supaAdmin = guard.supaAdmin;
     const body = (await req.json().catch(() => ({}))) as Partial<UpdateBody>;
@@ -129,8 +142,12 @@ serve(async (req) => {
     const id = String(body.id ?? "").trim();
     if (!id) return json({ error: "id es requerido" }, origin, 400);
 
-    const nextRole = (body.role ?? body.rol ?? undefined) as any;
+    const nextRole = body.role ?? body.rol ?? undefined;
     const updates: Record<string, unknown> = {};
+
+    if (nextRole !== undefined && nextRole !== null && !APP_ROLES.has(nextRole)) {
+      return json({ error: "Rol no permitido" }, origin, 400);
+    }
 
     const put = (k: string, v: unknown) => {
       if (v !== undefined) updates[k] = v;
@@ -150,22 +167,72 @@ serve(async (req) => {
     put("rei", body.rei);
     put("can_create_monitoreo", body.can_create_monitoreo);
 
+    let previousAuthEmail: string | null = null;
+    let updatedAuthEmail = false;
+
     if (body.correo !== undefined && body.correo !== null) {
       const correo = String(body.correo).trim().toLowerCase();
       if (!correo.endsWith("@ugel06.gob.pe")) return json({ error: "Solo correos @ugel06.gob.pe" }, origin, 400);
+
+      const { data: authUserData, error: authUserError } = await supaAdmin.auth.admin.getUserById(id);
+      if (authUserError || !authUserData.user) {
+        return json(
+          { error: "No se pudo consultar el usuario en Auth", details: authUserError?.message ?? "Usuario inexistente" },
+          origin,
+          400
+        );
+      }
+
+      previousAuthEmail = authUserData.user.email ?? null;
+      if (previousAuthEmail?.toLowerCase() !== correo) {
+        const { error: authUpdateError } = await supaAdmin.auth.admin.updateUserById(id, {
+          email: correo,
+          email_confirm: true,
+        });
+        if (authUpdateError) {
+          return json({ error: "No se pudo actualizar el correo en Auth", details: authUpdateError.message }, origin, 400);
+        }
+        updatedAuthEmail = true;
+      }
+
       updates["correo"] = correo;
       updates["email"] = correo;
       updates["email_login"] = correo;
     }
 
-    if (nextRole !== undefined && nextRole !== null) updates["role"] = nextRole;
+    if (nextRole !== undefined && nextRole !== null) {
+      updates["role"] = nextRole;
+    }
 
     if (Object.keys(updates).length === 0) {
       return json({ ok: true, warning: "Nada para actualizar" }, origin);
     }
 
-    const { error } = await supaAdmin.from("profiles").update(updates).eq("id", id);
-    if (error) return json({ error: "No se pudo actualizar profile", details: error.message }, origin, 400);
+    const { data: updatedProfile, error } = await supaAdmin
+      .from("profiles")
+      .update(updates)
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    if (error || !updatedProfile) {
+      let rollbackDetails: string | undefined;
+      if (updatedAuthEmail && previousAuthEmail) {
+        const { error: rollbackError } = await supaAdmin.auth.admin.updateUserById(id, {
+          email: previousAuthEmail,
+          email_confirm: true,
+        });
+        rollbackDetails = rollbackError?.message;
+      }
+      return json(
+        {
+          error: "No se pudo actualizar profile",
+          details: error?.message ?? "El profile no existe",
+          auth_rollback_error: rollbackDetails,
+        },
+        origin,
+        400
+      );
+    }
 
     return json({ ok: true }, origin);
   } catch (e) {
