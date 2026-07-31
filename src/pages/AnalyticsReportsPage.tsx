@@ -23,6 +23,7 @@ import { analyticsReportExportTable } from "../lib/analyticsReportExport";
 import { exportAnalyticsCsv, exportAnalyticsExcel } from "../lib/analyticsExport";
 import { captureTelemetry } from "../lib/telemetry";
 import { useAuth } from "../app/AuthProvider";
+import { IconButton } from "../components/ui/IconButton";
 
 const EMPTY_OPTIONS: ReportFilterOptions = {
   years: [], monitorings: [], templates: [], monitors: [], institutions: [], reis: [], levels: [], districts: [], questions: [], responses: [],
@@ -38,6 +39,10 @@ type GeneratedReport =
   | { type: "monitor"; data: MonitorDetailReport }
   | { type: "results"; data: QuestionResultsReport }
   | { type: "executive"; data: ExecutiveReport };
+
+function ExportFileIcon({ format }: { format: "XLSX" | "CSV" | "PDF" }) {
+  return <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 2.8h8l4 4V21H6z" /><path d="M14 3v5h5" /><path d="M8.2 16.5h7.6" /><text x="12" y="14" textAnchor="middle" fill="currentColor" stroke="none" fontSize={format === "XLSX" ? "4.6" : "5.2"} fontWeight="800">{format}</text></svg>;
+}
 
 function reportFilename(type: AnalyticsReportType) {
   const date = new Date().toISOString().slice(0, 10);
@@ -171,9 +176,9 @@ export function AnalyticsReportsPage() {
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">Construye informes interactivos sobre monitores, fichas, instituciones y resultados. Las consultas se agregan en Supabase y nunca incluyen registros TEST.</p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
-            <button type="button" disabled={!generated || exporting} onClick={() => void exportReport("xlsx")} className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100 disabled:opacity-40">Exportar Excel</button>
-            <button type="button" disabled={!generated || exporting} onClick={() => void exportReport("csv")} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-40">Exportar CSV</button>
-            <button type="button" disabled={!generated || exporting} onClick={() => void exportReport("pdf")} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-40">Exportar PDF</button>
+            <IconButton label="Exportar Excel" disabled={!generated || exporting} onClick={() => void exportReport("xlsx")} className="border-emerald-500/35 bg-emerald-500/10 text-emerald-300 disabled:opacity-40"><ExportFileIcon format="XLSX" /></IconButton>
+            <IconButton label="Exportar CSV" disabled={!generated || exporting} onClick={() => void exportReport("csv")} className="disabled:opacity-40"><ExportFileIcon format="CSV" /></IconButton>
+            <IconButton label="Exportar PDF" disabled={!generated || exporting} onClick={() => void exportReport("pdf")} tone="danger" className="disabled:opacity-40"><ExportFileIcon format="PDF" /></IconButton>
           </div>
         </div>
       </header>

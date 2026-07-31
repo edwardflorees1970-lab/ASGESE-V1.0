@@ -62,7 +62,7 @@ export function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50">
       <div
-        className="absolute inset-0 bg-black/60"
+        className="agebre-dialog-overlay absolute inset-0"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -74,12 +74,12 @@ export function ConfirmDialog({
           aria-labelledby={titleId}
           aria-describedby={description ? descriptionId : undefined}
           onKeyDown={handleKeyDown}
-          className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl"
+          className="agebre-dialog w-full max-w-md overflow-hidden"
         >
-          <div className="border-b border-white/10 px-5 py-4">
+          <div className="border-b border-[var(--app-border)] px-5 py-4">
             <div id={titleId} className="text-sm font-semibold">{title}</div>
             {description && (
-              <div id={descriptionId} className="mt-1 text-xs text-white/60">{description}</div>
+              <div id={descriptionId} className="mt-1 text-xs text-[var(--app-muted)]">{description}</div>
             )}
           </div>
           <div className="flex items-center justify-end gap-2 px-5 py-4">
@@ -88,7 +88,7 @@ export function ConfirmDialog({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-60"
+              className="agebre-button rounded-lg px-3 py-2 text-xs disabled:opacity-60"
             >
               {cancelText}
             </button>
@@ -97,10 +97,10 @@ export function ConfirmDialog({
               onClick={onConfirm}
               disabled={busy}
               className={cls(
-                "rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-60",
+                "rounded-lg px-3 py-2 text-xs font-semibold transition-[background-color,border-color,box-shadow] duration-200 disabled:opacity-60",
                 variant === "danger"
                   ? "border border-red-500/40 bg-red-500/15 text-red-100 hover:bg-red-500/25"
-                  : "border border-white/10 bg-white text-zinc-900 hover:bg-white/90"
+                  : "executive-primary-action"
               )}
             >
               {busy ? "Procesando..." : confirmText}

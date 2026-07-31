@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { IconButton } from "../components/ui/IconButton";
 import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
 import {
   exportAnalyticsCsv,
@@ -286,22 +287,15 @@ function ActionIconButton({
   disabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
+    <IconButton
+      label={title}
       onClick={onClick}
       disabled={disabled}
-      className={cls(
-        "inline-flex h-9 w-9 items-center justify-center rounded-lg border text-white/85 transition",
-        danger
-          ? "border-red-500/30 bg-red-500/10 text-red-100 hover:bg-red-500/15"
-          : "border-white/10 bg-white/5 hover:bg-white/10",
-        disabled && "cursor-not-allowed opacity-50"
-      )}
+      tone={danger ? "danger" : "neutral"}
+      className={disabled ? "opacity-50" : undefined}
     >
       {children}
-    </button>
+    </IconButton>
   );
 }
 

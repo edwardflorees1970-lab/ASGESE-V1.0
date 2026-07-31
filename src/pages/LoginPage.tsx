@@ -94,9 +94,9 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center px-4">
+    <div className="agebre-app-shell flex min-h-screen items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-7 shadow-xl backdrop-blur">
+        <div className="agebre-dialog p-5 sm:p-7">
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-start">
             <div>
               <div className="mb-3 flex items-center gap-3">
@@ -199,7 +199,7 @@ export function LoginPage() {
                   onClick={() => setShowPass((s) => !s)}
                   title={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
                   aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-white/65 transition hover:bg-white/10 hover:text-white"
+                  className="agebre-icon-button absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 border-transparent bg-transparent"
                 >
                   <EyeIcon closed={showPass} />
                 </button>

@@ -41,7 +41,7 @@ const OperationsPage = lazy(() => import("./pages/OperationsPage").then((m) => (
 
 function PageLoader() {
   return (
-    <div className="min-h-[50vh] grid place-items-center text-white/70 text-sm">
+    <div className="grid min-h-[50vh] place-items-center text-sm text-[var(--app-muted)]">
       Cargando...
     </div>
   );

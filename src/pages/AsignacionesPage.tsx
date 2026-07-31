@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { isAdminRole } from "../lib/roles";
+import { DashboardSelect, SearchableFilter } from "../components/dashboard/DashboardWidgets";
 
 type MonitoreoRow = {
   id: string;
@@ -197,6 +198,14 @@ export function AsignacionesPage() {
   };
 
   const selected = monitoreos.find((m) => m.id === monitoreoId);
+  const yearOptions = useMemo(
+    () => (years.length ? years : [year]).map((item) => ({ value: item, label: item })),
+    [year, years]
+  );
+  const monitoreoOptions = useMemo(
+    () => monitoreos.map((item) => ({ value: item.id, label: item.nombre })),
+    [monitoreos]
+  );
 
   return (
     <div className="text-white">
@@ -223,36 +232,19 @@ export function AsignacionesPage() {
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <label className="block">
-          <div className="mb-2 text-xs font-medium text-white/70">Año</div>
-          <select
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-            {!years.length && <option value={year}>{year}</option>}
-          </select>
-        </label>
+        <DashboardSelect label="Año" value={year} options={yearOptions} onChange={setYear} />
 
-        <label className="block sm:col-span-2">
-          <div className="mb-2 text-xs font-medium text-white/70">Monitoreo</div>
-          <select
+        <div className="min-w-0 sm:col-span-2">
+          <SearchableFilter
+            label="Monitoreo"
             value={monitoreoId}
-            onChange={(e) => setMonitoreoId(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
-          >
-            {monitoreos.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={monitoreoOptions}
+            allLabel="Selecciona un monitoreo"
+            includeAll={false}
+            onChange={setMonitoreoId}
+            placeholder="Buscar monitoreo..."
+          />
+        </div>
       </div>
 
       {selected && (
@@ -268,7 +260,7 @@ export function AsignacionesPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar usuario..."
-            className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:ring-2 focus:ring-white/10 sm:max-w-xs"
+            className="dashboard-control w-full rounded-xl border px-3 py-2 outline-none placeholder:text-white/30 sm:max-w-xs"
           />
         </div>
 
