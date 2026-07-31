@@ -11,8 +11,8 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { require
   // Solo bloquea durante carga inicial de sesión (rápido)
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white grid place-items-center">
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/70">
+      <div className="agebre-app-shell grid min-h-screen place-items-center">
+        <div className="agebre-surface px-5 py-4 text-sm text-[var(--app-muted)]">
           Verificando sesión...
         </div>
       </div>
@@ -30,8 +30,8 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { require
   if (requiresProfileCheck) {
     if (profileLoading && !profile) {
       return (
-        <div className="min-h-screen bg-zinc-950 text-white grid place-items-center">
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/70">
+        <div className="agebre-app-shell grid min-h-screen place-items-center">
+          <div className="agebre-surface px-5 py-4 text-sm text-[var(--app-muted)]">
             Validando permisos...
           </div>
         </div>
@@ -40,7 +40,7 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { require
 
     if (profileError) {
       return (
-        <div className="min-h-screen bg-zinc-950 text-white grid place-items-center px-4">
+        <div className="agebre-app-shell grid min-h-screen place-items-center px-4">
           <div className="max-w-md rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
             <div className="font-semibold">No se pudo cargar tu perfil</div>
             <div className="mt-2 text-red-200/80">{profileError}</div>

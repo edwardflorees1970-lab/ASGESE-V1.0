@@ -43,7 +43,7 @@ export function ReportFilterPanel({
   const searchableChange = (key: keyof AnalyticsReportFilters) => (value: string) => onChange({ [key]: value === "ALL" ? "" : value });
 
   return (
-    <aside aria-label="Filtros del reporte" className="report-filter-panel rounded-2xl border border-white/10 bg-slate-950/75 p-4 shadow-2xl backdrop-blur-xl">
+    <aside aria-label="Filtros del reporte" className="report-filter-panel rounded-2xl border p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><DashboardIcon name="filter" className="h-4 w-4 text-cyan-300" />Filtros</div>

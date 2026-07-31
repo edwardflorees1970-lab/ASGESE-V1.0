@@ -68,8 +68,8 @@ function SeriesTooltip({ active, payload, label }: {
 export function ReportVisualActions({ onView, onImage }: { onView: () => void; onImage: () => void }) {
   return (
     <div data-export-ignore="true" className="flex shrink-0 gap-1.5 print:hidden">
-      <button type="button" onClick={onView} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white/70 hover:bg-white/10">Ver</button>
-      <button type="button" onClick={onImage} className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-300/15">PNG</button>
+      <button type="button" onClick={onView} className="agebre-button rounded-lg px-2.5 py-1.5 text-[11px] font-semibold">Ver</button>
+      <button type="button" onClick={onImage} className="agebre-button rounded-lg border-cyan-400/35 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-200">PNG</button>
     </div>
   );
 }
@@ -113,7 +113,7 @@ export function ReportVisualModal({ title, onClose, children, details, autoExpor
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={title} className="report-visual-modal fixed inset-0 z-[2147482000] bg-slate-950/90 p-2 backdrop-blur-md sm:p-5">
-      <div className={`mx-auto flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-2xl border border-white/15 bg-[var(--app-surface)] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] ${wide ? "max-w-[1500px]" : "max-w-5xl"}`}>
+      <div className={`agebre-dialog mx-auto flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden sm:max-h-[calc(100dvh-2.5rem)] ${wide ? "max-w-[1500px]" : "max-w-5xl"}`}>
         <header data-export-ignore="true" className="report-modal-header flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
           <h2 className="min-w-0 flex-1 text-sm font-semibold text-white sm:text-lg">{title}</h2>
           <div className="flex shrink-0 gap-2">

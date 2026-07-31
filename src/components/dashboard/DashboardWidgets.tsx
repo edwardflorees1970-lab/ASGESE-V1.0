@@ -309,6 +309,7 @@ export function SearchableFilter({
   value,
   options,
   allLabel,
+  includeAll = true,
   onChange,
   placeholder = "Buscar...",
 }: {
@@ -316,6 +317,7 @@ export function SearchableFilter({
   value: string;
   options: readonly Option[];
   allLabel: string;
+  includeAll?: boolean;
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
@@ -323,7 +325,9 @@ export function SearchableFilter({
   const [query, setQuery] = useState("");
   const { anchorRef, menuPosition } = useFloatingMenu<HTMLInputElement>(open);
   const menuId = useId();
-  const selectedLabel = value === "ALL" ? allLabel : options.find((option) => option.value === value)?.label ?? allLabel;
+  const selectedLabel = includeAll && value === "ALL"
+    ? allLabel
+    : options.find((option) => option.value === value)?.label ?? allLabel;
   const visibleOptions = useMemo(() => {
     const normalized = normalizeSearchValue(query);
     const filtered = normalized
@@ -358,8 +362,9 @@ export function SearchableFilter({
             select(visibleOptions[0].value);
           }
         }}
-        className="dashboard-control h-11 w-full rounded-xl border px-3 text-sm outline-none"
+        className="dashboard-control h-11 w-full rounded-xl border px-3 outline-none"
         placeholder={placeholder}
+        title={open ? undefined : selectedLabel}
         autoComplete="off"
         spellCheck={false}
         aria-controls={open ? menuId : undefined}
@@ -376,9 +381,9 @@ export function SearchableFilter({
           className="dashboard-filter-menu dashboard-filter-portal overflow-y-auto overscroll-contain rounded-xl border border-white/10 p-1.5 shadow-2xl"
           style={menuPosition}
         >
-          {!query.trim() && <button type="button" role="option" aria-selected={value === "ALL"} onMouseDown={(event) => event.preventDefault()} onClick={() => select("ALL")} className="dashboard-filter-option w-full rounded-lg px-3 py-2 text-left text-sm">{allLabel}</button>}
+          {includeAll && !query.trim() && <button type="button" role="option" aria-selected={value === "ALL"} onMouseDown={(event) => event.preventDefault()} onClick={() => select("ALL")} className="dashboard-filter-option w-full rounded-lg px-3 py-2 text-left">{allLabel}</button>}
           {visibleOptions.map((option) => (
-            <button key={option.value} type="button" role="option" aria-selected={option.value === value} onMouseDown={(event) => event.preventDefault()} onClick={() => select(option.value)} className="dashboard-filter-option w-full truncate rounded-lg px-3 py-2 text-left text-sm" title={option.label}>{option.label}</button>
+            <button key={option.value} type="button" role="option" aria-selected={option.value === value} onMouseDown={(event) => event.preventDefault()} onClick={() => select(option.value)} className="dashboard-filter-option w-full truncate rounded-lg px-3 py-2 text-left" title={option.label}>{option.label}</button>
           ))}
           {!visibleOptions.length && <div className="dashboard-filter-empty px-3 py-3 text-xs">Sin coincidencias.</div>}
           {!query && options.length > 5 && <div className="dashboard-filter-hint border-t px-3 pt-2 text-[10px]">Escribe para buscar entre {options.length} registros.</div>}
