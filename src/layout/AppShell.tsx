@@ -6,6 +6,7 @@ import { canSeeAllRole, roleLabel } from "../lib/roles";
 import { useTheme } from "../app/ThemeProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import logoAgebreUrl from "../assets/logoagebresf.png";
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -17,16 +18,21 @@ const Item = ({
   icon,
   onClick,
   reloadOnClick = false,
+  collapsed = false,
 }: {
   to: string;
   label: string;
   icon: ReactNode;
   onClick?: () => void;
   reloadOnClick?: boolean;
+  collapsed?: boolean;
 }) => (
   <NavLink
     to={to}
     end
+    aria-label={collapsed ? label : undefined}
+    title={collapsed ? label : undefined}
+    data-tooltip={collapsed ? label : undefined}
     onClick={(e) => {
       onClick?.();
       if (reloadOnClick) {
@@ -36,17 +42,18 @@ const Item = ({
     }}
     className={({ isActive }) =>
       [
-        "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition",
+        "agebre-nav-item flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium",
+        collapsed ? "justify-center px-0" : "",
         isActive
-          ? "bg-[var(--nav-active)] text-[var(--nav-on-active)]"
-          : "text-white/70 hover:bg-white/5 hover:text-white",
+          ? "is-active"
+          : "",
       ].join(" ")
     }
   >
-    <span className="grid h-6 w-6 place-items-center rounded-lg bg-white/5 text-white/80">
+    <span className="agebre-nav-icon grid h-7 w-7 shrink-0 place-items-center rounded-lg">
       {icon}
     </span>
-    {label}
+    {!collapsed && <span className="truncate">{label}</span>}
   </NavLink>
 );
 
@@ -104,66 +111,58 @@ export function AppShell() {
   const canSeeAll = canSeeAllRole(role);
   const isResponsableCdD = role === "responsable_cdd";
   const inFichaRoute = /^\/app\/monitoreo\/[^/]+\/ficha\/[^/]+$/i.test(location.pathname);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const initials = nombre
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "U";
+  const pageTitle = location.pathname === "/app"
+    ? "Dashboard"
+    : location.pathname.includes("reportes-analiticos")
+      ? "Reportes analíticos"
+      : location.pathname.includes("gestion-monitoreos")
+        ? "Gestión de monitoreos"
+        : location.pathname.includes("indicadores-cdd")
+          ? "Indicadores CdD"
+          : location.pathname.includes("operaciones")
+            ? "Auditoría y alertas"
+            : location.pathname.includes("asignaciones")
+              ? "Asignaciones"
+              : location.pathname.includes("instituciones")
+                ? "Instituciones"
+                : location.pathname.includes("usuarios")
+                  ? "Usuarios"
+                  : location.pathname.includes("seguimiento")
+                    ? "Seguimiento"
+                    : location.pathname.includes("reportes")
+                      ? "Reportes y resultados"
+                      : "Monitoreo";
 
   const renderSidebarContent = ({
     onItemClick,
-    onToggle,
+    mobile = false,
   }: {
     onItemClick?: () => void;
-    onToggle?: () => void;
-  }) => (
-    <>
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-white/50">Sistema</div>
-          {onToggle && (
-            <button
-              type="button"
-              onClick={onToggle}
-              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10"
-            >
-              Ocultar
-            </button>
-          )}
+    mobile?: boolean;
+  }) => {
+    const collapsed = sidebarHidden && !mobile;
+    const sectionLabel = (label: string) => !collapsed && (
+      <div className="mb-1 mt-5 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+    );
+    return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-[68px] shrink-0 items-center gap-3 border-b border-slate-800 px-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
+          <img src={logoAgebreUrl} alt="" className="h-9 w-9 object-contain" />
         </div>
-        <div className="mt-1 text-lg font-semibold tracking-tight">AGEBRE</div>
-        <div className="mt-2 text-xs text-white/60">{roleLabel(role)}</div>
-        <div
-          className={cls(
-            "mt-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]",
-            isTestMode
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
-              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-          )}
-        >
-          {isTestMode ? "Modo TEST" : "Modo PRODUCCIÓN"}
-        </div>
-        {role === "admin" && (
-          <button
-            type="button"
-            onClick={async () => {
-              await setMode(isTestMode ? "prod" : "test");
-            }}
-            className={cls(
-              "badge-interactive mt-3 w-full rounded-lg border px-3 py-2 text-xs",
-              isTestMode
-                ? "border-amber-500/40 bg-amber-500/10 text-amber-100 badge-amber"
-                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
-            )}
-          >
-            {isTestMode ? "Modo TEST" : "Modo PRODUCCIÓN"}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-        >
-          {theme === "dark" ? "Modo claro" : "Modo oscuro"}
-        </button>
+        {!collapsed && <div className="min-w-0 flex-1"><div className="text-base font-extrabold tracking-[0.04em] text-white">AGEBRE</div><div className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">Monitoreo integral</div></div>}
+        {mobile && <button type="button" onClick={onItemClick} className="agebre-shell-icon-button" aria-label="Cerrar menú"><CloseIcon /></button>}
       </div>
 
-      <nav className="mt-4 space-y-1">
+      <nav className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 pb-4">
+        {sectionLabel("Principal")}
         {!isResponsableCdD && (
           <Item
             to="/app"
@@ -171,14 +170,17 @@ export function AppShell() {
             icon={<HomeIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
+            collapsed={collapsed}
           />
         )}
+        {sectionLabel("Operación")}
         <Item
           to="/app/monitoreo"
           label="Monitoreo"
           icon={<ClipboardIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
+          collapsed={collapsed}
         />
         {!isResponsableCdD && (
           <Item
@@ -187,6 +189,7 @@ export function AppShell() {
             icon={<TrackIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
+            collapsed={collapsed}
           />
         )}
         {!isResponsableCdD && (
@@ -196,6 +199,7 @@ export function AppShell() {
             icon={<FormIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
+            collapsed={collapsed}
           />
         )}
         {canSeeAll && (
@@ -205,8 +209,10 @@ export function AppShell() {
             icon={<UsersCheckIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
+            collapsed={collapsed}
           />
         )}
+        {sectionLabel("Análisis")}
         {role === "admin" && (
           <Item
             to="/app/operaciones"
@@ -214,6 +220,7 @@ export function AppShell() {
             icon={<TrackIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
+            collapsed={collapsed}
           />
         )}
         <Item
@@ -222,6 +229,7 @@ export function AppShell() {
           icon={<ChartIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
+          collapsed={collapsed}
         />
         <Item
           to="/app/reportes-analiticos"
@@ -229,6 +237,7 @@ export function AppShell() {
           icon={<SparkIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
+          collapsed={collapsed}
         />
         {(role === "responsable_cdd" || canSeeAll) && (
           <Item
@@ -237,14 +246,17 @@ export function AppShell() {
             icon={<SparkIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
+            collapsed={collapsed}
           />
         )}
+        {sectionLabel("Administración")}
         <Item
           to="/app/instituciones"
           label="Instituciones"
           icon={<SchoolIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
+          collapsed={collapsed}
         />
         {canSeeAll && (
           <Item
@@ -253,124 +265,60 @@ export function AppShell() {
             icon={<UserIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
+            collapsed={collapsed}
           />
         )}
       </nav>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="text-xs text-white/50">Sesión</div>
-        <div className="mt-1 text-sm font-medium">{nombre}</div>
-        <button
-          onClick={() => setLogoutOpen(true)}
-          className="mt-3 w-full rounded-xl border border-white/10 bg-zinc-900/60 py-2 text-sm text-white/80 hover:bg-zinc-900"
-        >
-          Cerrar sesión
-        </button>
+      <div className="shrink-0 border-t border-slate-800 p-3">
+        {!mobile && <button type="button" onClick={() => setSidebarHidden((value) => !value)} className="agebre-sidebar-collapse" aria-label={collapsed ? "Expandir menú" : "Contraer menú"} data-tooltip={collapsed ? "Expandir menú" : undefined}><CollapseIcon reversed={collapsed} />{!collapsed && <span>Contraer menú</span>}</button>}
+        {!collapsed && <div className="mt-2 text-center text-[9px] text-slate-600">v1.0 · UGEL 06®</div>}
       </div>
-      <div className="mt-4 text-center text-[11px] text-white/50">
-        v1.0 Propietario UGEL 06®
-      </div>
-    </>
+    </div>
   );
-
-  const [sidebarHidden, setSidebarHidden] = useState(false);
+  };
 
   return (
-    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-zinc-950 text-white">
-      {/* Mobile top bar */}
-      <div className="md:hidden sticky top-0 z-40 border-b border-white/10 bg-zinc-950/95 backdrop-blur">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="text-sm font-semibold tracking-tight">AGEBRE</div>
-          <div className="flex items-center gap-2">
-            <div
-              className={cls(
-                "rounded-full border px-2 py-1 text-[11px]",
-                isTestMode
-                  ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
-                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-              )}
-            >
-              {isTestMode ? "TEST" : "PROD"}
-            </div>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-white/80 hover:bg-white/10"
-              aria-label="Cambiar tema"
-            >
-              {theme === "dark" ? "Claro" : "Oscuro"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
-            >
-              Menú
-            </button>
-          </div>
-        </div>
-      </div>
+    <div className="agebre-app-shell flex h-[100dvh] w-full overflow-hidden">
+      {mobileOpen && <button type="button" aria-label="Cerrar menú" className="fixed inset-0 z-40 bg-slate-950/55 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
-      <div className="flex min-h-0 min-w-0 flex-1">
-        {/* Desktop sidebar */}
-        <aside
-          className={cls(
-            "hidden md:block border-r border-white/10 bg-black/30",
-            sidebarHidden ? "w-0 overflow-hidden p-0" : "w-[280px]"
-          )}
-        >
-          <div className="h-full overflow-y-auto overscroll-contain p-4">
-            {renderSidebarContent({ onToggle: () => setSidebarHidden(true) })}
-          </div>
+      <aside className={cls("agebre-suite-sidebar hidden shrink-0 border-r lg:block", sidebarHidden ? "w-[76px]" : "w-[252px]")}>
+        {renderSidebarContent({})}
+      </aside>
+
+      {mobileOpen && (
+        <aside className="agebre-suite-sidebar fixed inset-y-0 left-0 z-50 w-[min(17rem,88vw)] border-r lg:hidden">
+          {renderSidebarContent({ onItemClick: () => setMobileOpen(false), mobile: true })}
         </aside>
+      )}
 
-        {/* Mobile drawer */}
-        {mobileOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
-            <div
-              className="absolute inset-0 bg-black/70"
-              onClick={() => setMobileOpen(false)}
-              aria-hidden="true"
-            />
-            <aside className="absolute left-0 top-0 h-full w-[280px] overflow-y-auto overscroll-contain border-r border-white/10 bg-zinc-950 p-4 pb-6">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="text-sm font-semibold">Menú</div>
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-lg px-2 py-1 text-xs text-white/70 hover:bg-white/5"
-                >
-                  Cerrar
-                </button>
-              </div>
-              {renderSidebarContent({ onItemClick: () => setMobileOpen(false) })}
-            </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="agebre-topbar flex h-[68px] shrink-0 items-center border-b px-3 sm:px-5">
+          <button type="button" onClick={() => setMobileOpen(true)} className="agebre-shell-icon-button mr-2 lg:hidden" aria-label="Abrir menú"><MenuIcon /></button>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--app-muted-2)]"><span>AGEBRE</span><ChevronIcon /><span className="truncate text-[var(--app-muted)]">{pageTitle}</span></div>
+            <div className="mt-0.5 truncate text-sm font-bold text-[var(--app-text)] sm:text-base">{pageTitle}</div>
           </div>
-        )}
 
-        <a href="#main-content" className="sr-only z-[60] rounded-lg bg-white px-3 py-2 text-slate-950 focus:not-sr-only focus:fixed focus:left-3 focus:top-3">
-          Saltar al contenido principal
-        </a>
-        <main id="main-content" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 md:p-6">
-          {sidebarHidden && (
-            <div className="mb-3 hidden md:flex items-center">
-              <button
-                type="button"
-                onClick={() => setSidebarHidden(false)}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
-              >
-                Mostrar menú
+          <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            {role === "admin" ? (
+              <button type="button" onClick={async () => { await setMode(isTestMode ? "prod" : "test"); }} className={cls("badge-interactive hidden rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>
+                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />{isTestMode ? "TEST" : "PRODUCCIÓN"}
               </button>
-            </div>
-          )}
-          <div
-            className={cls(
-              "mx-auto min-w-0 fade-in-up",
-              location.pathname === "/app" ? "max-w-[1600px]" : "max-w-5xl"
+            ) : (
+              <span className={cls("hidden rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>{isTestMode ? "TEST" : "PRODUCCIÓN"}</span>
             )}
-          >
-            <Outlet key={`${location.pathname}${location.search}`} />
+            <button type="button" onClick={toggleTheme} className="agebre-shell-icon-button" aria-label={theme === "dark" ? "Activar tema claro" : "Activar tema oscuro"} data-tooltip={theme === "dark" ? "Tema claro" : "Tema oscuro"}>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</button>
+            <div className="ml-1 flex items-center gap-2 border-l border-[var(--app-border)] pl-2 sm:gap-3 sm:pl-3">
+              <div className="hidden min-w-0 text-right lg:block"><div className="max-w-48 truncate text-xs font-semibold text-[var(--app-text)]">{nombre}</div><button type="button" onClick={() => setLogoutOpen(true)} className="mt-0.5 text-[10px] text-[var(--app-muted)] transition hover:text-[var(--app-accent)]">{roleLabel(role)} · Salir</button></div>
+              <button type="button" onClick={() => setLogoutOpen(true)} className="agebre-avatar" aria-label="Cerrar sesión" data-tooltip="Cerrar sesión">{initials}</button>
+            </div>
           </div>
+        </header>
+
+        <a href="#main-content" className="sr-only z-[60] rounded-lg bg-white px-3 py-2 text-slate-950 focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Saltar al contenido principal</a>
+        <main id="main-content" tabIndex={-1} className="agebre-page min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 sm:px-5 lg:px-6">
+          <div className="mx-auto min-w-0 max-w-[1680px] fade-in-up"><Outlet key={`${location.pathname}${location.search}`} /></div>
         </main>
       </div>
 
@@ -395,98 +343,49 @@ export function AppShell() {
   );
 }
 
+function ShellSvg({ children }: { children: ReactNode }) {
+  return <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>;
+}
+
+function MenuIcon() { return <ShellSvg><path d="M4 7h16M4 12h16M4 17h16" /></ShellSvg>; }
+function CloseIcon() { return <ShellSvg><path d="m6 6 12 12M18 6 6 18" /></ShellSvg>; }
+function ChevronIcon() { return <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 2.5 3.5 3.5L4 9.5" /></svg>; }
+function MoonIcon() { return <ShellSvg><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z" /></ShellSvg>; }
+function SunIcon() { return <ShellSvg><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></ShellSvg>; }
+function CollapseIcon({ reversed = false }: { reversed?: boolean }) { return <ShellSvg><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 4v16" />{reversed ? <path d="m13 9 3 3-3 3" /> : <path d="m16 9-3 3 3 3" />}</ShellSvg>; }
+
 function HomeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9M9 20v-6h6v6" /></ShellSvg>;
 }
 
 function FormIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M6 3h9a2 2 0 0 1 2 2v1h2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6h2V5a2 2 0 0 1 2-2Zm0 5v12h11V8H6Zm2 2h7v2H8v-2Zm0 4h7v2H8v-2Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V2h6v2M8 9h8M8 13h8M8 17h5" /></ShellSvg>;
 }
 
 function ClipboardIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M9 4h6a2 2 0 0 1 2 2h2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6h2a2 2 0 0 1 2-2Zm0 2v1h6V6H9Zm-2 5h10v2H7v-2Zm0 4h10v2H7v-2Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><rect x="4" y="5" width="16" height="16" rx="2" /><path d="M9 5V3h6v2M8 10h8M8 14h8M8 18h5" /></ShellSvg>;
 }
 
 function UsersCheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M7 12a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm10.5-1.5l1.5 1.5 3-3 1.5 1.5-4.5 4.5-3-3 1.5-1.5ZM2 20a5 5 0 0 1 10 0v1H2v-1Zm11-4a4 4 0 0 1 4-4h2v2h-2a2 2 0 0 0-2 2v2h-2v-2Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><circle cx="8" cy="8" r="3" /><path d="M3 20v-1a5 5 0 0 1 10 0v1M15 11l2 2 4-4" /></ShellSvg>;
 }
 
 function TrackIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M4 18h16v2H4v-2Zm2-3h4v2H6v-2Zm6-4h4v2h-4v-2Zm6-4h2v2h-2V7ZM6 6h6v2H6V6Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><path d="M4 19h16M6 15h4M12 11h4M18 7h2M6 7h6" /></ShellSvg>;
 }
 
 function SparkIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path d="M4 18h16v2H4v-2Zm1-4 4-4 3 3 6-7 1.5 1.3-7 8.2-3-3-3 3L5 14Z" fill="currentColor" />
-    </svg>
-  );
+  return <ShellSvg><path d="m3 17 6-6 4 4 7-9" /><path d="M15 6h5v5M4 21h16" /></ShellSvg>;
 }
 
 function ChartIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M4 20V6h3v14H4Zm6 0V4h3v16h-3Zm6 0v-9h3v9h-3Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></ShellSvg>;
 }
 
 function SchoolIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M12 3 2 8l10 5 10-5-10-5Zm-7 7v8h4v-5h6v5h4v-8l-7 3.5L5 10Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><path d="m3 10 9-6 9 6-9 6-9-6Z" /><path d="M6 13v6h12v-6M9 19v-4h6v4" /></ShellSvg>;
 }
 
 function UserIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0v1H5v-1Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <ShellSvg><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></ShellSvg>;
 }

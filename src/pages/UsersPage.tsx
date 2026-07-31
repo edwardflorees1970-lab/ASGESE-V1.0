@@ -13,6 +13,7 @@ import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { supabase } from "../lib/supabaseClient";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { IconButton as UiIconButton } from "../components/ui/IconButton";
 
 
 type Toast = { type: "ok" | "err"; msg: string } | null;
@@ -157,24 +158,15 @@ function IconButton({
   variant?: "ghost" | "danger";
   title: string;
 }) {
-  const styles =
-    variant === "danger"
-      ? "border-red-500/25 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-      : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white";
   return (
-    <button
+    <UiIconButton
       {...props}
-      type={props.type ?? "button"}
-      title={title}
-      aria-label={title}
-      className={cls(
-        "inline-flex h-8 w-8 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-50",
-        styles,
-        props.className
-      )}
+      label={title}
+      tone={variant === "danger" ? "danger" : "neutral"}
+      className={cls("h-8 w-8 disabled:opacity-50", props.className)}
     >
       {children}
-    </button>
+    </UiIconButton>
   );
 }
 
