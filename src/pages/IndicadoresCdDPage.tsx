@@ -87,7 +87,7 @@ function extractAnswerText(value: Record<string, any> | null | undefined) {
 function parseMetric(value: Record<string, any> | null | undefined) {
   const raw = extractAnswerText(value);
   if (!raw) return null;
-  const match = raw.match(/-?\d+(?:[\.,]\d+)?/);
+  const match = raw.match(/-?\d+(?:[.,]\d+)?/);
   if (!match) return null;
   const n = Number(match[0].replace(/,/g, "."));
   return Number.isFinite(n) ? n : null;
@@ -308,7 +308,7 @@ export function IndicadoresCdDPage() {
           setRecords([]);
           return;
         }
-        let runQuery = supabase
+        const runQuery = supabase
           .from("form_run")
           .select("id, template_id, created_by, created_at, updated_at, status, is_test, header_json")
           .in("template_id", cddTemplateIdList)
@@ -561,7 +561,7 @@ export function IndicadoresCdDPage() {
         </div>
       )}
 
-      <section className="rounded-[28px] border border-slate-800 bg-[#0e0e0e] p-5 md:p-7 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+      <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-surface)] p-5 shadow-[var(--dashboard-shadow)] md:p-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">Compromiso de Desempeno</div>
@@ -581,7 +581,7 @@ export function IndicadoresCdDPage() {
               <select
                 value={selectedMonitoreo}
                 onChange={(e) => setSelectedMonitoreo(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#191a1a] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/40"
+                className="w-full rounded-xl border border-white/10 bg-[var(--dashboard-control)] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/40"
               >
                 <option value="ALL">Todos</option>
                 {monitoreos.map((m) => (
@@ -594,7 +594,7 @@ export function IndicadoresCdDPage() {
               <select
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#191a1a] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/40"
+                className="w-full rounded-xl border border-white/10 bg-[var(--dashboard-control)] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/40"
               >
                 <option value="ALL">Todos</option>
                 <option value="Q1">Trimestre 1</option>
@@ -620,7 +620,7 @@ export function IndicadoresCdDPage() {
               <select
                 value={selectedArea}
                 onChange={(e) => setSelectedArea(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#191a1a] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/40"
+                className="w-full rounded-xl border border-white/10 bg-[var(--dashboard-control)] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/40"
               >
                 <option value="ALL">Todas</option>
                 {areaOptions.map((a) => (
@@ -633,7 +633,7 @@ export function IndicadoresCdDPage() {
       </section>
 
       {loading ? (
-        <div className="rounded-[28px] border border-white/10 bg-[#131313] p-8 text-sm text-slate-400">Cargando indicadores CdD...</div>
+        <div className="rounded-[28px] border border-white/10 bg-[var(--app-surface)] p-8 text-sm text-slate-400">Cargando indicadores CdD...</div>
       ) : (
         <>
           {filteredRecords.length === 0 && (
@@ -673,7 +673,7 @@ export function IndicadoresCdDPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-2 rounded-[24px] border border-white/10 bg-[#191a1a] p-5 md:p-6">
+            <div className="xl:col-span-2 rounded-[24px] border border-white/10 bg-[var(--app-surface)] p-5 md:p-6">
               <div className="mb-6 flex items-center justify-between gap-4">
                 <div>
                   <h2 className="font-headline text-lg font-bold text-slate-100">Meta vs avance por compromiso</h2>
@@ -696,7 +696,7 @@ export function IndicadoresCdDPage() {
                             title={`Meta (valor): ${row.meta ?? "-"} | Referencia: 100%`}
                           />
                           <div
-                            className="w-5 rounded-t-md bg-sky-300 shadow-[0_-4px_14px_rgba(125,211,252,0.3)]"
+                            className="w-5 rounded-t-md bg-sky-300"
                             style={{ height: `${pct(row.avancePct)}%` }}
                             title={`Avance (valor): ${row.avance ?? "-"} | Avance: ${pct(row.avancePct).toFixed(1)}%`}
                           />
@@ -719,7 +719,7 @@ export function IndicadoresCdDPage() {
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-white/10 bg-[#191a1a] p-5 md:p-6">
+            <div className="rounded-[24px] border border-white/10 bg-[var(--app-surface)] p-5 md:p-6">
               <h2 className="font-headline text-lg font-bold text-slate-100">Avance por Responsable CdD</h2>
               <p className="mt-1 text-xs text-slate-500">Promedio de avance por responsable y fecha corta de actualizacion.</p>
               <div className="mt-6 space-y-5">
@@ -736,7 +736,7 @@ export function IndicadoresCdDPage() {
                           </div>
                           <div className={cls("font-bold", tone === "good" ? "text-emerald-300" : tone === "warn" ? "text-amber-300" : "text-rose-300")}>{pct(item.avance).toFixed(1)}%</div>
                         </div>
-                        <div className="h-2.5 rounded-full bg-[#0f0f0f]">
+                        <div className="h-2.5 rounded-full bg-[var(--app-surface-3)]">
                           <div className={cls("h-full rounded-full", tone === "good" ? "bg-emerald-400" : tone === "warn" ? "bg-amber-400" : "bg-rose-400")} style={{ width: `${pct(item.avance)}%` }} />
                         </div>
                       </div>
@@ -749,7 +749,7 @@ export function IndicadoresCdDPage() {
             </div>
           </section>
 
-          <section className="rounded-[24px] border border-white/10 bg-[#191a1a] p-5 md:p-6">
+          <section className="rounded-[24px] border border-white/10 bg-[var(--app-surface)] p-5 md:p-6">
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
                 <h2 className="font-headline text-lg font-bold text-slate-100">Cronograma de ejecucion</h2>
@@ -785,11 +785,11 @@ export function IndicadoresCdDPage() {
                         </div>
                           <div>
                             <div
-                              className="relative h-5 rounded-full bg-[#0f0f0f]"
+                              className="relative h-5 rounded-full bg-[var(--app-surface-3)]"
                               title={`Rango: ${shortDate(row.fecha_inicio)} - ${shortDate(row.fecha_fin)} | Progreso temporal: ${pct(row.dateProgress).toFixed(1)}%`}
                             >
                               <div className="absolute inset-y-0 rounded-full bg-sky-950/60" style={{ left, width }} />
-                              <div className="absolute inset-y-0 rounded-full bg-sky-300/90 shadow-[0_0_12px_rgba(125,211,252,0.28)]" style={{ left, width: fill }} />
+                              <div className="absolute inset-y-0 rounded-full bg-sky-300/90" style={{ left, width: fill }} />
                             </div>
                             <div className="mt-1 text-[10px] text-slate-500">
                               Rango: {shortDate(row.fecha_inicio)} - {shortDate(row.fecha_fin)} | Progreso: {pct(row.dateProgress).toFixed(1)}%
@@ -817,7 +817,7 @@ export function IndicadoresCdDPage() {
                   <div
                     key={`${item.title}-${idx}`}
                     className={cls(
-                      "rounded-[20px] border-l-4 bg-[#191a1a] p-4 transition hover:bg-[#222]",
+                      "rounded-[20px] border-l-4 bg-[var(--app-surface)] p-4 transition hover:bg-[var(--app-surface-2)]",
                       item.tone === "bad"
                         ? "border-rose-400"
                         : item.tone === "warn"
@@ -833,7 +833,7 @@ export function IndicadoresCdDPage() {
                   </div>
                 ))
               ) : (
-                <div className="rounded-[20px] border border-white/10 bg-[#191a1a] p-4 text-xs text-slate-500">
+                <div className="rounded-[20px] border border-white/10 bg-[var(--app-surface)] p-4 text-xs text-slate-500">
                   Sin alertas criticas por ahora.
                 </div>
               )}
@@ -868,7 +868,7 @@ function KpiCard({
       : "text-slate-200 bg-white/5 border-white/10";
 
   return (
-    <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#191a1a] p-5 md:p-6">
+    <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[var(--app-surface)] p-5 md:p-6">
       <div className={cls("inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]", toneClass)}>{label}</div>
       <div className="mt-5 text-4xl font-black tracking-tight text-slate-100">{value}</div>
       <div className="mt-2 text-sm font-medium text-slate-300">{subtitle}</div>

@@ -10,6 +10,8 @@ import {
   normalizeHeaderConfig,
   type HeaderFieldDef,
 } from "../lib/dynamicHeader";
+import { deleteFormRunAtomic, saveFormRunAtomic } from "../lib/formRunApi";
+import { uploadPdfEvidence, validatePdfEvidence } from "../lib/evidenceStorage";
 
 type Template = {
   id: string;
@@ -263,10 +265,12 @@ function TimeField({
   value,
   onChange,
   className = "",
+  ariaLabel = "Hora",
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const { hour, minute } = getTimeParts(value);
@@ -291,6 +295,7 @@ function TimeField({
     <div className={`relative ${className}`.trim()}>
       <div className="relative">
         <input
+          aria-label={ariaLabel}
           type="text"
           inputMode="numeric"
           maxLength={5}
@@ -414,6 +419,7 @@ export function FichaDinamicaPage() {
     monitor_dni: "",
   });
   const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [pendingEvidenceFiles, setPendingEvidenceFiles] = useState<Record<string, File>>({});
   const [runId, setRunId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -586,6 +592,7 @@ export function FichaDinamicaPage() {
       monitor_dni: "",
     });
     setAnswers({});
+    setPendingEvidenceFiles({});
     setIeQuery("");
     setIeOptions([]);
     setIeOpen(false);
@@ -1162,22 +1169,10 @@ export function FichaDinamicaPage() {
       showToast("No hay borrador para limpiar.", "err");
       return;
     }
-    const { error: ansErr } = await supabase.from("form_answer").delete().eq("run_id", targetId);
-    if (ansErr) {
-      showToast(ansErr.message);
-      return;
-    }
-    const { data: deleted, error } = await supabase
-      .from("form_run")
-      .delete()
-      .eq("id", targetId)
-      .select("id");
-    if (error) {
-      showToast(error.message);
-      return;
-    }
-    if (!deleted || deleted.length === 0) {
-      showToast("No se pudo eliminar (posible RLS o permisos).");
+    try {
+      await deleteFormRunAtomic(targetId);
+    } catch (deleteError) {
+      showToast(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el borrador.");
       return;
     }
     resetFormState();
@@ -1330,112 +1325,34 @@ export function FichaDinamicaPage() {
         : header.monitor_numero_doc,
       custom_values: normalizeCustomHeaderValues(customHeaderFields, header.custom_values),
     };
-    const payload = {
-      template_id: template.id,
-      created_by: user.id,
-      status,
-      is_test: isTestMode,
-      header_json: headerPayload,
-      footer_json: footer,
-    };
-    let currentRunId = runId;
-    if (status === "draft" && !currentRunId) {
-      const { data: draftRow } = await supabase
-        .from("form_run")
-        .select("id")
-        .eq("template_id", template.id)
-        .eq("created_by", user.id)
-        .eq("status", "borrador")
-        .eq("is_test", isTestMode)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (draftRow?.id) {
-        currentRunId = draftRow.id;
-      }
-    }
-
-    if (status === "draft" && duplicateRule !== DUP_RULE_NONE) {
-      const field = duplicateRule === DUP_RULE_LOCAL ? "codigo_local" : "codigo_modular";
-      const label = duplicateRule === DUP_RULE_LOCAL ? "codigo local" : "codigo modular";
-      const code = String((header as any)[field] ?? "")
-        .trim()
-        .toUpperCase();
-      if (!code) {
-        const msg = `Falta ${label} para validar duplicados.`;
-        setError(msg);
-        showToast(msg, "err");
-        setSaving(false);
-        return;
-      }
-      const { data: runs, error: dupErr } = await supabase
-        .from("form_run")
-        .select("id, header_json")
-        .eq("template_id", template.id)
-        .eq("is_test", isTestMode)
-        .in("status", ["draft", "final"])
-        .limit(10000);
-      if (dupErr) {
-        setError(dupErr.message);
-        showToast(dupErr.message, "err");
-        setSaving(false);
-        return;
-      }
-      const hasDuplicate = (runs ?? []).some((row: any) => {
-        if (currentRunId && row.id === currentRunId) return false;
-        const rowCode = String(row?.header_json?.[field] ?? "")
-          .trim()
-          .toUpperCase();
-        return !!rowCode && rowCode === code;
-      });
-      if (hasDuplicate) {
-        const msg = `Ya existe una ficha registrada con el mismo ${label}.`;
-        setError(msg);
-        showToast(msg, "err");
-        setSaving(false);
-        return;
-      }
-    }
-    if (!currentRunId) {
-      const { data, error } = await supabase.from("form_run").insert(payload).select("id").single();
-      if (error) {
-        setError(error.message);
-        setSaving(false);
-        return;
-      }
-      currentRunId = data.id;
-      if (status === "borrador") setRunId(data.id);
-    } else {
-      const updatePayload = {
-        template_id: template.id,
+    let currentRunId: string;
+    try {
+      currentRunId = await saveFormRunAtomic({
+        runId,
+        templateId: template.id,
         status,
-        is_test: isTestMode,
-        header_json: headerPayload,
-        footer_json: footer,
-      };
-      const { error } = await supabase.from("form_run").update(updatePayload).eq("id", currentRunId);
-      if (error) {
-        setError(error.message);
-        setSaving(false);
-        return;
+        isTest: isTestMode,
+        header: headerPayload,
+        footer,
+        answers: questions.map((question) => ({
+          question_id: question.id,
+          value_json: answers[question.id] ?? {},
+        })),
+        duplicateField: status === "draft" && duplicateRule !== DUP_RULE_NONE
+          ? duplicateRule === DUP_RULE_LOCAL ? "codigo_local" : "codigo_modular"
+          : null,
+      });
+      if (status === "borrador") setRunId(currentRunId);
+      for (const [questionId, file] of Object.entries(pendingEvidenceFiles)) {
+        await uploadPdfEvidence(currentRunId, questionId, file);
       }
-    }
-
-    const rows = questions.map((q) => ({
-      run_id: currentRunId,
-      question_id: q.id,
-      value_json: answers[q.id] ?? {},
-    }));
-    if (rows.length) {
-      const { error } = await supabase
-        .from("form_answer")
-        .upsert(rows, { onConflict: "run_id,question_id" });
-      if (error) {
-        setError(error.message);
-        showToast(error.message, "err");
-        setSaving(false);
-        return;
-      }
+      setPendingEvidenceFiles({});
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "No se pudo guardar la ficha.";
+      setError(message);
+      showToast(message, "err");
+      setSaving(false);
+      return;
     }
     setSaving(false);
     if (status === "draft" && isEditMode) {
@@ -1832,24 +1749,26 @@ export function FichaDinamicaPage() {
             </label>
           )}
           {effectiveHeaderCfg?.hora_inicio && (
-            <label className="text-sm" style={fieldOrderStyle("hora_inicio")}>
+            <div className="text-sm" style={fieldOrderStyle("hora_inicio")}>
               <span className="text-white/70">Hora de inicio</span>
               <TimeField
+                ariaLabel="Hora de inicio"
                 className="mt-1"
                 value={header.hora_inicio}
                 onChange={(value) => setHeader((s) => ({ ...s, hora_inicio: value }))}
               />
-            </label>
+            </div>
           )}
           {effectiveHeaderCfg?.hora_fin && (
-            <label className="text-sm" style={fieldOrderStyle("hora_fin")}>
+            <div className="text-sm" style={fieldOrderStyle("hora_fin")}>
               <span className="text-white/70">Hora de fin</span>
               <TimeField
+                ariaLabel="Hora de fin"
                 className="mt-1"
                 value={header.hora_fin}
                 onChange={(value) => setHeader((s) => ({ ...s, hora_fin: value }))}
               />
-            </label>
+            </div>
           )}
           {customHeaderFields.map((field) => (
             <label
@@ -2067,14 +1986,25 @@ export function FichaDinamicaPage() {
                       {q.tipo === "archivo_pdf" && (
                         <div>
                           <input
+                            aria-label={`Evidencia PDF: ${q.texto}`}
                             type="file"
                             accept="application/pdf"
-                            onChange={(e) =>
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                await validatePdfEvidence(file);
+                              } catch (fileError) {
+                                e.target.value = "";
+                                showToast(fileError instanceof Error ? fileError.message : "PDF no valido.", "err");
+                                return;
+                              }
+                              setPendingEvidenceFiles((current) => ({ ...current, [q.id]: file }));
                               setAnswers((s) => ({
                                 ...s,
-                                [q.id]: { ...value, fileName: e.target.files?.[0]?.name ?? "" },
-                              }))
-                            }
+                                [q.id]: { ...value, fileName: file.name },
+                              }));
+                            }}
                           />
                           {value.fileName ? (
                             <div className="mt-1 text-xs text-white/60">Archivo: {value.fileName}</div>

@@ -338,7 +338,7 @@ export function MonitoreoPage() {
                       "inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition",
                       expired
                         ? "cursor-not-allowed border-white/10 bg-black/20 text-white/45"
-                        : "border-white/10 bg-white text-zinc-950 hover:bg-white/90"
+                        : "executive-primary-action"
                     )}
                   >
                     Elegir ficha
@@ -473,7 +473,7 @@ export function MonitoreoPage() {
                     "inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition",
                     isMonitoreoExpired(descModal.fecha_fin)
                       ? "cursor-not-allowed border-white/10 bg-white/5 text-white/40"
-                      : "border-white/10 bg-white text-zinc-950 hover:bg-white/90"
+                      : "executive-primary-action"
                   )}
                 >
                   Elegir ficha

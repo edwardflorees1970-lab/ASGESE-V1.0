@@ -12,6 +12,7 @@ import {
   normalizeHeaderConfig,
   type HeaderFieldDef,
 } from "../lib/dynamicHeader";
+import { publishMonitoreoSolicitud, publishTemplateVersion } from "../lib/monitoreoWorkflowApi";
 
 const GESTION_PUBLICA = "Pública";
 const GESTION_PRIVADA = "Privada";
@@ -209,9 +210,11 @@ function getTimeParts(value: string) {
 function TimeField({
   value,
   onChange,
+  ariaLabel = "Hora",
 }: {
   value: string;
   onChange: (value: string) => void;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const { hour, minute } = getTimeParts(value);
@@ -236,6 +239,7 @@ function TimeField({
     <div className="relative">
       <div className="relative">
         <input
+          aria-label={ariaLabel}
           type="text"
           inputMode="numeric"
           maxLength={5}
@@ -369,6 +373,7 @@ export function GestionMonitoreosPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [publishingVersion, setPublishingVersion] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const [deleteMonOpen, setDeleteMonOpen] = useState(false);
@@ -989,88 +994,12 @@ export function GestionMonitoreosPage() {
   };
 
   const approveFinal = async (solicitudId: string) => {
-    await supabase
-      .from("monitoreo_solicitud")
-      .update({
-        status: "approved",
-        approved_by: user?.id ?? null,
-        approved_at: new Date().toISOString(),
-      })
-      .eq("id", solicitudId);
-
     try {
-      const { data: sol } = await supabase
-        .from("monitoreo_solicitud")
-        .select("id, nombre, detalle, fecha_inicio, fecha_fin")
-        .eq("id", solicitudId)
-        .maybeSingle();
-      if (sol) {
-        const anio = sol.fecha_inicio ? new Date(sol.fecha_inicio).getFullYear() : new Date().getFullYear();
-        const codigo = `SOL-${solicitudId.slice(0, 8).toUpperCase()}`;
-        const { data: mon } = await supabase
-          .from("monitoreo_catalog")
-          .select("id, solicitud_id")
-          .eq("codigo", codigo)
-          .maybeSingle();
-        let monitoreoId = mon?.id as string | undefined;
-        if (!monitoreoId) {
-          const { data: inserted, error: insErr } = await supabase
-            .from("monitoreo_catalog")
-            .insert({
-              anio,
-              codigo,
-              nombre: sol.nombre,
-              descripcion: sol.detalle ?? null,
-              is_active: true,
-              fecha_inicio: sol.fecha_inicio,
-              fecha_fin: sol.fecha_fin,
-              solicitud_id: solicitudId,
-            })
-            .select("id")
-            .single();
-          if (insErr) throw new Error(insErr.message);
-          monitoreoId = inserted.id;
-        } else if (!mon?.solicitud_id) {
-          await supabase
-            .from("monitoreo_catalog")
-            .update({ solicitud_id: solicitudId })
-            .eq("id", monitoreoId);
-        }
-
-        const { data: tpls, error: tplErr } = await supabase
-          .from("form_template")
-          .select("id, titulo, codigo, orden")
-          .eq("solicitud_id", solicitudId)
-          .order("orden", { ascending: true });
-        if (tplErr) throw new Error(tplErr.message);
-        const rows =
-          (tpls ?? []).map((t: any) => ({
-            monitoreo_id: monitoreoId,
-            codigo: t.codigo,
-            titulo: t.titulo,
-            version: 1,
-            orden: t.orden ?? 1,
-            is_active: true,
-            form_template_id: t.id,
-          })) || [];
-        if (rows.length) {
-          await supabase.from("ficha_catalog").insert(rows);
-        }
-
-        // Poblar IE por filtros si no hay focalizadas guardadas
-        const { count: ieCount } = await supabase
-          .from("monitoreo_solicitud_ie")
-          .select("id", { count: "exact", head: true })
-          .eq("solicitud_id", solicitudId);
-        if (!ieCount || ieCount === 0) {
-          const { error: popErr } = await supabase.rpc("populate_solicitud_ie", {
-            p_solicitud_id: solicitudId,
-          });
-          if (popErr) throw new Error(popErr.message);
-        }
-      }
-    } catch (e: any) {
-      setError(e?.message || "No se pudo publicar la solicitud.");
+      await publishMonitoreoSolicitud(solicitudId);
+      setToast({ type: "ok", msg: "Solicitud publicada de forma transaccional." });
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : "No se pudo publicar la solicitud.");
+      return;
     }
 
     if (selectedTemplateId) {
@@ -2002,6 +1931,19 @@ export function GestionMonitoreosPage() {
     await loadTemplates(selectedId ?? "");
     setToast({ type: "ok", msg: "Ficha guardada." });
     setSavingConfig(false);
+  };
+
+  const publishSelectedTemplateVersion = async () => {
+    if (!selectedTemplateId) return;
+    setPublishingVersion(true);
+    try {
+      const version = await publishTemplateVersion(selectedTemplateId);
+      setToast({ type: "ok", msg: `Version ${version} publicada e inmutable.` });
+    } catch (publishError) {
+      setToast({ type: "err", msg: publishError instanceof Error ? publishError.message : "No se pudo publicar la version." });
+    } finally {
+      setPublishingVersion(false);
+    }
   };
 
   const moveSection = async (sectionId: string, dir: -1 | 1) => {
@@ -3239,6 +3181,14 @@ export function GestionMonitoreosPage() {
                           >
                             Guardar ficha
                           </button>
+                          <button
+                            type="button"
+                            disabled={publishingVersion}
+                            onClick={publishSelectedTemplateVersion}
+                            className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-50"
+                          >
+                            {publishingVersion ? "Publicando..." : "Publicar version"}
+                          </button>
                         </div>
                       )}
                       <div className="text-sm font-semibold">Encabezado / Cierre</div>
@@ -4332,9 +4282,10 @@ export function GestionMonitoreosPage() {
                         </label>
                       )}
                       {templateHeader.hora_inicio && (
-                        <label className="block">
+                        <div className="block">
                           <div className="mb-1 text-[11px] text-white/60">Hora de inicio</div>
                           <TimeField
+                            ariaLabel="Hora de inicio"
                             value={previewData.__header?.hora_inicio ?? ""}
                             onChange={(value) =>
                               savePreview({
@@ -4343,12 +4294,13 @@ export function GestionMonitoreosPage() {
                               })
                             }
                           />
-                        </label>
+                        </div>
                       )}
                       {templateHeader.hora_fin && (
-                        <label className="block">
+                        <div className="block">
                           <div className="mb-1 text-[11px] text-white/60">Hora de fin</div>
                           <TimeField
+                            ariaLabel="Hora de fin"
                             value={previewData.__header?.hora_fin ?? ""}
                             onChange={(value) =>
                               savePreview({
@@ -4357,7 +4309,7 @@ export function GestionMonitoreosPage() {
                               })
                             }
                           />
-                        </label>
+                        </div>
                       )}
                       {(templateHeader.custom_fields ?? []).map((field: HeaderFieldDef) => (
                         <label

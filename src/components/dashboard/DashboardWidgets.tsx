@@ -159,28 +159,28 @@ export const KpiCard = memo(function KpiCard({
   className?: string;
 }) {
   const tones = {
-    cyan: "from-cyan-400/20 to-sky-500/5 text-cyan-200 border-cyan-400/20",
-    emerald: "from-emerald-400/20 to-teal-500/5 text-emerald-200 border-emerald-400/20",
-    amber: "from-amber-400/20 to-orange-500/5 text-amber-200 border-amber-400/20",
-    violet: "from-violet-400/20 to-fuchsia-500/5 text-violet-200 border-violet-400/20",
+    cyan: "dashboard-tone-blue",
+    emerald: "dashboard-tone-green",
+    amber: "dashboard-tone-amber",
+    violet: "dashboard-tone-violet",
   };
 
   return (
-    <article className={`dashboard-kpi group relative min-w-0 overflow-hidden rounded-2xl border border-white/10 p-4 sm:p-5 ${className}`}>
-      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${tones[tone]}`} />
+    <article className={`dashboard-kpi group relative min-h-40 min-w-0 overflow-hidden rounded-2xl border border-white/10 p-4 sm:p-5 ${className}`}>
+      <div className={`dashboard-kpi-accent absolute inset-x-0 top-0 h-1 ${tones[tone]}`} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-medium text-white/55">{label}</div>
           <div className="mt-2 truncate text-2xl font-semibold tracking-[-0.035em] text-white sm:text-3xl">{value}</div>
         </div>
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border bg-gradient-to-br ${tones[tone]}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${tones[tone]}`}>
           <DashboardIcon name={icon} className="h-5 w-5" />
         </div>
       </div>
-      <div className="mt-3 text-[11px] leading-4 text-white/45">{detail}</div>
+      <div className="mt-4 min-h-8 text-[11px] leading-4 text-white/45">{detail}</div>
       {progress !== undefined && (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
-          <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-[width] duration-700" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+        <div className="dashboard-progress-track mt-3 h-1.5 overflow-hidden rounded-full">
+          <div className="dashboard-progress-value h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
         </div>
       )}
     </article>
@@ -310,12 +310,14 @@ export function SearchableFilter({
   options,
   allLabel,
   onChange,
+  placeholder = "Buscar...",
 }: {
   label: string;
   value: string;
   options: readonly Option[];
   allLabel: string;
   onChange: (value: string) => void;
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -357,7 +359,7 @@ export function SearchableFilter({
           }
         }}
         className="dashboard-control h-11 w-full rounded-xl border px-3 text-sm outline-none"
-        placeholder="Buscar monitoreo..."
+        placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}
         aria-controls={open ? menuId : undefined}
