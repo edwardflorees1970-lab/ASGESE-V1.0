@@ -14,6 +14,7 @@ import {
   type AnalyticsColumn,
   type AnalyticsRow,
 } from "../lib/analyticsExport";
+import { deleteFormRunAtomic } from "../lib/formRunApi";
 
 type RunRow = {
   id: string;
@@ -1520,30 +1521,10 @@ export function ReportesPage() {
     if (!confirmDeleteRun || !canEditOrDelete(confirmDeleteRun)) return;
     setDeleteBusy(true);
     const run = confirmDeleteRun;
-    const { error: ansErr } = await supabase
-      .from("form_answer")
-      .delete()
-      .eq("run_id", run.id);
-    if (ansErr) {
-      setToast({ type: "err", msg: ansErr.message });
-      setDeleteBusy(false);
-      return;
-    }
-    const { data: deleted, error } = await supabase
-      .from("form_run")
-      .delete()
-      .eq("id", run.id)
-      .select("id");
-    if (error) {
-      setToast({ type: "err", msg: error.message });
-      setDeleteBusy(false);
-      return;
-    }
-    if (!deleted || deleted.length === 0) {
-      setToast({
-        type: "err",
-        msg: "No se pudo eliminar (posible RLS o permisos).",
-      });
+    try {
+      await deleteFormRunAtomic(run.id);
+    } catch (deleteError) {
+      setToast({ type: "err", msg: deleteError instanceof Error ? deleteError.message : "No se pudo eliminar." });
       setDeleteBusy(false);
       return;
     }
@@ -1754,7 +1735,7 @@ export function ReportesPage() {
                           "inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition",
                           disabled
                             ? "cursor-not-allowed border-white/10 bg-black/20 text-white/45"
-                            : "border-white/10 bg-white text-zinc-950 hover:bg-white/90"
+                            : "executive-primary-action"
                         )}
                       >
                         Ingresar a reportes
@@ -1897,7 +1878,7 @@ export function ReportesPage() {
                   className={cls(
                     "inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition",
                     reportMonitoreoModal.is_active
-                      ? "border-white/10 bg-white text-zinc-950 hover:bg-white/90"
+                      ? "executive-primary-action"
                       : "cursor-not-allowed border-white/10 bg-white/5 text-white/40"
                   )}
                 >
@@ -2067,16 +2048,32 @@ export function ReportesPage() {
                     <div className="truncate text-sm font-semibold">{mon?.nombre || "Monitoreo"}</div>
                     <div className="text-xs text-white/60">Ficha: {fichaCodigo}</div>
                   </div>
-                  <div
-                    className={cls(
-                      "rounded-lg border px-2 py-1 text-xs",
-                      statusText === "final"
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
-                        : "border-white/10 bg-white/5 badge-muted"
-                    )}
-                  >
-                    {statusText}
-                  </div>
+                  {canChangeStatus(r) ? (
+                    <button
+                      type="button"
+                      title={r.status === "final" ? "Pasar a borrador" : "Finalizar ficha"}
+                      onClick={() => updateStatus(r, r.status === "final" ? "draft" : "final")}
+                      className={cls(
+                        "badge-interactive rounded-lg border px-2 py-1 text-xs",
+                        statusText === "final"
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                          : "border-white/10 bg-white/5 badge-muted"
+                      )}
+                    >
+                      {statusText}
+                    </button>
+                  ) : (
+                    <div
+                      className={cls(
+                        "rounded-lg border px-2 py-1 text-xs",
+                        statusText === "final"
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                          : "border-white/10 bg-white/5 badge-muted"
+                      )}
+                    >
+                      {statusText}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-1 truncate text-xs text-white/50">{fmtDateShort(r.created_at)}</div>
                 <div className="mt-2 text-xs text-white/60">
@@ -2250,16 +2247,32 @@ export function ReportesPage() {
                         <RunSummary monitoreado={monitoreado} institucion={institucion} />
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={cls(
-                            "rounded-lg border px-2 py-1 text-xs",
-                            statusText === "final"
-                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
-                              : "border-white/10 bg-white/5 badge-muted"
-                          )}
-                        >
-                          {statusText}
-                        </span>
+                        {canChangeStatus(r) ? (
+                          <button
+                            type="button"
+                            title={r.status === "final" ? "Pasar a borrador" : "Finalizar ficha"}
+                            onClick={() => updateStatus(r, r.status === "final" ? "draft" : "final")}
+                            className={cls(
+                              "badge-interactive rounded-lg border px-2 py-1 text-xs",
+                              statusText === "final"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                                : "border-white/10 bg-white/5 badge-muted"
+                            )}
+                          >
+                            {statusText}
+                          </button>
+                        ) : (
+                          <span
+                            className={cls(
+                              "rounded-lg border px-2 py-1 text-xs",
+                              statusText === "final"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
+                                : "border-white/10 bg-white/5 badge-muted"
+                            )}
+                          >
+                            {statusText}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">

@@ -141,7 +141,7 @@ function Button({
     "rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60";
   const styles =
     variant === "primary"
-      ? "bg-white text-zinc-950 hover:bg-white/90"
+      ? "executive-primary-action"
       : variant === "danger"
       ? "bg-red-500/90 text-white hover:bg-red-500"
       : "bg-white/5 text-white hover:bg-white/10 border border-white/10";

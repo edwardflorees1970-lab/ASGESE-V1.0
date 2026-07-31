@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 type ConfirmVariant = "default" | "danger";
 
@@ -29,6 +29,34 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    cancelRef.current?.focus();
+    return () => previous?.focus();
+  }, [open]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape" && !busy) onClose();
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable.at(-1)!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -39,15 +67,24 @@ export function ConfirmDialog({
         aria-hidden="true"
       />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={description ? descriptionId : undefined}
+          onKeyDown={handleKeyDown}
+          className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl"
+        >
           <div className="border-b border-white/10 px-5 py-4">
-            <div className="text-sm font-semibold">{title}</div>
+            <div id={titleId} className="text-sm font-semibold">{title}</div>
             {description && (
-              <div className="mt-1 text-xs text-white/60">{description}</div>
+              <div id={descriptionId} className="mt-1 text-xs text-white/60">{description}</div>
             )}
           </div>
           <div className="flex items-center justify-end gap-2 px-5 py-4">
             <button
+              ref={cancelRef}
               type="button"
               onClick={onClose}
               disabled={busy}

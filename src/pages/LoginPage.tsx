@@ -122,7 +122,7 @@ export function LoginPage() {
                   onClick={() => setMode("usuario")}
                   className={`rounded-lg px-3 py-1.5 ${
                     mode === "usuario"
-                      ? "bg-white text-zinc-950"
+                      ? "bg-[var(--app-accent)] text-[var(--app-on-accent)]"
                       : "text-white/70 hover:bg-white/5"
                   }`}
                 >
@@ -133,7 +133,7 @@ export function LoginPage() {
                   onClick={() => setMode("admin")}
                   className={`rounded-lg px-3 py-1.5 ${
                     mode === "admin"
-                      ? "bg-white text-zinc-950"
+                      ? "bg-[var(--app-accent)] text-[var(--app-on-accent)]"
                       : "text-white/70 hover:bg-white/5"
                   }`}
                 >
@@ -216,7 +216,7 @@ export function LoginPage() {
               type="button"
               onClick={handleLogin}
               disabled={loading}
-              className="mt-2 w-full rounded-xl bg-white py-3 text-sm font-semibold text-zinc-950 hover:bg-white/90 disabled:opacity-60"
+              className="executive-primary-action mt-2 w-full rounded-xl py-3 text-sm font-semibold disabled:opacity-60"
             >
               {loading ? "Ingresando..." : "Entrar"}
             </button>
