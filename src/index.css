@@ -16,6 +16,11 @@
   --app-on-accent: #0b1220;
   --app-danger: #c0392b;
   --app-success: #2a9d8f;
+  --dashboard-panel: rgba(15, 23, 42, 0.72);
+  --dashboard-panel-strong: rgba(17, 24, 39, 0.9);
+  --dashboard-control: rgba(2, 6, 23, 0.34);
+  --dashboard-grid: rgba(148, 163, 184, 0.11);
+  --dashboard-shadow: 0 18px 55px rgba(2, 6, 23, 0.16);
 }
 
 [data-theme="light"] {
@@ -33,6 +38,11 @@
   --app-on-accent: #ffffff;
   --app-danger: #b02a2a;
   --app-success: #1f8a70;
+  --dashboard-panel: rgba(255, 255, 255, 0.92);
+  --dashboard-panel-strong: #ffffff;
+  --dashboard-control: rgba(241, 245, 249, 0.92);
+  --dashboard-grid: rgba(15, 23, 42, 0.09);
+  --dashboard-shadow: 0 18px 45px rgba(15, 23, 42, 0.07);
 }
 
 html,
@@ -310,4 +320,146 @@ button:hover .agebre-action-icon {
 
 .agebre-modal-content {
   animation: modalIn 0.2s ease both;
+}
+
+.dashboard-shell {
+  isolation: isolate;
+}
+
+.dashboard-panel,
+.dashboard-kpi {
+  background: linear-gradient(145deg, var(--dashboard-panel-strong), var(--dashboard-panel));
+  border-color: var(--app-border);
+  box-shadow: var(--dashboard-shadow);
+  backdrop-filter: blur(14px);
+}
+
+.dashboard-panel {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.dashboard-kpi {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+@media (hover: hover) {
+  .dashboard-kpi:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--app-accent) 42%, transparent);
+    box-shadow: 0 22px 55px rgba(2, 6, 23, 0.22);
+  }
+}
+
+.dashboard-control {
+  color: var(--app-text);
+  background: var(--dashboard-control);
+  border-color: var(--app-border);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.dashboard-control:focus {
+  border-color: color-mix(in srgb, #22d3ee 56%, var(--app-border));
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+}
+
+.dashboard-filter-menu,
+.dashboard-chart-tooltip {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+  border-color: var(--app-border);
+  backdrop-filter: blur(18px);
+}
+
+.dashboard-filter-portal {
+  position: fixed;
+  z-index: 2147483000;
+}
+
+.dashboard-filter-option {
+  color: var(--app-text-muted);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.dashboard-select-chevron {
+  color: var(--app-text-muted);
+  transition: transform 160ms ease, color 160ms ease;
+}
+
+.dashboard-select-trigger[aria-expanded="true"] .dashboard-select-chevron {
+  color: var(--app-text);
+  transform: rotate(180deg);
+}
+
+.dashboard-filter-option:hover,
+.dashboard-filter-option:focus-visible {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  outline: none;
+}
+
+.dashboard-filter-option[aria-selected="true"] {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 16%, transparent);
+}
+
+.dashboard-filter-empty,
+.dashboard-filter-hint {
+  color: var(--app-text-muted);
+}
+
+.dashboard-filter-hint {
+  border-color: var(--app-border);
+}
+
+[data-theme="light"] .dashboard-panel .text-white,
+[data-theme="light"] .dashboard-kpi .text-white,
+[data-theme="light"] .dashboard-shell .text-white {
+  color: var(--app-text) !important;
+}
+
+[data-theme="light"] .dashboard-shell .text-white\/85,
+[data-theme="light"] .dashboard-shell .text-white\/75,
+[data-theme="light"] .dashboard-shell .text-white\/70,
+[data-theme="light"] .dashboard-shell .text-white\/60,
+[data-theme="light"] .dashboard-shell .text-white\/55 {
+  color: rgba(15, 23, 42, 0.72) !important;
+}
+
+[data-theme="light"] .dashboard-shell .text-white\/50,
+[data-theme="light"] .dashboard-shell .text-white\/45,
+[data-theme="light"] .dashboard-shell .text-white\/40,
+[data-theme="light"] .dashboard-shell .text-white\/35 {
+  color: rgba(15, 23, 42, 0.5) !important;
+}
+
+[data-theme="light"] .dashboard-shell .text-cyan-200,
+[data-theme="light"] .dashboard-shell .text-cyan-300 {
+  color: #087f8c !important;
+}
+
+[data-theme="light"] .dashboard-shell .text-emerald-200 {
+  color: #047857 !important;
+}
+
+[data-theme="light"] .dashboard-shell .text-amber-200 {
+  color: #b45309 !important;
+}
+
+[data-theme="light"] .dashboard-shell .text-violet-200 {
+  color: #6d28d9 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-kpi,
+  .dashboard-kpi * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

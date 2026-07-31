@@ -344,7 +344,12 @@ export function AppShell() {
               </button>
             </div>
           )}
-          <div className="mx-auto min-w-0 max-w-5xl fade-in-up">
+          <div
+            className={cls(
+              "mx-auto min-w-0 fade-in-up",
+              location.pathname === "/app" ? "max-w-[1600px]" : "max-w-5xl"
+            )}
+          >
             <Outlet key={`${location.pathname}${location.search}`} />
           </div>
         </main>
