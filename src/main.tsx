@@ -5,15 +5,26 @@ import "./index.css";
 import { AuthProvider } from "./app/AuthProvider";
 import { ThemeProvider } from "./app/ThemeProvider";
 import { AppConfigProvider } from "./app/AppConfigProvider";
+import { AppErrorBoundary } from "./app/AppErrorBoundary";
+import { captureException } from "./lib/telemetry";
+
+window.addEventListener("error", (event) => {
+  void captureException(event.error ?? event.message, { source: "window.error" });
+});
+window.addEventListener("unhandledrejection", (event) => {
+  void captureException(event.reason, { source: "unhandledrejection" });
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <BrowserRouter>
-    <ThemeProvider>
-      <AppConfigProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </AppConfigProvider>
-    </ThemeProvider>
-  </BrowserRouter>
+  <AppErrorBoundary>
+    <BrowserRouter>
+      <ThemeProvider>
+        <AppConfigProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </AppConfigProvider>
+      </ThemeProvider>
+    </BrowserRouter>
+  </AppErrorBoundary>
 );

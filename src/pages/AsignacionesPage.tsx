@@ -305,7 +305,7 @@ export function AsignacionesPage() {
                     onClick={() => toggleAssign(u)}
                     disabled={!canManageAssignments || saving === u.id}
                     className={cls(
-                      "rounded-lg px-3 py-1.5 text-xs",
+                      "badge-interactive rounded-lg px-3 py-1.5 text-xs",
                       assigned
                         ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
                         : "border border-white/10 bg-white/5 badge-muted"

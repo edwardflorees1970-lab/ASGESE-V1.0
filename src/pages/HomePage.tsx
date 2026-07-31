@@ -25,14 +25,10 @@ import {
   KpiCard,
   SearchableFilter,
 } from "../components/dashboard/DashboardWidgets";
+import { loadDashboardRunFacts, type DashboardRunFact } from "../lib/dashboardApi";
+import { EXECUTIVE_CHART, EXECUTIVE_CHART_COLORS } from "../lib/designSystem";
 
-type RunRow = {
-  id: string;
-  status: string;
-  created_by: string;
-  created_at: string;
-  template_id?: string;
-};
+type RunRow = DashboardRunFact;
 
 type ProfileRow = {
   id: string;
@@ -75,8 +71,7 @@ const MONTHS = [
   { value: "12", label: "Diciembre", short: "Dic" },
 ] as const;
 
-const STATUS_COLORS = ["#22d3ee", "#34d399", "#f59e0b", "#a78bfa", "#64748b"];
-const RUN_PAGE_SIZE = 1000;
+const STATUS_COLORS = EXECUTIVE_CHART_COLORS;
 const formatter = new Intl.NumberFormat("es-PE");
 
 function isFinalStatus(status: string) {
@@ -198,27 +193,12 @@ export function HomePage() {
           }
         }
 
-        const runRows: RunRow[] = [];
-        if (!templateIdsByMonitoreo || templateIdsByMonitoreo.length > 0) {
-          for (let from = 0; alive; from += RUN_PAGE_SIZE) {
-            let query = supabase
-              .from("form_run")
-              .select("id, status, created_by, created_at, template_id")
-              .gte("created_at", start.toISOString())
-              .lt("created_at", end.toISOString())
-              .eq("is_test", isTestMode)
-              .neq("status", "borrador")
-              .order("created_at", { ascending: false })
-              .range(from, from + RUN_PAGE_SIZE - 1);
-
-            if (templateIdsByMonitoreo) query = query.in("template_id", templateIdsByMonitoreo);
-            const { data, error } = await query;
-            if (error) throw new Error(error.message);
-            const page = (data ?? []) as RunRow[];
-            runRows.push(...page);
-            if (page.length < RUN_PAGE_SIZE) break;
-          }
-        }
+        const runRows: RunRow[] = await loadDashboardRunFacts({
+          from: start,
+          to: end,
+          isTest: isTestMode,
+          templateIds: templateIdsByMonitoreo,
+        });
         if (!alive) return;
 
         const templateIds = Array.from(new Set(runRows.map((run) => run.template_id).filter((id): id is string => Boolean(id))));
@@ -281,18 +261,19 @@ export function HomePage() {
 
     let finalizadas = 0;
     runs.forEach((run) => {
+      const count = run.run_count || 1;
       const normalizedStatus = statusLabel(run.status);
-      statusMap.set(normalizedStatus, (statusMap.get(normalizedStatus) ?? 0) + 1);
-      userMap.set(run.created_by, (userMap.get(run.created_by) ?? 0) + 1);
-      if (isFinalStatus(run.status)) finalizadas += 1;
+      statusMap.set(normalizedStatus, (statusMap.get(normalizedStatus) ?? 0) + count);
+      userMap.set(run.created_by, (userMap.get(run.created_by) ?? 0) + count);
+      if (isFinalStatus(run.status)) finalizadas += count;
 
       const ficha = run.template_id ? fichasByTemplate[run.template_id] : undefined;
       const mon = ficha ? monById[ficha.monitoreo_id] : undefined;
       const monName = mon?.nombre ?? "Sin monitoreo asociado";
       const monMetric = monitoreoMap.get(monName) ?? { total: 0, finalizadas: 0, proceso: 0 };
-      monMetric.total += 1;
-      if (isFinalStatus(run.status)) monMetric.finalizadas += 1;
-      else monMetric.proceso += 1;
+      monMetric.total += count;
+      if (isFinalStatus(run.status)) monMetric.finalizadas += count;
+      else monMetric.proceso += count;
       monitoreoMap.set(monName, monMetric);
 
       const createdAt = new Date(run.created_at);
@@ -301,15 +282,15 @@ export function HomePage() {
         : MONTHS[createdAt.getMonth() + 1]?.short;
       if (bucket) {
         const metric = bucketMap.get(bucket) ?? { total: 0, finalizadas: 0 };
-        metric.total += 1;
-        if (isFinalStatus(run.status)) metric.finalizadas += 1;
+        metric.total += count;
+        if (isFinalStatus(run.status)) metric.finalizadas += count;
         bucketMap.set(bucket, metric);
       }
     });
 
     Object.values(profiles).forEach((profile) => roleMap.set(profile.role, (roleMap.get(profile.role) ?? 0) + 1));
 
-    const total = runs.length;
+    const total = runs.reduce((sum, run) => sum + (run.run_count || 1), 0);
     const proceso = total - finalizadas;
     const userCount = userMap.size;
     const completionRate = total ? Math.round((finalizadas / total) * 100) : 0;
@@ -423,21 +404,17 @@ export function HomePage() {
             {analytics.total ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={analytics.trendData} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="totalArea" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22d3ee" stopOpacity={0.32} /><stop offset="95%" stopColor="#22d3ee" stopOpacity={0.02} /></linearGradient>
-                    <linearGradient id="finalArea" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.28} /><stop offset="95%" stopColor="#34d399" stopOpacity={0.01} /></linearGradient>
-                  </defs>
                   <CartesianGrid stroke="var(--dashboard-grid)" strokeDasharray="3 5" vertical={false} />
                   <XAxis dataKey="periodo" axisLine={false} tickLine={false} tick={{ fill: "var(--app-muted)", fontSize: 11 }} dy={8} />
                   <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "var(--app-muted)", fontSize: 11 }} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ stroke: "rgba(34,211,238,.25)", strokeWidth: 1 }} />
-                  <Area type="monotone" dataKey="total" name="Registradas" stroke="#22d3ee" strokeWidth={2.2} fill="url(#totalArea)" activeDot={{ r: 5, strokeWidth: 0 }} />
-                  <Area type="monotone" dataKey="finalizadas" name="Finalizadas" stroke="#34d399" strokeWidth={2} fill="url(#finalArea)" activeDot={{ r: 4, strokeWidth: 0 }} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ stroke: EXECUTIVE_CHART.cursor, strokeWidth: 1 }} />
+                  <Area type="monotone" dataKey="total" name="Registradas" stroke={EXECUTIVE_CHART.primary} strokeWidth={2.2} fill={EXECUTIVE_CHART.primary} fillOpacity={0.12} activeDot={{ r: 5, strokeWidth: 0 }} />
+                  <Area type="monotone" dataKey="finalizadas" name="Finalizadas" stroke={EXECUTIVE_CHART.secondary} strokeWidth={2} fill={EXECUTIVE_CHART.secondary} fillOpacity={0.08} activeDot={{ r: 4, strokeWidth: 0 }} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : <EmptyChart />}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-white/45"><LegendDot color="#22d3ee" label="Registradas" /><LegendDot color="#34d399" label="Finalizadas" /></div>
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-white/45"><LegendDot color={EXECUTIVE_CHART.primary} label="Registradas" /><LegendDot color={EXECUTIVE_CHART.secondary} label="Finalizadas" /></div>
         </DashboardPanel>
 
         <DashboardPanel title="Distribución por estado" eyebrow="Composición" description="Participación de cada estado sobre el total." className="xl:col-span-4">
@@ -472,13 +449,13 @@ export function HomePage() {
                   <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "var(--app-muted)", fontSize: 10 }} />
                   <YAxis type="category" dataKey="shortName" width={108} axisLine={false} tickLine={false} tick={{ fill: "var(--app-muted)", fontSize: 10 }} />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(148,163,184,.06)" }} />
-                  <Bar dataKey="finalizadas" name="Finalizadas" stackId="status" fill="#34d399" radius={[5, 0, 0, 5]} maxBarSize={24} />
-                  <Bar dataKey="proceso" name="En proceso" stackId="status" fill="#f59e0b" radius={[0, 5, 5, 0]} maxBarSize={24} />
+                  <Bar dataKey="finalizadas" name="Finalizadas" stackId="status" fill={EXECUTIVE_CHART.secondary} radius={[5, 0, 0, 5]} maxBarSize={24} />
+                  <Bar dataKey="proceso" name="En proceso" stackId="status" fill={EXECUTIVE_CHART.warning} radius={[0, 5, 5, 0]} maxBarSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <EmptyChart />}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-white/45"><LegendDot color="#34d399" label="Finalizadas" /><LegendDot color="#f59e0b" label="En proceso" /></div>
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-white/45"><LegendDot color={EXECUTIVE_CHART.secondary} label="Finalizadas" /><LegendDot color={EXECUTIVE_CHART.warning} label="En proceso" /></div>
         </DashboardPanel>
 
         <DashboardPanel title="Ranking de registradores" eyebrow="Top usuarios" description="Cinco resultados iniciales; busca para consultar el resto." className="xl:col-span-5" action={<span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/40">{analytics.userRanking.length} usuarios</span>}>
@@ -496,7 +473,7 @@ export function HomePage() {
                     <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-white/85" title={item.name}>{item.name}</div><div className="mt-0.5 text-[10px] text-white/40">{item.role}</div></div>
                     <div className="text-sm font-semibold text-white">{formatter.format(item.count)}</div>
                   </div>
-                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500" style={{ width: `${(item.count / max) * 100}%` }} /></div>
+                  <div className="dashboard-progress-track mt-2 h-1 overflow-hidden rounded-full"><div className="dashboard-progress-value h-full rounded-full" style={{ width: `${(item.count / max) * 100}%` }} /></div>
                 </div>
               );
             })}

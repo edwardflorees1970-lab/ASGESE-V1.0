@@ -38,7 +38,7 @@ const Item = ({
       [
         "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition",
         isActive
-          ? "bg-[var(--app-accent)] text-[var(--app-on-accent)]"
+          ? "bg-[var(--nav-active)] text-[var(--nav-on-active)]"
           : "text-white/70 hover:bg-white/5 hover:text-white",
       ].join(" ")
     }
@@ -145,7 +145,7 @@ export function AppShell() {
               await setMode(isTestMode ? "prod" : "test");
             }}
             className={cls(
-              "mt-3 w-full rounded-lg border px-3 py-2 text-xs",
+              "badge-interactive mt-3 w-full rounded-lg border px-3 py-2 text-xs",
               isTestMode
                 ? "border-amber-500/40 bg-amber-500/10 text-amber-100 badge-amber"
                 : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
@@ -207,10 +207,26 @@ export function AppShell() {
             reloadOnClick={inFichaRoute}
           />
         )}
+        {role === "admin" && (
+          <Item
+            to="/app/operaciones"
+            label="Auditoria y alertas"
+            icon={<TrackIcon />}
+            onClick={onItemClick}
+            reloadOnClick={inFichaRoute}
+          />
+        )}
         <Item
           to="/app/reportes"
           label="Reportes y resultados"
           icon={<ChartIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+        />
+        <Item
+          to="/app/reportes-analiticos"
+          label="Reportes analíticos"
+          icon={<SparkIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
         />
@@ -332,7 +348,10 @@ export function AppShell() {
           </div>
         )}
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 md:p-6">
+        <a href="#main-content" className="sr-only z-[60] rounded-lg bg-white px-3 py-2 text-slate-950 focus:not-sr-only focus:fixed focus:left-3 focus:top-3">
+          Saltar al contenido principal
+        </a>
+        <main id="main-content" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 md:p-6">
           {sidebarHidden && (
             <div className="mb-3 hidden md:flex items-center">
               <button

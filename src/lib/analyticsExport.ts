@@ -4,7 +4,7 @@ export type AnalyticsColumn = {
   key: string;
   header: string;
   width?: number;
-  kind?: "text" | "number" | "boolean" | "date" | "datetime";
+  kind?: "text" | "number" | "integer" | "percentage" | "boolean" | "date" | "datetime";
 };
 
 export type AnalyticsRow = Record<string, AnalyticsCell>;
@@ -95,6 +95,8 @@ export async function exportAnalyticsExcel(
     if (column.kind === "date") excelColumn.numFmt = "yyyy-mm-dd";
     if (column.kind === "datetime") excelColumn.numFmt = "yyyy-mm-dd hh:mm:ss";
     if (column.kind === "number") excelColumn.numFmt = "0.########";
+    if (column.kind === "integer") excelColumn.numFmt = "0";
+    if (column.kind === "percentage") excelColumn.numFmt = "0.00%";
 
     let maxLength = column.header.length;
     const sampleLimit = Math.min(rows.length, 5000);

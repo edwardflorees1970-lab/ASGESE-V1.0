@@ -19,6 +19,9 @@ const HomePage = lazy(() => import("./pages/HomePage").then((m) => ({ default: m
 const ReportesPage = lazy(() =>
   import("./pages/ReportesPage").then((m) => ({ default: m.ReportesPage }))
 );
+const AnalyticsReportsPage = lazy(() =>
+  import("./pages/AnalyticsReportsPage").then((m) => ({ default: m.AnalyticsReportsPage }))
+);
 const SeguimientoPage = lazy(() =>
   import("./pages/SeguimientoPage").then((m) => ({ default: m.SeguimientoPage }))
 );
@@ -34,6 +37,7 @@ const GestionMonitoreosPage = lazy(() =>
 const IndicadoresCdDPage = lazy(() =>
   import("./pages/IndicadoresCdDPage").then((m) => ({ default: m.IndicadoresCdDPage }))
 );
+const OperationsPage = lazy(() => import("./pages/OperationsPage").then((m) => ({ default: m.OperationsPage })));
 
 function PageLoader() {
   return (
@@ -92,6 +96,9 @@ export default function App() {
             </Route>
 
             <Route path="reportes" element={<ReportesPage />} />
+            <Route element={<ProtectedRoute allowedRoles={["admin", "user", "jefe_area", "director", "responsable_cdd"]} />}>
+              <Route path="reportes-analiticos" element={<AnalyticsReportsPage />} />
+            </Route>
             <Route element={<ProtectedRoute allowedRoles={["admin", "user", "jefe_area", "director"]} />}>
               <Route path="seguimiento" element={<SeguimientoPage />} />
             </Route>
@@ -108,6 +115,7 @@ export default function App() {
             <Route element={<ProtectedRoute requireAdmin />}>
               <Route path="usuarios" element={<UsersPage />} />
               <Route path="asignaciones" element={<AsignacionesPage />} />
+              <Route path="operaciones" element={<OperationsPage />} />
             </Route>
           </Route>
         </Route>
