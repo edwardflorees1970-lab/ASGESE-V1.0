@@ -1,11 +1,11 @@
 export const EXECUTIVE_CHART_COLORS = [
-  "#0088b5",
-  "#245fc1",
-  "#7044bc",
-  "#087a54",
-  "#c87500",
-  "#c83f36",
-  "#486b8a",
+  "#008fbd",
+  "#2563d4",
+  "#7a46cc",
+  "#0b9662",
+  "#d38300",
+  "#cf3931",
+  "#3f789f",
 ] as const;
 
 export const EXECUTIVE_CHART = {

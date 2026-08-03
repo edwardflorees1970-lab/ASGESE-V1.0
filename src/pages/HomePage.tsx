@@ -291,6 +291,11 @@ export function HomePage() {
     Object.values(profiles).forEach((profile) => roleMap.set(profile.role, (roleMap.get(profile.role) ?? 0) + 1));
 
     const total = runs.reduce((sum, run) => sum + (run.run_count || 1), 0);
+    const cddTotal = runs.reduce(
+      (sum, run) => sum + (profiles[run.created_by]?.role === "responsable_cdd" ? (run.run_count || 1) : 0),
+      0,
+    );
+    const monitoringTotal = Math.max(0, total - cddTotal);
     const proceso = total - finalizadas;
     const userCount = userMap.size;
     const completionRate = total ? Math.round((finalizadas / total) * 100) : 0;
@@ -310,6 +315,8 @@ export function HomePage() {
 
     return {
       total,
+      monitoringTotal,
+      cddTotal,
       finalizadas,
       proceso,
       userCount,
@@ -369,25 +376,26 @@ export function HomePage() {
           <DashboardSelect label="Periodo" value={month} options={MONTHS} onChange={setMonth} />
           <SearchableFilter label="Monitoreo" value={monitoreo} options={monitoreoOptions} allLabel="Todos los monitoreos" onChange={setMonitoreo} />
           <div className="flex h-11 min-w-36 items-center justify-center rounded-xl border border-white/10 bg-black/10 px-4 text-center text-xs text-white/50 sm:col-span-2 xl:col-span-1">
-            {formatter.format(analytics.total)} registros
+            {formatter.format(analytics.monitoringTotal)} fichas · {formatter.format(analytics.cddTotal)} CdD
           </div>
         </div>
       </section>
 
       {err && <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100"><div className="font-semibold">No se pudo actualizar el Dashboard</div><div className="mt-1 text-xs text-red-100/80">{err}</div></div>}
 
-      <section className="mt-5 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5" aria-label="Indicadores principales">
-        <KpiCard label="Fichas registradas" value={formatter.format(analytics.total)} detail={`${selectedMonthLabel} · ${year}`} icon="activity" tone="cyan" />
+      <section className="mt-5 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6" aria-label="Indicadores principales">
+        <KpiCard label="Fichas de monitoreos" value={formatter.format(analytics.monitoringTotal)} detail={`${selectedMonthLabel} · ${year}`} icon="activity" tone="cyan" />
+        <KpiCard label="Fichas CdD" value={formatter.format(analytics.cddTotal)} detail="Registros del responsable CdD" icon="people" tone="violet" />
         <KpiCard label="Finalizadas" value={formatter.format(analytics.finalizadas)} detail={`${analytics.completionRate}% del total registrado`} icon="check" tone="emerald" progress={analytics.completionRate} />
         <KpiCard label="En proceso" value={formatter.format(analytics.proceso)} detail="Pendientes de cierre o validación" icon="clock" tone="amber" />
         <KpiCard label="Usuarios activos" value={formatter.format(analytics.userCount)} detail="Registradores únicos del periodo" icon="people" tone="violet" />
-        <KpiCard label="Tasa de cierre" value={`${analytics.completionRate}%`} detail={analytics.completionRate >= 80 ? "Nivel de cumplimiento alto" : "Oportunidad de seguimiento"} icon="target" tone="emerald" progress={analytics.completionRate} className="col-span-2 lg:col-span-2 xl:col-span-1" />
+        <KpiCard label="Tasa de cierre" value={`${analytics.completionRate}%`} detail={analytics.completionRate >= 80 ? "Nivel de cumplimiento alto" : "Oportunidad de seguimiento"} icon="target" tone="emerald" progress={analytics.completionRate} />
       </section>
 
       <DashboardPanel title="Resumen ejecutivo" eyebrow="Lectura rápida" className="mt-5" action={<span className="hidden rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-white/45 sm:block">{selectedMonitoreoLabel}</span>}>
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-center">
           <p className="text-sm leading-6 text-white/60">
-            En <strong className="font-semibold text-white">{selectedMonthLabel.toLowerCase()} de {year}</strong> se registraron <strong className="font-semibold text-cyan-200">{formatter.format(analytics.total)} fichas</strong>. {analytics.finalizadas ? `${formatter.format(analytics.finalizadas)} están finalizadas, con una tasa de cierre de ${analytics.completionRate}%.` : "Todavía no existen fichas finalizadas en este periodo."} {topMonitoreo ? `${topMonitoreo.name} concentra el mayor volumen (${formatter.format(topMonitoreo.total)}).` : "No hay concentración por monitoreo para mostrar."}
+            En <strong className="font-semibold text-white">{selectedMonthLabel.toLowerCase()} de {year}</strong> se registraron <strong className="font-semibold text-cyan-200">{formatter.format(analytics.monitoringTotal)} fichas de monitoreo</strong> y <strong className="font-semibold text-violet-300">{formatter.format(analytics.cddTotal)} fichas CdD</strong>. {analytics.finalizadas ? `${formatter.format(analytics.finalizadas)} están finalizadas, con una tasa de cierre de ${analytics.completionRate}%.` : "Todavía no existen fichas finalizadas en este periodo."} {topMonitoreo ? `${topMonitoreo.name} concentra el mayor volumen (${formatter.format(topMonitoreo.total)}).` : "No hay concentración por monitoreo para mostrar."}
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
             <QuickMetric label="Promedio por usuario" value={analytics.averagePerUser.toFixed(1)} />

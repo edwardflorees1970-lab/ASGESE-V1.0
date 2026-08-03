@@ -302,11 +302,11 @@ export function AppShell() {
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
             {role === "admin" ? (
-              <button type="button" onClick={async () => { await setMode(isTestMode ? "prod" : "test"); }} className={cls("badge-interactive hidden rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>
-                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />{isTestMode ? "TEST" : "PRODUCCIÓN"}
+              <button type="button" onClick={async () => { await setMode(isTestMode ? "prod" : "test"); }} className={cls("badge-interactive agebre-environment-badge hidden items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.06em] sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>
+                <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current" />{isTestMode ? "TEST" : "PRODUCCIÓN"}
               </button>
             ) : (
-              <span className={cls("hidden rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>{isTestMode ? "TEST" : "PRODUCCIÓN"}</span>
+              <span className={cls("agebre-environment-badge hidden items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.06em] sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>{isTestMode ? "TEST" : "PRODUCCIÓN"}</span>
             )}
             <button type="button" onClick={toggleTheme} className="agebre-shell-icon-button" aria-label={theme === "dark" ? "Activar tema claro" : "Activar tema oscuro"} data-tooltip={theme === "dark" ? "Tema claro" : "Tema oscuro"}>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</button>
             <div className="ml-1 flex items-center gap-2 border-l border-[var(--app-border)] pl-2 sm:gap-3 sm:pl-3">

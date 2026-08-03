@@ -167,18 +167,18 @@ export function AnalyticsReportsPage() {
   };
 
   return (
-    <div className="analytics-reports min-w-0 space-y-5 pb-8 text-white">
-      <header className="report-screen-header executive-report-header rounded-3xl border p-5 sm:p-7">
+    <div className="analytics-reports analytics-executive-page min-w-0 space-y-5 pb-8 text-white">
+      <header className="analytics-executive-hero report-screen-header executive-report-header rounded-2xl border p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-300">Inteligencia de datos · UGEL 06</div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Reportes analíticos</h1>
+            <div className="analytics-executive-eyebrow text-[11px] font-bold uppercase tracking-[0.16em]">Inteligencia de datos · UGEL 06</div>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Reportes analíticos</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">Construye informes interactivos sobre monitores, fichas, instituciones y resultados. Las consultas se agregan en Supabase y nunca incluyen registros TEST.</p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
-            <IconButton label="Exportar Excel" disabled={!generated || exporting} onClick={() => void exportReport("xlsx")} className="border-emerald-500/35 bg-emerald-500/10 text-emerald-300 disabled:opacity-40"><ExportFileIcon format="XLSX" /></IconButton>
-            <IconButton label="Exportar CSV" disabled={!generated || exporting} onClick={() => void exportReport("csv")} className="disabled:opacity-40"><ExportFileIcon format="CSV" /></IconButton>
-            <IconButton label="Exportar PDF" disabled={!generated || exporting} onClick={() => void exportReport("pdf")} tone="danger" className="disabled:opacity-40"><ExportFileIcon format="PDF" /></IconButton>
+            <IconButton label="Exportar Excel" disabled={!generated || exporting} onClick={() => void exportReport("xlsx")} className="analytics-export-action is-excel disabled:opacity-40"><ExportFileIcon format="XLSX" /><span>Excel</span></IconButton>
+            <IconButton label="Exportar CSV" disabled={!generated || exporting} onClick={() => void exportReport("csv")} className="analytics-export-action is-csv disabled:opacity-40"><ExportFileIcon format="CSV" /><span>CSV</span></IconButton>
+            <IconButton label="Exportar PDF" disabled={!generated || exporting} onClick={() => void exportReport("pdf")} tone="danger" className="analytics-export-action is-pdf disabled:opacity-40"><ExportFileIcon format="PDF" /><span>PDF</span></IconButton>
           </div>
         </div>
       </header>
@@ -187,8 +187,8 @@ export function AnalyticsReportsPage() {
         <h2 id="report-type-heading" className="sr-only">Tipo de reporte</h2>
         <div className="grid gap-3 lg:grid-cols-3">
           {REPORT_TYPES.map((item) => (
-            <button key={item.type} type="button" aria-pressed={reportType === item.type} onClick={() => changeReportType(item.type)} className={`group rounded-2xl border p-4 text-left transition ${reportType === item.type ? "border-cyan-300/45 bg-cyan-400/10 shadow-sm" : "border-white/10 bg-white/[0.035] hover:border-white/20 hover:bg-white/[0.055]"}`}>
-              <div className="flex items-start gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${reportType === item.type ? "bg-cyan-300 text-slate-950" : "bg-white/5 text-white/65"}`}><DashboardIcon name={item.icon} /></span><span><strong className="block text-sm">{item.title}</strong><span className="mt-1 block text-xs leading-5 text-white/45">{item.description}</span></span></div>
+            <button key={item.type} type="button" aria-pressed={reportType === item.type} onClick={() => changeReportType(item.type)} className={`analytics-report-type group rounded-2xl border p-4 text-left ${reportType === item.type ? "is-active" : ""}`}>
+              <div className="flex items-start gap-3"><span className="analytics-report-type-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><DashboardIcon name={item.icon} /></span><span><strong className="block text-sm">{item.title}</strong><span className="mt-1 block text-xs leading-5 text-[var(--app-muted)]">{item.description}</span></span></div>
             </button>
           ))}
         </div>
@@ -208,7 +208,7 @@ export function AnalyticsReportsPage() {
             </div>
           )}
           {!generated && !loading && !error && (
-            <div className="grid min-h-[32rem] place-items-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center"><div><DashboardIcon name="trend" className="mx-auto h-10 w-10 text-cyan-300/60" /><h2 className="mt-4 text-lg font-semibold">Configura tu informe</h2><p className="mt-2 max-w-md text-sm leading-6 text-white/45">Elige el tipo de reporte, aplica los filtros necesarios y pulsa Generar reporte.</p></div></div>
+            <div className="analytics-empty-state grid min-h-[28rem] place-items-center rounded-2xl border border-dashed p-8 text-center"><div><DashboardIcon name="trend" className="mx-auto h-10 w-10" /><h2 className="mt-4 text-lg font-bold">Configura tu informe</h2><p className="mt-2 max-w-md text-sm leading-6 text-[var(--app-muted)]">Elige el tipo de reporte, aplica los filtros necesarios y pulsa Generar reporte.</p></div></div>
           )}
           {loading && !generated && <div className="grid min-h-[32rem] place-items-center rounded-3xl border border-white/10 bg-white/[0.02]"><div className="text-center text-sm text-white/55"><span className="mx-auto mb-3 block h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />Procesando agregaciones seguras...</div></div>}
           {generated?.type === "executive" && <ExecutiveReportView report={generated.data} />}

@@ -660,24 +660,39 @@ export function SeguimientoPage() {
   }
 
   return (
-    <div className="max-w-full space-y-5 overflow-x-hidden text-white">
+    <div className="tracking-page max-w-full space-y-5 overflow-x-hidden text-white">
       {toast && (
         <div className="fixed right-4 top-4 z-50 rounded-xl border border-white/10 bg-black/70 px-4 py-2 text-xs text-white">
           {toast.msg}
         </div>
       )}
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Seguimiento</h1>
-          <p className="mt-1 text-sm text-white/60">
-            Asignación de IE y avance por actividades.
-          </p>
+      <div className="tracking-hero">
+        <div className="tracking-hero__main">
+          <div className="tracking-hero__identity">
+            <div className="tracking-hero__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 19V9M10 19V5M16 19v-7M22 19V3M2 21h22" />
+              </svg>
+            </div>
+            <div>
+              <div className="tracking-eyebrow">CONTROL OPERATIVO</div>
+              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Seguimiento</h1>
+              <p className="mt-1 text-sm text-white/60">
+                Asignación de instituciones y avance por actividades.
+              </p>
+            </div>
+          </div>
+          <div className="tracking-metrics" aria-label="Resumen de seguimiento">
+            <div className="tracking-metric"><span>IE asignadas</span><strong>{filteredIes.length}</strong></div>
+            <div className="tracking-metric"><span>Actividades</span><strong>{actividades.length}</strong></div>
+            <div className="tracking-metric"><span>Monitores</span><strong>{filteredMonitorRows.length}</strong></div>
+          </div>
         </div>
-        <div className="w-full min-w-0 sm:min-w-[220px] sm:max-w-[320px]">
-          <div className="mb-2 text-xs text-white/60">Monitoreo</div>
+        <div className="tracking-hero__monitor w-full min-w-0 sm:min-w-[220px] sm:max-w-[420px]">
+          <div className="tracking-control-label mb-2 text-xs text-white/60">Monitoreo seleccionado</div>
           <select
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="tracking-control w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
             value={monitoreoId}
             onChange={(e) => setMonitoreoId(e.target.value)}
           >
@@ -689,13 +704,13 @@ export function SeguimientoPage() {
             ))}
           </select>
           {selectedMonitoreo && (
-            <div className="mt-2 text-xs text-white/70">
+            <div className="tracking-monitor-status mt-2 text-xs text-white/70">
               {selectedExpired ? (
-                <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-red-100">
+                <span className="tracking-status-badge is-expired rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-red-100">
                   Vencido 🔒
                 </span>
               ) : (
-                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                <span className="tracking-status-badge is-available rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
                   Disponible
                 </span>
               )}
@@ -714,14 +729,14 @@ export function SeguimientoPage() {
       </div>
 
       {canManage && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="text-sm font-semibold">Asignación de IE</div>
+        <div className="tracking-panel tracking-assignment-panel rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="tracking-section-header flex flex-wrap items-center gap-3">
+            <div className="tracking-section-title text-sm font-semibold">Asignación de IE</div>
             <button
               type="button"
               onClick={handleAutoAssign}
               disabled={busyAuto || !monitoreoId}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+              className="tracking-secondary-action rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
             >
               {busyAuto ? "Asignando..." : "Asignar automáticamente por REI"}
             </button>
@@ -729,7 +744,7 @@ export function SeguimientoPage() {
           <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_auto]">
             <div className="space-y-2">
               <input
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                className="tracking-control w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
                 placeholder="Buscar IE por nombre o código"
                 list="ie-picker-list"
                 value={iePickerSearch}
@@ -747,7 +762,7 @@ export function SeguimientoPage() {
               </datalist>
             </div>
             <select
-              className="w-full min-w-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+              className="tracking-control w-full min-w-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
               value={selectedMonitor}
               onChange={(e) => setSelectedMonitor(e.target.value)}
             >
@@ -762,7 +777,7 @@ export function SeguimientoPage() {
               type="button"
               onClick={handleAssign}
               disabled={busyAssign || !selectedIe || !selectedMonitor}
-              className="w-full rounded-lg border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 md:w-auto"
+              className="tracking-primary-action w-full rounded-lg border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 md:w-auto"
             >
               {busyAssign ? "Guardando..." : "Asignar"}
             </button>
@@ -771,8 +786,8 @@ export function SeguimientoPage() {
       )}
 
       {canManage && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="text-sm font-semibold">Instituciones asignadas</div>
+        <div className="tracking-panel tracking-institutions-panel rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="tracking-section-title text-sm font-semibold">Instituciones asignadas</div>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
             <label className="text-xs text-white/60">
               Buscar IE
@@ -814,7 +829,7 @@ export function SeguimientoPage() {
               const pct = progressByIe[ie.id] ?? 0;
               const val = latestValidByIe[ie.id];
               return (
-                <div key={ie.id} className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                <div key={ie.id} className="tracking-ie-card flex flex-wrap items-start justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="break-words font-medium">{ie.nombre}</div>
                     <div className="text-xs text-white/50">
@@ -884,9 +899,9 @@ export function SeguimientoPage() {
       )}
 
       {canManage && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="tracking-panel tracking-activities-panel rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold">Actividades globales</div>
+            <div className="tracking-section-title text-sm font-semibold">Actividades globales</div>
             {cddFlag && (
               <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-100">
                 CdD
@@ -918,7 +933,7 @@ export function SeguimientoPage() {
           </div>
           <div className="mt-4 space-y-2 text-sm text-white/80">
             {actividades.map((a) => (
-              <div key={a.id} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <div key={a.id} className="tracking-activity-card rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                 <span className="font-medium">{a.titulo}</span>
                 {a.obligatorio && (
                   <span className="ml-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100">
@@ -935,8 +950,8 @@ export function SeguimientoPage() {
       )}
 
       {canManage && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="text-sm font-semibold">Resumen por monitor</div>
+        <div className="tracking-panel tracking-monitors-panel rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="tracking-section-title text-sm font-semibold">Resumen por monitor</div>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
             <label className="text-xs text-white/60">
               Buscar monitor
@@ -983,7 +998,7 @@ export function SeguimientoPage() {
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {pageMonitorRows.map((row) => {
               return (
-                <div key={row.monitor.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div key={row.monitor.id} className="tracking-monitor-card rounded-xl border border-white/10 bg-white/5 p-3">
                   <div className="font-medium">{displayName(row.monitor)}</div>
                   <div className="text-xs text-white/50">REI {row.monitor.rei || "SIN"}</div>
                   <div className="mt-2 text-xs text-white/60">
@@ -1026,8 +1041,8 @@ export function SeguimientoPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="text-sm font-semibold">Mis instituciones asignadas</div>
+      <div className="tracking-panel tracking-my-panel rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="tracking-section-title text-sm font-semibold">Mis instituciones asignadas</div>
         {monitorBlockedByExpiry && (
           <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
             Monitoreo vencido: las actividades estan bloqueadas para el monitor.

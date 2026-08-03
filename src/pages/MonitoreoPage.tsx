@@ -4,6 +4,8 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole } from "../lib/roles";
 import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
+import { useAppConfig } from "../app/AppConfigProvider";
+import { loadCddRegisteredRunCount, loadMonitoringRunCounts } from "../lib/monitoringRunCounts";
 
 type MonitoreoCard = {
   id: string;
@@ -13,7 +15,27 @@ type MonitoreoCard = {
   descriptionFull: string;
   to: string;
   fecha_fin?: string | null;
+  runCount: number;
 };
+
+function MonitorIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3.5 19c.5-3.5 2.3-5.5 5.5-5.5s5 2 5.5 5.5" />
+      <path d="M16 7h4M16 11h4M17 15h3" />
+    </svg>
+  );
+}
+
+function FormsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="6" y="4" width="13" height="16" rx="2" />
+      <path d="M3 8v10a3 3 0 0 0 3 3h9M10 9h5M10 13h5M10 17h3" />
+    </svg>
+  );
+}
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -26,6 +48,31 @@ function ClipboardIcon() {
       <path d="M9 3.5h6a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 15 7.5H9A1.5 1.5 0 0 1 7.5 6V5A1.5 1.5 0 0 1 9 3.5Z" />
       <path d="M7.5 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1.5" />
       <path d="M8 12h8M8 16h5" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+      <path d={direction === "left" ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"} />
     </svg>
   );
 }
@@ -93,6 +140,7 @@ function temporalLabel(date?: string | null) {
 export function MonitoreoPage() {
   const nav = useNavigate();
   const { profile, profileLoading } = useAuth();
+  const { isTestMode } = useAppConfig();
   const [loading, setLoading] = useState(true);
   const [monitoreos, setMonitoreos] = useState<MonitoreoCard[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +149,8 @@ export function MonitoreoPage() {
   const [descModal, setDescModal] = useState<MonitoreoCard | null>(null);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
+  const [totalFichaCount, setTotalFichaCount] = useState(0);
+  const [cddRunCount, setCddRunCount] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -112,6 +162,8 @@ export function MonitoreoPage() {
       try {
         if (!profile?.id) {
           setMonitoreos([]);
+          setTotalFichaCount(0);
+          setCddRunCount(0);
           setLoading(false);
           return;
         }
@@ -130,6 +182,8 @@ export function MonitoreoPage() {
           if (!ids.length) {
             if (!alive) return;
             setMonitoreos([]);
+            setTotalFichaCount(0);
+            setCddRunCount(0);
             setLoading(false);
             return;
           }
@@ -146,6 +200,19 @@ export function MonitoreoPage() {
         if (monError) throw new Error(monError.message);
 
         const allowed = canSeeAll ? (data ?? []) : (data ?? []).filter((m: any) => ids.includes(m.id));
+        const allowedIds = allowed.map((m: any) => m.id);
+        const fichaCountResult = allowedIds.length
+          ? await supabase
+              .from("ficha_catalog")
+              .select("id", { count: "exact", head: true })
+              .in("monitoreo_id", allowedIds)
+              .eq("is_active", true)
+          : { count: 0, error: null };
+        if (fichaCountResult.error) throw new Error(fichaCountResult.error.message);
+        const [runCounts, cddCount] = await Promise.all([
+          loadMonitoringRunCounts(allowedIds, isTestMode),
+          loadCddRegisteredRunCount(allowedIds, isTestMode),
+        ]);
         const items = allowed.map((m: any) => ({
           id: m.id,
           key: m.codigo,
@@ -154,10 +221,13 @@ export function MonitoreoPage() {
           descriptionFull: m.descripcion?.trim() || `${m.anio}`,
           to: `/app/monitoreo/${m.codigo}`,
           fecha_fin: m.fecha_fin ?? null,
+          runCount: runCounts[m.id] ?? 0,
         })) as MonitoreoCard[];
 
         if (!alive) return;
         setMonitoreos(items);
+        setTotalFichaCount(fichaCountResult.count ?? 0);
+        setCddRunCount(cddCount);
         setLoading(false);
       } catch (e: any) {
         if (!alive) return;
@@ -169,7 +239,7 @@ export function MonitoreoPage() {
     return () => {
       alive = false;
     };
-  }, [profileLoading, profile?.id, profile?.role]);
+  }, [profileLoading, profile?.id, profile?.role, isTestMode]);
 
   const cards = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -195,68 +265,129 @@ export function MonitoreoPage() {
     return cards.slice(start, start + pageSize);
   }, [cards, safePage, pageSize]);
 
+  const totalRunCount = useMemo(
+    () => monitoreos.reduce((total, item) => total + item.runCount, 0),
+    [monitoreos],
+  );
+  const monitoringRunCount = Math.max(0, totalRunCount - cddRunCount);
+
+  const pageNumbers = useMemo(() => {
+    const first = Math.max(1, Math.min(safePage - 2, totalPages - 4));
+    const last = Math.min(totalPages, first + 4);
+    return Array.from({ length: last - first + 1 }, (_, index) => first + index);
+  }, [safePage, totalPages]);
+
   useEffect(() => {
     setPage(1);
   }, [query, estadoFilter, pageSize, monitoreos.length]);
 
   return (
-    <div className="text-white">
-      <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => nav(-1)}
-          className="self-start rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
-        >
-          ← Volver
-        </button>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Elegir monitoreo</h1>
-          <p className="mt-1 text-sm text-white/60">Selecciona el monitoreo y luego la ficha/formulario.</p>
+    <div className="monitoring-page min-w-0 text-white">
+      <section className="monitoring-hero grid gap-4 rounded-2xl border p-4 sm:p-5">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+          <div className="monitoring-hero-icon grid h-12 w-12 shrink-0 place-items-center rounded-2xl border sm:h-14 sm:w-14">
+            <ClipboardIcon />
+          </div>
+          <div className="min-w-0">
+            <button type="button" onClick={() => nav(-1)} className="monitoring-back-button mb-1.5 inline-flex items-center gap-1 text-[11px] font-semibold">
+              <BackIcon />
+              Volver
+            </button>
+            <h1>Elegir monitoreo</h1>
+            <p className="mt-1 text-sm text-[var(--app-muted)]">Selecciona el monitoreo y luego la ficha o formulario correspondiente.</p>
+          </div>
         </div>
-      </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
+        <div className="monitoring-kpi-grid grid gap-2.5">
+          <div className="monitoring-summary is-runs flex items-center gap-3 rounded-xl border px-3.5 py-3">
+            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><ClipboardIcon /></div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Fichas de monitoreos</div>
+              <div className="monitoring-accent-text mt-0.5 text-2xl font-bold tracking-tight">{loading ? "—" : monitoringRunCount}</div>
+              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Sin registros CdD</div>
+            </div>
+          </div>
+          <div className="monitoring-summary is-cdd flex items-center gap-3 rounded-xl border px-3.5 py-3">
+            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><ClipboardIcon /></div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Fichas CdD</div>
+              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[var(--app-violet)]">{loading ? "—" : cddRunCount}</div>
+              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Registros responsable CdD</div>
+            </div>
+          </div>
+          <div className="monitoring-summary is-monitorings flex items-center gap-3 rounded-xl border px-3.5 py-3">
+            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><MonitorIcon /></div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Monitoreos</div>
+              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[var(--app-info)]">{loading ? "—" : monitoreos.length}</div>
+              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Monitoreos activos</div>
+            </div>
+          </div>
+          <div className="monitoring-summary is-forms flex items-center gap-3 rounded-xl border px-3.5 py-3">
+            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><FormsIcon /></div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Fichas configuradas</div>
+              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[var(--app-warning)]">{loading ? "—" : totalFichaCount}</div>
+              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Fichas configuradas</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="monitoring-toolbar mt-4 grid gap-3 rounded-2xl border p-3 sm:grid-cols-[minmax(0,1fr)_13rem_auto] sm:items-center sm:p-4">
+        <label className="monitoring-search relative block min-w-0">
+          <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-[var(--app-muted-2)]"><SearchIcon /></span>
+          <span className="sr-only">Buscar monitoreo</span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar monitoreo"
-            className="w-full min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm sm:min-w-[220px]"
+            placeholder="Buscar monitoreo..."
+            className="h-11 w-full min-w-0 rounded-xl border pl-11 pr-3 text-sm"
           />
+        </label>
+        <label>
+          <span className="sr-only">Estado del monitoreo</span>
           <select
+            aria-label="Estado del monitoreo"
             value={estadoFilter}
             onChange={(e) => setEstadoFilter(e.target.value as "ALL" | "DISPONIBLE" | "VENCIDO")}
-            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="h-11 w-full rounded-xl border px-3 text-sm"
           >
-            <option value="ALL">Todos</option>
+            <option value="ALL">Todos los estados</option>
             <option value="DISPONIBLE">Disponibles</option>
             <option value="VENCIDO">Vencidos</option>
           </select>
-          <label className="flex items-center gap-2 text-xs text-white/60">
-            Mostrar:
-            <select
-              value={String(pageSize)}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
-          </label>
-      </div>
+        </label>
+        <label className="monitoring-page-size flex h-11 items-center justify-between gap-2 rounded-xl border pl-3 text-xs font-semibold text-[var(--app-muted)] sm:justify-start">
+          Mostrar
+          <select
+            aria-label="Monitoreos por página"
+            value={String(pageSize)}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="h-full min-w-16 rounded-xl border-0 bg-transparent px-2 text-sm font-semibold"
+          >
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+      </section>
 
-      <div className="mt-5 grid auto-rows-[260px] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="monitoring-grid mt-4 grid grid-cols-1 gap-4">
         {loading ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60 sm:col-span-2 xl:col-span-3">
+          <div className="monitoring-empty-state rounded-2xl border p-6 text-center text-sm text-[var(--app-muted)] lg:col-span-2">
+            <div className="monitoring-loading-icon mx-auto mb-3 grid h-10 w-10 place-items-center rounded-xl"><ClipboardIcon /></div>
             Cargando monitoreos...
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100 sm:col-span-2 xl:col-span-3">
+          <div className="monitoring-grid-message rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100 lg:col-span-2">
             {error}
           </div>
         ) : cards.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60 sm:col-span-2 xl:col-span-3">
-            No tienes monitoreos asignados.
+          <div className="monitoring-empty-state rounded-2xl border p-8 text-center lg:col-span-2">
+            <div className="monitoring-summary-icon mx-auto grid h-12 w-12 place-items-center rounded-2xl"><SearchIcon /></div>
+            <div className="mt-3 text-sm font-semibold text-[var(--app-text)]">No encontramos monitoreos</div>
+            <p className="mt-1 text-xs text-[var(--app-muted)]">Prueba con otro término o cambia el filtro de estado.</p>
           </div>
         ) : (
           pagedCards.map((m) => {
@@ -269,30 +400,24 @@ export function MonitoreoPage() {
                   if (expired) return;
                   nav(m.to);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter" && e.key !== " ") return;
-                  e.preventDefault();
-                  if (expired) return;
-                  nav(m.to);
-                }}
-                role="button"
-                tabIndex={0}
+                role="group"
+                aria-labelledby={`monitoreo-title-${m.id}`}
                 className={cls(
-                  "agebre-uniform-card flex h-[260px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 text-left shadow-lg shadow-black/10",
-                  expired ? "is-disabled cursor-not-allowed opacity-80" : "hover:bg-white/10"
+                  "monitoring-card agebre-uniform-card flex min-h-[244px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border p-4 text-left sm:p-5",
+                  expired ? "is-disabled cursor-not-allowed" : "cursor-pointer"
                 )}
               >
-                <div className="mb-4 flex h-10 shrink-0 items-start justify-between gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
+                <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
+                  <div className="monitoring-card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border">
                     <ClipboardIcon />
                   </div>
                   {expired ? (
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-red-100">
+                    <span className="badge-red inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold leading-none">
                       <span className="h-1.5 w-1.5 rounded-full bg-red-300" />
                       Vencido
                     </span>
                   ) : (
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-100">
+                    <span className="badge-green inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold leading-none">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
                       Disponible
                     </span>
@@ -300,19 +425,24 @@ export function MonitoreoPage() {
                 </div>
 
                 <h2
-                  className="agebre-card-title h-12 shrink-0 text-base font-bold leading-[1.35] tracking-tight text-white"
+                  id={`monitoreo-title-${m.id}`}
+                  className="agebre-card-title min-h-11 shrink-0 text-[15px] font-bold leading-[1.4] tracking-[-0.012em] text-white sm:text-base"
                 >
                   {m.title}
                 </h2>
 
-                <div className="flex flex-1 flex-col pt-4">
-                  <div className="flex h-5 shrink-0 items-center gap-2 text-xs text-white/60">
+                <div className="monitoring-card-meta mt-4 flex flex-wrap items-center justify-between gap-2 border-b pb-4 text-[11px] text-[var(--app-muted)]">
+                  <div className="flex min-w-0 items-center gap-2">
                     <CalendarIcon />
-                    <span className="truncate">Vence: {formatDate(m.fecha_fin)}</span>
+                    <span className="truncate">Vence: <strong className="font-semibold text-[var(--app-text)]">{formatDate(m.fecha_fin)}</strong></span>
                   </div>
+                  <span className="monitoring-run-count inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-1 font-semibold" title={`${m.runCount} fichas run registradas por monitores`}>
+                    <ClipboardIcon />
+                    <span className="truncate">{m.runCount} {m.runCount === 1 ? "ficha" : "fichas"}</span>
+                  </span>
                 </div>
 
-                <div className="mt-auto grid shrink-0 gap-3">
+                <div className="mt-auto grid shrink-0 grid-cols-2 gap-2 pt-4">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -321,7 +451,7 @@ export function MonitoreoPage() {
                       setDescModal(m);
                     }}
                     disabled={!hasDescription}
-                    className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white/80 transition hover:border-white/25 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="monitoring-secondary-action inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     <EyeIcon />
                     Ver más
@@ -335,9 +465,9 @@ export function MonitoreoPage() {
                     }}
                     disabled={expired}
                     className={cls(
-                      "inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition",
+                      "inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition",
                       expired
-                        ? "cursor-not-allowed border-white/10 bg-black/20 text-white/45"
+                        ? "monitoring-disabled-action cursor-not-allowed"
                         : "executive-primary-action"
                     )}
                   >
@@ -351,39 +481,40 @@ export function MonitoreoPage() {
         )}
       </div>
       {!loading && !error && cards.length > 0 && (
-        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            Mostrando {pageStart}-{pageEnd} de {cards.length} monitoreos
+        <div className="monitoring-pagination mt-4 flex flex-col gap-3 rounded-2xl border px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-[var(--app-muted)]">
+            Mostrando <strong className="font-semibold text-[var(--app-text)]">{pageStart}-{pageEnd}</strong> de <strong className="font-semibold text-[var(--app-text)]">{cards.length}</strong> monitoreos
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
+              aria-label="Página anterior"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className={cls(
-                "rounded-xl border px-3 py-2 text-xs transition",
-                safePage <= 1
-                  ? "border-white/10 text-white/30"
-                  : "border-white/10 bg-white/10 text-white/85 hover:bg-white/15"
-              )}
+              className="monitoring-pagination-button grid h-9 w-9 place-items-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-35"
             >
-              Anterior
+              <ChevronIcon direction="left" />
             </button>
-            <span className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white/75">
-              {safePage} / {totalPages}
-            </span>
+            {pageNumbers.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                aria-label={`Página ${pageNumber}`}
+                aria-current={pageNumber === safePage ? "page" : undefined}
+                onClick={() => setPage(pageNumber)}
+                className="monitoring-pagination-button grid h-9 min-w-9 place-items-center rounded-lg border px-2 font-semibold transition"
+              >
+                {pageNumber}
+              </button>
+            ))}
             <button
               type="button"
+              aria-label="Página siguiente"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className={cls(
-                "rounded-xl border px-3 py-2 text-xs transition",
-                safePage >= totalPages
-                  ? "border-white/10 text-white/30"
-                  : "border-white/10 bg-white/10 text-white/85 hover:bg-white/15"
-              )}
+              className="monitoring-pagination-button grid h-9 w-9 place-items-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-35"
             >
-              Siguiente
+              <ChevronIcon direction="right" />
             </button>
           </div>
         </div>

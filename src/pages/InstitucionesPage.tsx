@@ -485,7 +485,7 @@ export function InstitucionesPage() {
   }, [page, totalPages]);
 
   return (
-    <div className="text-white">
+    <div className="institutions-page text-white">
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
@@ -501,18 +501,50 @@ export function InstitucionesPage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Instituciones educativas
-        </h1>
-        <p className="text-sm text-white/60">
-          {isAdmin
-            ? "Administra el padron de instituciones."
-            : "Consulta instituciones educativas."}
-        </p>
+      <div className="institutions-hero">
+        <div className="institutions-hero__identity">
+          <div className="institutions-hero__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 21h18M5 21V9l7-4 7 4v12M9 21v-5h6v5M8 11h.01M12 11h.01M16 11h.01" />
+            </svg>
+          </div>
+          <div>
+            <div className="institutions-eyebrow">DIRECTORIO INSTITUCIONAL</div>
+            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
+              Instituciones educativas
+            </h1>
+            <p className="text-sm text-white/60">
+              {isAdmin
+                ? "Administra el padrón oficial de instituciones educativas."
+                : "Consulta el padrón oficial de instituciones educativas."}
+            </p>
+          </div>
+        </div>
+        <div className="institutions-metrics" aria-label="Resumen del directorio">
+          <div className="institutions-metric">
+            <span>Total</span>
+            <strong>{total.toLocaleString("es-PE")}</strong>
+          </div>
+          <div className="institutions-metric">
+            <span>Distritos</span>
+            <strong>{distritos.length}</strong>
+          </div>
+          <div className="institutions-metric">
+            <span>REI</span>
+            <strong>{Math.max(0, reiOptions.length - 1)}</strong>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <section className="institutions-filter-panel" aria-label="Filtros del directorio">
+        <div className="institutions-filter-panel__heading">
+          <div>
+            <span className="institutions-filter-panel__eyebrow">BÚSQUEDA AVANZADA</span>
+            <h2>Filtrar instituciones</h2>
+          </div>
+          <span className="institutions-filter-panel__result">{total.toLocaleString("es-PE")} registros</span>
+        </div>
+        <div className="institutions-filter-grid mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -579,9 +611,9 @@ export function InstitucionesPage() {
             </option>
           ))}
         </select>
-      </div>
+        </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-white/60">
+        <div className="institutions-filter-footer mt-3 flex flex-wrap items-center gap-3 text-xs text-white/60">
         <span>Mostrando {items.length} de {total}</span>
         <label className="flex items-center gap-2">
           <span>Por pagina</span>
@@ -597,14 +629,15 @@ export function InstitucionesPage() {
             ))}
           </select>
         </label>
-      </div>
+        </div>
+      </section>
 
       {isAdmin && (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="institutions-toolbar mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={startCreate}
-            className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white/90 hover:bg-white/15"
+            className="executive-primary-action rounded-xl px-4 py-2 text-sm font-semibold"
           >
             Nueva institucion
           </button>
@@ -839,7 +872,14 @@ export function InstitucionesPage() {
         </div>
       )}
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="institutions-directory mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="institutions-directory__header">
+          <div>
+            <span>PADRÓN OFICIAL</span>
+            <h2>Directorio de instituciones</h2>
+          </div>
+          <span>{pageSize} por página</span>
+        </div>
         {loading ? (
           <div className="text-sm text-white/60">Cargando instituciones...</div>
         ) : error ? (
@@ -857,27 +897,34 @@ export function InstitucionesPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") openDetail(row);
                 }}
-                className="rounded-xl border border-white/10 bg-zinc-900/40 p-3 transition hover:border-white/30 hover:bg-zinc-900/60"
+                className="institution-card rounded-xl border border-white/10 bg-zinc-900/40 p-3 transition hover:border-white/30 hover:bg-zinc-900/60"
               >
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="text-sm font-semibold">{row.nombre}</div>
-                    <div className="text-xs text-white/50">
-                      {row.codigo_modular}
-                      {row.codigo_local ? ` - ${row.codigo_local}` : ""}
+                  <div className="institution-card__summary">
+                    <div className="institution-card__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path d="M4 21h16M6 21V9l6-4 6 4v12M9 12h.01M12 12h.01M15 12h.01M10 21v-4h4v4" />
+                      </svg>
                     </div>
-                  <div className="mt-1 text-xs text-white/60">
-                    {row.nivel?.nombre || "Nivel: -"} -{" "}
-                    {row.modalidad?.nombre || "Modalidad: -"} -{" "}
-                    {row.ugel?.nombre || "UGEL: -"} -{" "}
-                    {row.distrito?.nombre || "Distrito: -"}
-                  </div>
-                  <div className="mt-1 text-xs text-white/50">
-                    REI: {row.rei || "-"} · Teléfono: {row.telefono || "-"}
-                  </div>
-                  <div className="mt-1 text-xs text-white/50">
-                    Director: {row.director || "-"}
-                  </div>
+                    <div className="min-w-0">
+                      <div className="institution-card__title text-sm font-semibold">{row.nombre}</div>
+                      <div className="institution-card__codes text-xs text-white/50">
+                        {row.codigo_modular}
+                        {row.codigo_local ? ` - ${row.codigo_local}` : ""}
+                      </div>
+                      <div className="institution-card__meta mt-1 text-xs text-white/60">
+                        {row.nivel?.nombre || "Nivel: -"} -{" "}
+                        {row.modalidad?.nombre || "Modalidad: -"} -{" "}
+                        {row.ugel?.nombre || "UGEL: -"} -{" "}
+                        {row.distrito?.nombre || "Distrito: -"}
+                      </div>
+                      <div className="institution-card__detail mt-1 text-xs text-white/50">
+                        REI: {row.rei || "-"} · Teléfono: {row.telefono || "-"}
+                      </div>
+                      <div className="institution-card__detail mt-1 text-xs text-white/50">
+                        Director: {row.director || "-"}
+                      </div>
+                    </div>
                   </div>
                   {isAdmin && (
                     <div className="flex flex-wrap gap-2">
@@ -887,7 +934,7 @@ export function InstitucionesPage() {
                           e.stopPropagation();
                           startEdit(row);
                         }}
-                        className="rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white/80 hover:bg-white/20"
+                        className="institution-card__edit rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white/80 hover:bg-white/20"
                       >
                         Editar
                       </button>
@@ -898,7 +945,7 @@ export function InstitucionesPage() {
                         setConfirmDeleteRow(row);
                         setConfirmDeleteOpen(true);
                       }}
-                        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100 hover:bg-red-500/20"
+                        className="institution-card__delete rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100 hover:bg-red-500/20"
                       >
                         Eliminar
                       </button>

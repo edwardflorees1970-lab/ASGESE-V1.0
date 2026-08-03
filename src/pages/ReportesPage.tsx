@@ -1530,7 +1530,7 @@ export function ReportesPage() {
   };
 
   return (
-    <div className="text-white">
+    <div className="reports-page text-white">
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
@@ -1546,22 +1546,30 @@ export function ReportesPage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Reportes</h1>
-          <p className="mt-1 text-sm text-white/60">
-            {canSeeAll
-              ? "Todos los registros con filtros avanzados."
-              : "Tus registros con filtros por fecha y monitoreo."}
-          </p>
-        </div>
-        <div className="relative flex gap-2">
+      <header className="reports-hero rounded-2xl border p-4 sm:p-5">
+        <div className="reports-hero-layout grid items-center gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="reports-hero-icon shrink-0"><IconReport /></div>
+            <div className="min-w-0">
+              <div className="reports-eyebrow">Inteligencia operativa</div>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-[1.7rem]">Reportes y Resultados</h1>
+              <p className="mt-1 text-sm text-[var(--app-muted)]">
+                {selectedMonitoreo ? "Consulta, administra y exporta los registros del monitoreo." : "Selecciona un monitoreo para consultar sus registros y resultados."}
+              </p>
+            </div>
+          </div>
+          <div className="reports-kpis grid grid-cols-3 gap-2">
+            <div className="reports-kpi"><span>{selectedMonitoreo ? "Registros" : "Monitoreos"}</span><strong>{selectedMonitoreo ? visibleRuns.length : filteredMonitoreos.length}</strong></div>
+            <div className="reports-kpi is-success"><span>{selectedMonitoreo ? "Finalizados" : "Disponibles"}</span><strong>{selectedMonitoreo ? visibleRuns.filter((run) => run.status === "final").length : filteredMonitoreos.filter((item) => item.is_active && !isMonitoreoExpiredLocal(item.fecha_fin)).length}</strong></div>
+            <div className="reports-kpi is-warning"><span>{selectedMonitoreo ? "Borradores" : "Vencidos"}</span><strong>{selectedMonitoreo ? visibleRuns.filter((run) => run.status !== "final").length : filteredMonitoreos.filter((item) => isMonitoreoExpiredLocal(item.fecha_fin)).length}</strong></div>
+          </div>
+          <div className="relative flex justify-end gap-2">
           <button
             type="button"
             onClick={() => setExportMenuOpen((open) => !open)}
             disabled={loading || exporting !== null || visibleRuns.length === 0}
             className={cls(
-              "inline-flex min-w-44 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm transition",
+              "reports-export-button inline-flex min-w-44 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition",
               loading || exporting !== null || visibleRuns.length === 0
                 ? "border-white/10 text-white/30"
                 : "border-white/10 bg-white/10 text-white/90 hover:bg-white/15"
@@ -1571,7 +1579,7 @@ export function ReportesPage() {
             {exporting ? "Generando archivo..." : "Exportar datos"}
           </button>
           {exportMenuOpen && !exporting && (
-            <div className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#122031] p-1.5 shadow-2xl">
+            <div className="reports-export-menu absolute right-0 top-full z-30 mt-2 w-60 overflow-hidden rounded-xl border p-1.5 shadow-2xl">
               <button
                 type="button"
                 onClick={() => void exportReport("csv")}
@@ -1596,11 +1604,12 @@ export function ReportesPage() {
               </button>
             </div>
           )}
+          </div>
         </div>
-      </div>
+      </header>
 
       {exporting && (
-        <div className="mt-3 rounded-xl border border-sky-400/20 bg-sky-400/5 px-4 py-3">
+        <div className="reports-progress mt-3 rounded-xl border px-4 py-3">
           <div className="flex items-center justify-between gap-3 text-xs text-sky-100">
             <span>Generando archivo analítico...</span>
             <span>{exportProgress}%</span>
@@ -1616,37 +1625,37 @@ export function ReportesPage() {
 
       {!selectedMonitoreo && (
         <div className="mt-5">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="reports-panel reports-toolbar rounded-2xl border p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+              <div className="reports-section-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border">
                 <IconReport />
               </div>
               <div>
                 <div className="text-sm font-semibold">Selecciona un monitoreo</div>
-                <div className="mt-1 text-xs text-white/60">
+                <div className="mt-1 text-xs text-[var(--app-muted)]">
                   Primero elige el monitoreo y luego verás sus reportes y resultados.
                 </div>
               </div>
               </div>
               <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
                 <div className="relative min-w-0 flex-1 lg:w-72">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/45">
+                  <span className="reports-search-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
                     <IconSearch />
                   </span>
                   <input
                     value={monitoreoSearch}
                     onChange={(e) => setMonitoreoSearch(e.target.value)}
                     placeholder="Buscar monitoreo..."
-                    className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-white/35 focus:ring-2 focus:ring-white/10"
+                    className="reports-control w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm outline-none"
                   />
                 </div>
-                <label className="flex items-center gap-2 text-xs text-white/60">
+                <label className="flex items-center gap-2 text-xs text-[var(--app-muted)]">
                   Mostrar:
                   <select
                     value={String(monitoreoPageSize)}
                     onChange={(e) => setMonitoreoPageSize(Number(e.target.value))}
-                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-white/10"
+                    className="reports-control rounded-xl border px-3 py-2.5 text-sm outline-none"
                   >
                     <option value="10">10</option>
                     <option value="20">20</option>
@@ -1657,7 +1666,7 @@ export function ReportesPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid auto-rows-[260px] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="reports-monitor-grid mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {monitoreos.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60 sm:col-span-2 xl:col-span-3">
                 No hay monitoreos disponibles para el año seleccionado.
@@ -1675,38 +1684,38 @@ export function ReportesPage() {
                   <div
                     key={m.codigo}
                     className={cls(
-                      "agebre-uniform-card flex h-[260px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 text-left shadow-lg shadow-black/10",
-                      disabled ? "is-disabled opacity-80" : "hover:bg-white/10"
+                      "reports-monitor-card agebre-uniform-card flex h-[250px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border p-5 text-left",
+                      disabled ? "is-disabled opacity-80" : ""
                     )}
                   >
                     <div className="mb-4 flex h-10 shrink-0 items-start justify-between gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
+                      <div className="reports-card-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border">
                         <IconReport />
                       </div>
                       {locked ? (
-                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-amber-100">
+                        <span className="reports-status-badge is-locked inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none">
                           <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
                           Bloqueado
                         </span>
                       ) : expired ? (
-                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-red-100">
+                        <span className="reports-status-badge is-expired inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none">
                           <span className="h-1.5 w-1.5 rounded-full bg-red-300" />
                           Vencido
                         </span>
                       ) : (
-                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-100">
+                        <span className="reports-status-badge is-available inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
                           Disponible
                         </span>
                       )}
                     </div>
 
-                    <h2 className="agebre-card-title h-12 shrink-0 text-base font-bold leading-[1.35] tracking-tight text-white">
+                    <h2 className="agebre-card-title h-12 shrink-0 text-base font-bold leading-[1.35] tracking-tight text-[var(--app-text)]">
                       {m.nombre}
                     </h2>
 
                     <div className="flex flex-1 flex-col pt-4">
-                      <div className="flex h-5 shrink-0 items-center gap-2 text-xs text-white/60">
+                      <div className="flex h-5 shrink-0 items-center gap-2 text-xs text-[var(--app-muted)]">
                         <IconCalendar />
                         <span className="truncate">Vence: {formatDateOnly(m.fecha_fin)}</span>
                       </div>
@@ -1716,7 +1725,7 @@ export function ReportesPage() {
                       <button
                         type="button"
                         onClick={() => setReportMonitoreoModal(m)}
-                        className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white/80 transition hover:border-white/25 hover:bg-white/15"
+                        className="reports-secondary-action inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition"
                       >
                         <IconEye />
                         Ver más
@@ -1742,7 +1751,7 @@ export function ReportesPage() {
             )}
           </div>
           {filteredMonitoreos.length > 0 && (
-            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
+            <div className="reports-pagination mt-4 flex flex-col gap-3 rounded-2xl border px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
               <div>
                 Mostrando {monitoreoStart}-{monitoreoEnd} de {filteredMonitoreos.length} monitoreos
               </div>
@@ -1886,14 +1895,14 @@ export function ReportesPage() {
       )}
 
       {selectedMonitoreo && (
-        <div className="mt-5 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+        <div className="reports-panel reports-current mt-5 flex items-center justify-between rounded-2xl border px-4 py-3">
           <div className="text-sm">
             Monitoreo actual: <span className="font-semibold">{selectedMonitoreoRow?.nombre || selectedMonitoreo}</span>
           </div>
           <button
             type="button"
             onClick={() => setSelectedMonitoreo("")}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+            className="reports-secondary-action rounded-lg border px-3 py-1.5 text-xs font-semibold"
           >
             Cambiar monitoreo
           </button>
@@ -1901,14 +1910,15 @@ export function ReportesPage() {
       )}
 
       {/* Filtros */}
-      {selectedMonitoreo && <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
+      {selectedMonitoreo && <div className="reports-panel reports-filters mt-5 rounded-2xl border p-4">
+        <div className="mb-3 flex items-center gap-2.5"><div className="reports-section-icon flex h-9 w-9 items-center justify-center rounded-xl border"><IconSearch /></div><div><div className="reports-eyebrow">Segmentación</div><div className="text-sm font-bold">Filtros del reporte</div></div></div>
+        <div className="reports-filter-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           <label className="block">
             <div className="mb-2 text-xs font-medium text-white/70">Año</div>
             <select
               value={year}
               onChange={(e) => setYear(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+              className="reports-control w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
             >
               {years.map((y) => (
                 <option key={y} value={y}>
@@ -1924,7 +1934,7 @@ export function ReportesPage() {
             <select
               value={selectedFicha}
               onChange={(e) => setSelectedFicha(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+              className="reports-control w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
             >
               <option value="ALL">Seleccionar ficha...</option>
               {monitoreoFichas.map((f) => (
@@ -1940,7 +1950,7 @@ export function ReportesPage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+              className="reports-control w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
             >
               <option value="ALL">Todos</option>
               <option value="draft">borrador</option>
@@ -1954,7 +1964,7 @@ export function ReportesPage() {
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+                className="reports-control w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
               >
                 <option value="ALL">Todos</option>
                 <option value="admin">Administrador</option>
@@ -1972,7 +1982,7 @@ export function ReportesPage() {
               value={monitorQuery}
               onChange={(e) => setMonitorQuery(e.target.value)}
               placeholder="Nombre del monitor"
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+              className="reports-control w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
             />
           </label>
 
@@ -1982,7 +1992,7 @@ export function ReportesPage() {
               value={colegioQuery}
               onChange={(e) => setColegioQuery(e.target.value)}
               placeholder="Nombre de la IE"
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+              className="reports-control w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
             />
           </label>
 
@@ -1997,7 +2007,7 @@ export function ReportesPage() {
             <select
               value={String(pageSize)}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-white/10"
+              className="reports-control w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
             >
               <option value="10">10</option>
               <option value="20">20</option>
@@ -2036,7 +2046,7 @@ export function ReportesPage() {
             const institucion = r.institucion_educativa?.trim() || "-";
 
             return (
-              <div key={r.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div key={r.id} className="reports-panel reports-run-card rounded-2xl border p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">{mon?.nombre || "Monitoreo"}</div>
@@ -2154,7 +2164,7 @@ export function ReportesPage() {
       )}
 
       {/* Tabla desktop */}
-      {selectedMonitoreo && <div className="mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:block">
+      {selectedMonitoreo && <div className="reports-panel reports-table-panel mt-5 hidden overflow-hidden rounded-2xl border md:block">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <div className="text-sm text-white/70">
             Total: <span className="text-white">{visibleRuns.length}</span>
@@ -2195,8 +2205,8 @@ export function ReportesPage() {
           )}
         </div>
         <div className="w-full overflow-x-auto">
-          <table className="min-w-[820px] w-full">
-            <thead className="bg-black/20">
+          <table className="reports-table min-w-[820px] w-full">
+            <thead>
               <tr className="text-left text-xs text-white/60">
                 <th className="px-4 py-3">Monitoreo / Ficha</th>
                 <th className="px-4 py-3">Fecha</th>

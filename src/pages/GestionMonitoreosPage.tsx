@@ -321,11 +321,29 @@ function statusLabel(status: string) {
 }
 
 function statusTone(status: string) {
-  if (status === "approved") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
-  if (status === "approved_lv1") return "border-amber-500/30 bg-amber-500/10 text-amber-100";
-  if (status === "rejected") return "border-red-500/30 bg-red-500/10 text-red-100";
-  if (status === "inactive") return "border-zinc-400/30 bg-zinc-400/10 text-white/70";
-  return "border-white/10 bg-white/5 text-white/80";
+  if (status === "approved") return "management-badge is-approved";
+  if (status === "approved_lv1") return "management-badge is-review";
+  if (status === "rejected") return "management-badge is-rejected";
+  if (status === "inactive") return "management-badge is-inactive";
+  return "management-badge is-pending";
+}
+
+function ManagementIcon({ type }: { type: "manage" | "requests" | "create" | "refresh" }) {
+  if (type === "refresh") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7v5h-5M4 17v-5h5" />
+        <path strokeLinecap="round" d="M6.1 8.5A7 7 0 0 1 18.6 7M17.9 15.5A7 7 0 0 1 5.4 17" />
+      </svg>
+    );
+  }
+  if (type === "create") {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path strokeLinecap="round" d="M12 5v14M5 12h14" /></svg>;
+  }
+  if (type === "requests") {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M8 5h11v15H5V8m3-3v3H5l3-3Z" /><path strokeLinecap="round" d="M9 12h6M9 16h6" /></svg>;
+  }
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M8 4h8v3H8zM6 6H4v14h16V6h-2" /><path strokeLinecap="round" d="M8 12h8M8 16h5" /></svg>;
 }
 
 function normalizeGestionesForDb(values: string[]) {
@@ -2330,7 +2348,7 @@ export function GestionMonitoreosPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="management-page space-y-5">
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
@@ -2344,12 +2362,23 @@ export function GestionMonitoreosPage() {
           </div>
         </div>
       )}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Gestión de Monitoreos</h1>
-          <p className="text-sm text-white/60">
-            Crea solicitudes y define fichas. El admin aprueba y publica en Monitoreo.
-          </p>
+      <header className="management-hero rounded-2xl border p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="management-hero-icon shrink-0"><ManagementIcon type="manage" /></div>
+            <div className="min-w-0">
+              <div className="management-eyebrow">Control operativo</div>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-[1.7rem]">Gestión de Monitoreos</h1>
+              <p className="mt-1 text-sm text-[var(--app-muted)]">
+                Crea solicitudes, configura fichas y gestiona su publicación.
+              </p>
+            </div>
+          </div>
+          <div className="management-kpis grid grid-cols-3 gap-2">
+            <div className="management-kpi"><span>Total</span><strong>{items.length}</strong></div>
+            <div className="management-kpi is-pending"><span>Pendientes</span><strong>{items.filter((item) => item.status === "pending" || item.status === "approved_lv1").length}</strong></div>
+            <div className="management-kpi is-approved"><span>Aprobados</span><strong>{items.filter((item) => item.status === "approved").length}</strong></div>
+          </div>
         </div>
       </header>
 
@@ -2359,15 +2388,19 @@ export function GestionMonitoreosPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_1.4fr]">
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="management-workspace grid gap-5 xl:grid-cols-[minmax(21rem_.85fr)_minmax(0_1.4fr)]">
+        <section className="management-panel management-request-panel rounded-2xl border p-4 sm:p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Solicitudes</h2>
+            <div className="flex items-center gap-2.5">
+              <div className="management-section-icon"><ManagementIcon type="requests" /></div>
+              <div><div className="management-eyebrow">Bandeja</div><h2 className="text-lg font-bold">Solicitudes</h2></div>
+            </div>
             <button
               type="button"
               onClick={loadSolicitudes}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80"
+              className="management-refresh-button inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold"
             >
+              <ManagementIcon type="refresh" />
               Refrescar
             </button>
           </div>
@@ -2375,11 +2408,11 @@ export function GestionMonitoreosPage() {
           {loading && <div className="mt-4 text-sm text-white/60">Cargando...</div>}
           {error && <div className="mt-4 text-sm text-red-100">{error}</div>}
 
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="text-xs text-white/60">
+          <div className="management-filter-bar mt-4 grid gap-3 rounded-xl border p-3 sm:grid-cols-[minmax(0_1fr)_minmax(9rem_.55fr)_5rem]">
+            <label className="management-field-label text-xs">
               Buscar
               <input
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                className="management-control mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                 placeholder="Nombre o código SOL-XXXXXXX"
                 value={solSearch}
                 onChange={(e) => {
@@ -2388,10 +2421,10 @@ export function GestionMonitoreosPage() {
                 }}
               />
             </label>
-            <label className="text-xs text-white/60">
+            <label className="management-field-label text-xs">
               Estado
               <select
-                className="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                className="management-control mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                 value={solStatusFilter}
                 onChange={(e) => {
                   setSolStatusFilter(e.target.value);
@@ -2406,10 +2439,10 @@ export function GestionMonitoreosPage() {
                 <option value="inactive">Inactivo</option>
               </select>
             </label>
-            <label className="text-xs text-white/60">
+            <label className="management-field-label text-xs">
               Ver
               <select
-                className="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+                className="management-control mt-1 w-full rounded-lg border px-2 py-2 text-sm"
                 value={solPageSize}
                 onChange={(e) => {
                   setSolPageSize(Number(e.target.value));
@@ -2423,8 +2456,8 @@ export function GestionMonitoreosPage() {
                 ))}
               </select>
             </label>
-            <div className="text-xs text-white/50">{filteredSolicitudes.length} resultados</div>
           </div>
+          <div className="management-result-count mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold">{filteredSolicitudes.length} resultados</div>
 
           <div className="mt-4 space-y-2.5">
             {pageSolicitudes.map((s) => (
@@ -2438,9 +2471,7 @@ export function GestionMonitoreosPage() {
                 }}
                 role="button"
                 tabIndex={0}
-                className={`w-full min-h-[134px] rounded-xl border px-3 py-2.5 text-left transition sm:min-h-[126px] sm:px-3.5 sm:py-2.5 ${
-                  selectedId === s.id ? "border-[var(--app-accent)] bg-white/10" : "border-white/10 bg-white/5"
-                }`}
+                className={`management-request-card w-full min-h-[126px] rounded-xl border px-3.5 py-3 text-left ${selectedId === s.id ? "is-selected" : ""}`}
               >
                 <div className="flex h-full flex-col">
                   <div className="flex items-start justify-between gap-2">
@@ -2457,7 +2488,7 @@ export function GestionMonitoreosPage() {
                         {s.nombre}
                       </div>
                       {s.cdd && (
-                        <span className="mt-1 inline-block rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-100 sm:text-[11px]">
+                        <span className="management-cdd-badge mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold sm:text-[11px]">
                           CdD
                         </span>
                       )}
@@ -2466,12 +2497,12 @@ export function GestionMonitoreosPage() {
                       {statusLabel(s.status)}
                     </span>
                   </div>
-                  <div className="mt-1.5 text-[11px] text-white/60 sm:text-xs">
+                  <div className="management-request-date mt-1.5 text-[11px] sm:text-xs">
                     {s.fecha_inicio} → {s.fecha_fin}
                     {s.status === "approved" && isMonitoreoExpired(s.fecha_fin) ? " • Vencido" : ""}
                   </div>
                   <div className="mt-1.5 flex items-center justify-between gap-2">
-                    <div className="text-[11px] text-white/50 sm:text-xs">Código: SOL-{s.id.slice(0, 8).toUpperCase()}</div>
+                    <div className="management-request-code text-[11px] sm:text-xs">Código: SOL-{s.id.slice(0, 8).toUpperCase()}</div>
                     {((s.nombre || "").length > 80 || (s.detalle || "").length > 140) && (
                       <button
                         type="button"
@@ -2480,7 +2511,7 @@ export function GestionMonitoreosPage() {
                           e.stopPropagation();
                           setSolicitudDetailModal(s);
                         }}
-                        className="shrink-0 rounded-md border border-white/15 bg-white/10 px-2 py-1 text-[10px] text-white/80 hover:bg-white/15 sm:text-[11px]"
+                        className="management-inline-button shrink-0 rounded-md border px-2 py-1 text-[10px] font-semibold sm:text-[11px]"
                       >
                         Ver más
                       </button>
@@ -2503,7 +2534,7 @@ export function GestionMonitoreosPage() {
               </div>
             ))}
             {!pageSolicitudes.length && (
-              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
+              <div className="management-empty rounded-xl border px-4 py-4 text-center text-xs">
                 Sin resultados.
               </div>
             )}
@@ -2544,20 +2575,20 @@ export function GestionMonitoreosPage() {
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
+          <div className="management-pagination mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
             <div>
               Página {solPage} de {solTotalPages}
             </div>
             <div className="flex gap-2">
               <button
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
+                className="management-pagination-button rounded-lg border px-3 py-1.5 font-semibold"
                 onClick={() => setSolPage((p) => Math.max(1, p - 1))}
                 disabled={solPage <= 1}
               >
                 Anterior
               </button>
               <button
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
+                className="management-pagination-button rounded-lg border px-3 py-1.5 font-semibold"
                 onClick={() => setSolPage((p) => Math.min(solTotalPages, p + 1))}
                 disabled={solPage >= solTotalPages}
               >
@@ -2568,18 +2599,21 @@ export function GestionMonitoreosPage() {
         </section>
 
         <section className="space-y-6">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h2 className="text-lg font-semibold">Nueva solicitud</h2>
+          <div className="management-panel management-create-panel rounded-2xl border p-4 sm:p-5">
+            <div className="flex items-center gap-2.5">
+              <div className="management-section-icon"><ManagementIcon type="create" /></div>
+              <div><div className="management-eyebrow">Configuración</div><h2 className="text-lg font-bold">Nueva solicitud</h2></div>
+            </div>
             <div className="mt-4 grid gap-3">
               <input
-                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                className="management-control rounded-lg border px-3 py-2.5 text-sm"
                 placeholder="Nombre del monitoreo"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 disabled={!canCreate || saving}
               />
               <textarea
-                className="min-h-[80px] rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                className="management-control min-h-[86px] rounded-lg border px-3 py-2.5 text-sm"
                 placeholder="Detalle del monitoreo"
                 value={detalle}
                 onChange={(e) => setDetalle(e.target.value)}
@@ -2588,20 +2622,20 @@ export function GestionMonitoreosPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <input
                   type="date"
-                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                  className="management-control rounded-lg border px-3 py-2.5 text-sm"
                   value={fechaInicio}
                   onChange={(e) => setFechaInicio(e.target.value)}
                   disabled={!canCreate || saving}
                 />
                 <input
                   type="date"
-                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                  className="management-control rounded-lg border px-3 py-2.5 text-sm"
                   value={fechaFin}
                   onChange={(e) => setFechaFin(e.target.value)}
                   disabled={!canCreate || saving}
                 />
               </div>
-              <label className="flex items-center gap-2 text-xs text-white/70">
+              <label className="management-check-row flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold">
                 <input
                   type="checkbox"
                   checked={isCdd}
@@ -2611,11 +2645,11 @@ export function GestionMonitoreosPage() {
                 Compromiso de Desempeño (CdD)
               </label>
 
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="text-xs text-white/60">Filtros</div>
-                <div className="mt-2 grid gap-3 md:grid-cols-4">
+              <div className="management-subpanel rounded-xl border p-3.5">
+                <div className="management-subpanel-title text-xs font-bold">Filtros de alcance</div>
+                <div className="management-filter-groups mt-3 grid grid-cols-2 gap-4 2xl:grid-cols-4">
                   <div>
-                    <div className="text-xs text-white/60">Gestión</div>
+                    <div className="management-group-title text-xs">Gestión</div>
                     {GESTIONES.map((g) => (
                       <label key={g} className="mt-1 flex items-center gap-2 text-xs">
                         <input
@@ -2629,7 +2663,7 @@ export function GestionMonitoreosPage() {
                     ))}
                   </div>
                   <div>
-                    <div className="text-xs text-white/60">Modalidad</div>
+                    <div className="management-group-title text-xs">Modalidad</div>
                     {MODALIDADES.map((m) => (
                       <label key={m} className="mt-1 flex items-center gap-2 text-xs">
                         <input
@@ -2643,7 +2677,7 @@ export function GestionMonitoreosPage() {
                     ))}
                   </div>
                   <div>
-                    <div className="text-xs text-white/60">Tipo</div>
+                    <div className="management-group-title text-xs">Tipo</div>
                     {TIPOS.map((t) => (
                       <label key={t} className="mt-1 flex items-center gap-2 text-xs">
                         <input
@@ -2657,7 +2691,7 @@ export function GestionMonitoreosPage() {
                     ))}
                   </div>
                   <div>
-                    <div className="text-xs text-white/60">Nivel</div>
+                    <div className="management-group-title text-xs">Nivel</div>
                     {availableNiveles.map((n) => (
                       <label key={n} className="mt-1 flex items-center gap-2 text-xs">
                         <input
@@ -2672,9 +2706,9 @@ export function GestionMonitoreosPage() {
                   </div>
                 </div>
                 <div className="mt-3">
-                  <div className="text-xs text-white/60">Restricción de guardado por código</div>
+                  <div className="management-group-title text-xs">Restricción de guardado por código</div>
                   <select
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm md:max-w-md"
+                    className="management-control mt-1 w-full rounded-lg border px-3 py-2 text-sm md:max-w-md"
                     value={dupRule}
                     onChange={(e) => setDupRule(e.target.value)}
                     disabled={!canCreate}
@@ -2686,17 +2720,17 @@ export function GestionMonitoreosPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="text-xs text-white/60">Instituciones (selección manual)</div>
+              <div className="management-subpanel rounded-xl border p-3.5">
+                <div className="management-subpanel-title text-xs font-bold">Instituciones (selección manual)</div>
                 <input
-                  className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                  className="management-control mt-2 w-full rounded-lg border px-3 py-2 text-sm"
                   placeholder="Buscar por nombre o código modular"
                   value={ieQuery}
                   onChange={(e) => setIeQuery(e.target.value)}
                   disabled={!canCreate}
                 />
                 {ieResults.length > 0 && (
-                  <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-black/40">
+                  <div className="management-ie-results mt-2 max-h-40 overflow-y-auto rounded-lg border">
                     {ieResults.map((ie) => (
                       <button
                         key={ie.id}
@@ -2706,7 +2740,7 @@ export function GestionMonitoreosPage() {
                             setIeSelected((v) => [...v, ie]);
                           }
                         }}
-                        className="w-full px-3 py-2 text-left text-xs hover:bg-white/5"
+                        className="management-ie-option w-full px-3 py-2 text-left text-xs"
                       >
                         {ie.nombre} · {ie.codigo_modular}
                       </button>
@@ -2738,7 +2772,7 @@ export function GestionMonitoreosPage() {
                 type="button"
                 onClick={submitSolicitud}
                 disabled={!canCreate || saving || !nombre.trim() || !fechaInicio || !fechaFin}
-                className="rounded-lg bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-[var(--app-on-accent)] disabled:opacity-50"
+                className="executive-primary-action rounded-lg border px-4 py-2.5 text-sm font-bold disabled:opacity-50"
               >
                 {saving ? "Guardando..." : "Crear solicitud"}
               </button>

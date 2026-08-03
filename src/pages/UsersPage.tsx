@@ -529,7 +529,7 @@ export function UsersPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-0px)] bg-zinc-950 text-white">
+    <div className="users-page min-h-[calc(100vh-0px)] bg-zinc-950 text-white">
       {/* Toast */}
       {toast && (
         <div className="fixed right-4 top-4 z-50">
@@ -546,18 +546,32 @@ export function UsersPage() {
         </div>
       )}
 
-      <div className="mx-auto max-w-6xl px-5 py-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
-            <p className="mt-1 text-sm text-white/60">
-              {canManageUsers
-                ? "Administra cuentas, roles y contraseñas."
-                : "Consulta usuarios registrados."}
-            </p>
+      <div className="users-page__content mx-auto max-w-6xl px-5 py-6">
+        <div className="users-hero">
+          <div className="users-hero__identity">
+            <div className="users-hero__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div>
+              <div className="users-eyebrow">GESTIÓN DE ACCESOS</div>
+              <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
+              <p className="mt-1 text-sm text-white/60">
+                {canManageUsers
+                  ? "Administra cuentas, roles y credenciales del sistema."
+                  : "Consulta usuarios registrados y sus ámbitos de acceso."}
+              </p>
+            </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="users-hero__side">
+            <div className="users-metrics" aria-label="Resumen de usuarios">
+              <div className="users-metric"><span>Total</span><strong>{total}</strong></div>
+              <div className="users-metric"><span>En vista</span><strong>{items.length}</strong></div>
+              <div className="users-metric"><span>Página</span><strong>{page}/{totalPages}</strong></div>
+            </div>
+            <div className="users-hero__actions flex gap-2">
             <Button variant="ghost" onClick={load} disabled={loading}>
               {loading ? "Actualizando..." : "Actualizar"}
             </Button>
@@ -571,12 +585,20 @@ export function UsersPage() {
                 + Crear usuario
               </Button>
             )}
+            </div>
           </div>
         </div>
 
         {/* Filtros */}
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="grid gap-3 md:grid-cols-12">
+        <section className="users-filter-panel mt-6 rounded-2xl border border-white/10 bg-white/5 p-4" aria-label="Filtros de usuarios">
+          <div className="users-filter-panel__heading">
+            <div>
+              <span>DIRECTORIO DE CUENTAS</span>
+              <h2>Buscar y filtrar usuarios</h2>
+            </div>
+            <span>{total} registros</span>
+          </div>
+          <div className="users-filter-grid grid gap-3 md:grid-cols-12">
             <div className="md:col-span-5">
               <Field label="Buscar (nombre, correo, documento)">
                 <Input
@@ -636,7 +658,7 @@ export function UsersPage() {
               </Field>
             </div>
 
-            <div className="md:col-span-12 flex gap-2 pt-2">
+            <div className="users-filter-actions md:col-span-12 flex gap-2 pt-2">
               <Button variant="ghost" onClick={onSearch}>
                 Buscar
               </Button>
@@ -660,10 +682,10 @@ export function UsersPage() {
               </Button>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Lista mobile */}
-        <div className="mt-5 space-y-3 md:hidden">
+        <div className="users-mobile-list mt-5 space-y-3 md:hidden">
           {loading ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
               Cargando usuarios...
@@ -674,25 +696,26 @@ export function UsersPage() {
             </div>
           ) : (
             items.map((u) => (
-              <div key={u.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div key={u.id} className="user-mobile-card rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="user-mobile-card__identity min-w-0">
+                    <div className="user-avatar" aria-hidden="true">{formatName(u).charAt(0)}</div>
+                    <div className="min-w-0">
                     <div className="truncate font-medium">{formatName(u)}</div>
                     <div className="truncate text-xs text-white/50">{u.correo}</div>
+                    </div>
                   </div>
                   <span
                     className={cls(
-                      "rounded-lg border px-2 py-1 text-xs",
-                      u.rol === "admin"
-                        ? "border-amber-500/30 bg-amber-500/10 text-amber-100 badge-amber"
-                        : "border-white/10 bg-white/5 text-white/70"
+                      "user-role-badge rounded-lg border px-2 py-1 text-xs",
+                      `is-${u.rol}`
                     )}
                   >
                     {roleLabel(u.rol)}
                   </span>
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
+                <div className="user-mobile-card__meta mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
                   <div>Documento: {maskDoc(u.tipo_documento, u.numero_documento)}</div>
                   <div>Área: {u.area || "-"}</div>
                   <div>UGEL: {u.ugel || "-"}</div>
@@ -727,7 +750,7 @@ export function UsersPage() {
           )}
         </div>
 
-        <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 md:hidden">
+        <div className="users-mobile-pagination mt-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60 md:hidden">
           <div>
             Mostrando {items.length} de {total} · Página {page}/{totalPages}
           </div>
@@ -752,8 +775,8 @@ export function UsersPage() {
         </div>
 
         {/* Tabla desktop */}
-        <div className="mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:block">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div className="users-table-panel mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:block">
+          <div className="users-table-panel__header flex items-center justify-between border-b border-white/10 px-4 py-3">
             <div className="text-sm text-white/70">
               Total: <span className="text-white">{total}</span>
             </div>
@@ -767,7 +790,7 @@ export function UsersPage() {
           </div>
 
           <div className="w-full overflow-x-auto">
-            <table className="min-w-[780px] w-full">
+            <table className="users-table min-w-[780px] w-full">
               <thead className="bg-black/20">
                 <tr className="text-left text-xs text-white/60">
                   <th className="px-4 py-3">Usuario</th>
@@ -804,10 +827,8 @@ export function UsersPage() {
                       <td className="px-4 py-3">
                         <span
                           className={cls(
-                            "rounded-lg border px-2 py-1 text-xs",
-                            u.rol === "admin"
-                              ? "border-amber-500/30 bg-amber-500/10 text-amber-100 badge-amber"
-                              : "border-white/10 bg-white/5 text-white/70"
+                            "user-role-badge rounded-lg border px-2 py-1 text-xs",
+                            `is-${u.rol}`
                           )}
                         >
                           {roleLabel(u.rol)}
