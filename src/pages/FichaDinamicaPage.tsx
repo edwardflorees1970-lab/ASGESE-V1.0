@@ -566,7 +566,15 @@ export function FichaDinamicaPage() {
   const applyLocalDraft = (snapshot: LocalDraftSnapshot) => {
     setRunId(snapshot.runId ?? null);
     setRunStatus(snapshot.runStatus ?? null);
-    setHeader((s) => ({ ...s, ...(snapshot.header ?? {}) }));
+    setHeader((s) => {
+      const next = { ...s, ...(snapshot.header ?? {}) };
+      return {
+        ...next,
+        hora_inicio: cleanStoredTime(next.hora_inicio || ""),
+        hora_fin: cleanStoredTime(next.hora_fin || ""),
+        custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
+      };
+    });
     setFooter((s) => ({ ...s, ...(snapshot.footer ?? {}) }));
     setAnswers(snapshot.answers ?? {});
   };
