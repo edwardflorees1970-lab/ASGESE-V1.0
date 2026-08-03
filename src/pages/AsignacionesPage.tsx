@@ -35,6 +35,12 @@ function fmtDate(iso: string) {
   }
 }
 
+function AssignmentIcon({ type = "assign" }: { type?: "assign" | "users" | "calendar" }) {
+  if (type === "users") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM17 8h4M19 6v4" /></svg>;
+  if (type === "calendar") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M6 3v3M18 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" /></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM3 21v-2a6 6 0 0 1 10.5-4M17 12v8M13 16h8" /></svg>;
+}
+
 export function AsignacionesPage() {
   const { profile } = useAuth();
   const canManageAssignments = isAdminRole(profile?.role);
@@ -208,7 +214,7 @@ export function AsignacionesPage() {
   );
 
   return (
-    <div className="text-white">
+    <div className="assignments-page space-y-5 text-white">
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
@@ -224,14 +230,19 @@ export function AsignacionesPage() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Asignaciones</h1>
-        <p className="mt-1 text-sm text-white/60">
-          Asigna usuarios a monitoreos por rango de fechas.
-        </p>
-      </div>
+      <header className="assignments-hero rounded-2xl border p-4 sm:p-5">
+        <div className="assignments-hero-layout grid items-center gap-4">
+          <div className="flex min-w-0 items-center gap-3"><div className="assignments-hero-icon"><AssignmentIcon /></div><div><div className="assignments-eyebrow">Gestión de acceso</div><h1 className="text-2xl font-bold tracking-tight sm:text-[1.7rem]">Asignaciones</h1><p className="mt-1 text-sm text-[var(--app-muted)]">Asigna usuarios a monitoreos activos por periodo de vigencia.</p></div></div>
+          <div className="assignments-kpis grid grid-cols-3 gap-2">
+            <div className="assignments-kpi"><span>Usuarios</span><strong>{filtered.length}</strong></div>
+            <div className="assignments-kpi is-success"><span>Asignados</span><strong>{filtered.filter((user) => assignments[user.id]).length}</strong></div>
+            <div className="assignments-kpi is-pending"><span>Disponibles</span><strong>{filtered.filter((user) => !assignments[user.id]).length}</strong></div>
+          </div>
+        </div>
+      </header>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <section className="assignments-panel assignments-controls rounded-2xl border p-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         <DashboardSelect label="Año" value={year} options={yearOptions} onChange={setYear} />
 
         <div className="min-w-0 sm:col-span-2">
@@ -248,14 +259,16 @@ export function AsignacionesPage() {
       </div>
 
       {selected && (
-        <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
+        <div className="assignments-period mt-3 flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-semibold">
+          <AssignmentIcon type="calendar" />
           Vigencia: {fmtDate(selected.fecha_inicio)} → {fmtDate(selected.fecha_fin)}
         </div>
       )}
+      </section>
 
-      <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <section className="assignments-panel rounded-2xl border p-4 sm:p-5">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm font-semibold">Usuarios</div>
+          <div className="flex items-center gap-2.5"><div className="assignments-section-icon"><AssignmentIcon type="users" /></div><div><div className="assignments-eyebrow">Directorio</div><div className="text-sm font-bold">Usuarios</div></div></div>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -281,16 +294,11 @@ export function AsignacionesPage() {
               return (
                 <div
                   key={u.id}
-                  className={cls(
-                    "flex items-center justify-between rounded-xl border px-3 py-2",
-                    assigned
-                      ? "border-emerald-500/30 bg-emerald-500/10"
-                      : "border-white/10 bg-white/5"
-                  )}
+                  className={cls("assignment-user-card flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5", assigned && "is-assigned")}
                 >
                   <div>
-                    <div className="text-sm text-white">{name}</div>
-                    <div className="text-xs text-white/50">{u.correo || u.email}</div>
+                    <div className="text-sm font-semibold text-[var(--app-text)]">{name}</div>
+                    <div className="text-xs text-[var(--app-muted)]">{u.correo || u.email}</div>
                   </div>
                   <button
                     type="button"
@@ -300,7 +308,7 @@ export function AsignacionesPage() {
                       "badge-interactive rounded-lg px-3 py-1.5 text-xs",
                       assigned
                         ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100 badge-green"
-                        : "border border-white/10 bg-white/5 badge-muted"
+                        : "border badge-info"
                     )}
                   >
                     {saving === u.id ? "..." : assigned ? "Asignado" : canManageAssignments ? "Asignar" : "Solo lectura"}
@@ -310,7 +318,7 @@ export function AsignacionesPage() {
             })}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

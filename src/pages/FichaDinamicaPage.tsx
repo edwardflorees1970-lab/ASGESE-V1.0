@@ -118,6 +118,15 @@ const DUP_RULE_LOCAL = "codigo_local";
 const DUP_RULE_MODULAR = "codigo_modular";
 const DUP_RULE_MARKER = "__restriccion_duplicado__";
 
+function SectionsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 6h11M8.5 12h11M8.5 18h11" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+    </svg>
+  );
+}
+
 type SolicitudFilters = {
   gestiones: string[];
   modalidades: string[];
@@ -425,6 +434,7 @@ export function FichaDinamicaPage() {
   const [saving, setSaving] = useState(false);
   const [showUp, setShowUp] = useState(false);
   const [showDown, setShowDown] = useState(true);
+  const [sectionNavOpen, setSectionNavOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const monitorReadOnly = profile?.role === "user" || profile?.role === "responsable_cdd";
 
@@ -443,6 +453,15 @@ export function FichaDinamicaPage() {
     docTipo: "DNI" | "CE";
     docNumero: string;
   }>({ name: "", docTipo: "DNI", docNumero: "" });
+
+  useEffect(() => {
+    if (!sectionNavOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSectionNavOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sectionNavOpen]);
   const profileMonitorName = [profile?.apellido_paterno, profile?.apellido_materno, profile?.nombres]
     .filter(Boolean)
     .join(" ")
@@ -1389,7 +1408,7 @@ export function FichaDinamicaPage() {
   }
 
   return (
-    <div className="space-y-5 text-white">
+    <div className="dynamic-form-page monitoring-page space-y-4 text-white">
       {toast && (
         <div
           className={`fixed left-1/2 top-1/2 z-50 w-[min(calc(100vw-2rem),32rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl px-4 py-4 text-center text-sm shadow-2xl backdrop-blur ${
@@ -1430,11 +1449,11 @@ export function FichaDinamicaPage() {
           </div>
         </div>
       )}
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="dynamic-form-hero rounded-2xl border p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm text-white/60">Ficha din?mica</div>
-            <div className="mt-1 text-2xl font-semibold">{template.titulo}</div>
+            <div className="monitoring-accent-text text-[11px] font-bold uppercase tracking-[0.16em]">Ficha dinámica</div>
+            <div className="mt-1 text-xl font-bold tracking-tight text-[var(--app-text)] sm:text-2xl">{template.titulo}</div>
             {template.subtitulo ? (
               <div className="text-sm text-white/70">{template.subtitulo}</div>
             ) : null}
@@ -1442,30 +1461,60 @@ export function FichaDinamicaPage() {
           <button
             type="button"
             onClick={handleBack}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+            className="monitoring-secondary-action rounded-lg border px-3 py-1.5 text-xs font-semibold"
           >
             Volver
           </button>
         </div>
       </div>
 
-      <div className="sticky top-20 z-30 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-zinc-950/80 p-2 backdrop-blur">
-        {sections.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
-            onClick={() => {
-              const el = document.getElementById(`section-${s.id}`);
-              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-          >
-            {s.titulo}
-          </button>
-        ))}
+      <div className={`dynamic-section-dock ${sectionNavOpen ? "is-open" : ""}`}>
+        <button
+          type="button"
+          className="dynamic-section-toggle"
+          aria-expanded={sectionNavOpen}
+          aria-controls="dynamic-section-menu"
+          aria-label={sectionNavOpen ? "Ocultar secciones" : "Mostrar secciones"}
+          onClick={() => setSectionNavOpen((current) => !current)}
+        >
+          <SectionsIcon />
+          <span className="dynamic-section-toggle-label">Secciones</span>
+        </button>
+        <nav id="dynamic-section-menu" className="dynamic-section-menu" aria-label={"Navegaci\u00f3n de secciones"}>
+          <div className="dynamic-section-menu-header">
+            <span>Ir a una secci&oacute;n</span>
+            <button
+              type="button"
+              className="dynamic-section-menu-close"
+              aria-label={"Cerrar navegaci\u00f3n de secciones"}
+              onClick={() => setSectionNavOpen(false)}
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path strokeLinecap="round" d="m5 5 10 10M15 5 5 15" />
+              </svg>
+            </button>
+          </div>
+          <div className="dynamic-section-menu-list">
+            {sections.map((s, index) => (
+              <button
+                key={s.id}
+                type="button"
+                className="dynamic-section-link"
+                onClick={() => {
+                  const el = document.getElementById(`section-${s.id}`);
+                  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  setSectionNavOpen(false);
+                }}
+              >
+                <span className="dynamic-section-number">{index + 1}</span>
+                <span>{s.titulo}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="dynamic-form-panel rounded-2xl border p-4 sm:p-5">
         <div className="text-sm font-semibold">Encabezado</div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {effectiveHeaderCfg?.institucion && (
@@ -1483,15 +1532,15 @@ export function FichaDinamicaPage() {
                 placeholder="Buscar institución educativa..."
               />
               {ieOpen && (ieOptions.length > 0 || ieLoading) && (
-                <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-white/10 bg-black/70">
+                <div className="dynamic-ie-options mt-2 max-h-56 overflow-auto rounded-xl border">
                   {ieLoading ? (
-                    <div className="p-3 text-xs text-white/60">Buscando...</div>
+                    <div className="dynamic-ie-loading p-3 text-xs">Buscando...</div>
                   ) : (
                     ieOptions.map((opt) => (
                       <button
                         key={opt.id}
                         type="button"
-                        className="flex w-full flex-col gap-0.5 border-b border-white/5 px-3 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                        className="dynamic-ie-option flex w-full flex-col gap-0.5 border-b px-3 py-2.5 text-left text-xs"
                         onClick={() => {
                           const distritoNombre = Array.isArray(opt.distrito)
                             ? opt.distrito[0]?.nombre ?? ""
@@ -1508,8 +1557,8 @@ export function FichaDinamicaPage() {
                           setIeOpen(false);
                         }}
                       >
-                        <span className="text-sm text-white">{opt.nombre}</span>
-                        <span className="text-[11px] text-white/60">
+                        <span className="dynamic-ie-option-name text-sm font-semibold">{opt.nombre}</span>
+                        <span className="dynamic-ie-option-meta text-[11px]">
                           {opt.codigo_modular} • {opt.codigo_local || "-"}
                           {Array.isArray(opt.nivel)
                             ? opt.nivel[0]?.nombre
@@ -1823,7 +1872,7 @@ export function FichaDinamicaPage() {
       </div>
 
       {effectiveHeaderCfg?.nivel_avance && nivelInfoDisplay.length ? (
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="dynamic-form-panel mt-4 rounded-2xl border p-4">
           <div className="text-sm font-semibold">Niveles de respuesta (Sí)</div>
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             {nivelInfoDisplay.map((x, idx) => (
@@ -1841,7 +1890,7 @@ export function FichaDinamicaPage() {
       ) : null}
 
       {sections.map((s) => (
-        <div key={s.id} id={`section-${s.id}`} className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div key={s.id} id={`section-${s.id}`} className="dynamic-form-panel dynamic-section-panel scroll-mt-36 rounded-2xl border p-4 sm:p-5">
           <div className="text-sm font-semibold">{s.titulo}</div>
           <div className="mt-4 space-y-5">
             {questions
@@ -1850,7 +1899,7 @@ export function FichaDinamicaPage() {
                 const value = answers[q.id] ?? {};
                 const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
                 return (
-                  <div key={q.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div key={q.id} className="dynamic-question-card rounded-xl border p-4">
                     <div className="text-sm font-semibold">
                       {q.orden_in_section ?? q.orden}. {q.texto}
                     </div>
@@ -2069,7 +2118,7 @@ export function FichaDinamicaPage() {
         </div>
       ))}
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="dynamic-form-panel rounded-2xl border p-4 sm:p-5">
         <div className="text-sm font-semibold">Cierre</div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {effectiveFooterCfg?.observacion && (
@@ -2210,7 +2259,7 @@ export function FichaDinamicaPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="dynamic-form-actions sticky bottom-3 z-20 flex flex-wrap gap-2 rounded-xl border p-2.5 backdrop-blur">
         {!isEditMode && (
           <button
             type="button"
@@ -2225,7 +2274,7 @@ export function FichaDinamicaPage() {
           type="button"
           onClick={() => saveRun("draft")}
           disabled={saving}
-          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-60"
+          className="executive-primary-action rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-60"
         >
           {isEditMode ? "Enviar" : "Guardar en BD"}
         </button>
@@ -2233,7 +2282,7 @@ export function FichaDinamicaPage() {
           type="button"
           onClick={clearDraft}
           disabled={saving}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10 disabled:opacity-60"
+          className="monitoring-secondary-action rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-60"
         >
           Limpiar ficha
         </button>
