@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardIcon } from "../components/dashboard/DashboardWidgets";
 import { ReportFilterPanel } from "../components/reports/ReportFilterPanel";
 import { ExecutiveReportView } from "../components/reports/ExecutiveReportView";
@@ -24,6 +25,7 @@ import { exportAnalyticsCsv, exportAnalyticsExcel } from "../lib/analyticsExport
 import { captureTelemetry } from "../lib/telemetry";
 import { useAuth } from "../app/AuthProvider";
 import { IconButton } from "../components/ui/IconButton";
+import { DataAccessConsentDialog } from "../components/DataAccessConsentDialog";
 
 const EMPTY_OPTIONS: ReportFilterOptions = {
   years: [], monitorings: [], templates: [], monitors: [], institutions: [], reis: [], levels: [], districts: [], questions: [], responses: [],
@@ -51,13 +53,15 @@ function reportFilename(type: AnalyticsReportType) {
 
 export function AnalyticsReportsPage() {
   const { profile, user } = useAuth();
+  const navigate = useNavigate();
+  const [accessGranted, setAccessGranted] = useState(false);
   const [reportType, setReportType] = useState<AnalyticsReportType>("executive");
   const [filters, setFilters] = useState<AnalyticsReportFilters>({ ...EMPTY_REPORT_FILTERS });
   const [appliedFilters, setAppliedFilters] = useState<AnalyticsReportFilters>({ ...EMPTY_REPORT_FILTERS });
   const [options, setOptions] = useState<ReportFilterOptions>(EMPTY_OPTIONS);
   const [generated, setGenerated] = useState<GeneratedReport | null>(null);
   const [page, setPage] = useState(0);
-  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +72,16 @@ export function AnalyticsReportsPage() {
   const optionMonitoreoId = filters.monitoreo_id;
   const optionTemplateId = filters.template_id;
   const optionQuestionId = filters.question_id;
+  const userDisplayName = [profile?.nombres, profile?.apellido_paterno, profile?.apellido_materno]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || profile?.correo || profile?.email || user?.email || "Usuario autenticado";
 
   useEffect(() => {
+    if (!accessGranted) {
+      setLoadingOptions(false);
+      return;
+    }
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setLoadingOptions(true);
@@ -89,7 +101,7 @@ export function AnalyticsReportsPage() {
         .finally(() => { if (!controller.signal.aborted) setLoadingOptions(false); });
     }, 250);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [optionYear, optionMonth, optionMonitoreoId, optionTemplateId, optionQuestionId]);
+  }, [accessGranted, optionYear, optionMonth, optionMonitoreoId, optionTemplateId, optionQuestionId]);
 
   useEffect(() => () => requestRef.current?.abort(), []);
 
@@ -152,8 +164,7 @@ export function AnalyticsReportsPage() {
       const base = reportFilename(generated.type);
       if (format === "pdf") {
         const { exportAnalyticsPdf } = await import("../lib/analyticsReportPdf");
-        const exportedBy = [profile?.nombres, profile?.apellido_paterno, profile?.apellido_materno].filter(Boolean).join(" ") || profile?.correo || profile?.email || user?.email || "Usuario autenticado";
-        await exportAnalyticsPdf({ filename: `${base}.pdf`, reportType: generated.type, report: exportData, filters: reportFilterSummary(appliedFilters, options), exportedBy, generatedAt: new Date() });
+        await exportAnalyticsPdf({ filename: `${base}.pdf`, reportType: generated.type, report: exportData, filters: reportFilterSummary(appliedFilters, options), exportedBy: userDisplayName, generatedAt: new Date() });
       } else {
         const table = analyticsReportExportTable(generated.type, exportData);
         if (format === "csv") exportAnalyticsCsv(`${base}.csv`, table.columns, table.rows);
@@ -165,6 +176,36 @@ export function AnalyticsReportsPage() {
       setExporting(false);
     }
   };
+
+  if (!accessGranted) {
+    return (
+      <div className="analytics-reports analytics-access-gate min-w-0 pb-8 text-white">
+        <div className="analytics-access-preview" aria-hidden="true">
+          <header className="analytics-executive-hero report-screen-header executive-report-header rounded-2xl border p-5 sm:p-6">
+            <div className="analytics-executive-eyebrow text-[11px] font-bold uppercase tracking-[0.16em]">Inteligencia de datos · UGEL 06</div>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Reportes analíticos</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">Acceso protegido a indicadores, resultados y exportaciones institucionales.</p>
+          </header>
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            {REPORT_TYPES.map((item) => (
+              <div key={item.type} className="analytics-report-type rounded-2xl border p-4">
+                <div className="flex items-start gap-3"><span className="analytics-report-type-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><DashboardIcon name={item.icon} /></span><span><strong className="block text-sm">{item.title}</strong><span className="mt-1 block text-xs leading-5 text-[var(--app-muted)]">Contenido protegido</span></span></div>
+              </div>
+            ))}
+          </div>
+          <div className="analytics-access-placeholder mt-5 grid min-h-[22rem] place-items-center rounded-2xl border border-dashed">
+            <div className="text-center"><DashboardIcon name="target" className="mx-auto h-10 w-10" /><strong className="mt-3 block text-sm">Información analítica protegida</strong></div>
+          </div>
+        </div>
+        <DataAccessConsentDialog
+          open
+          userName={userDisplayName}
+          onLeave={() => navigate("/app", { replace: true })}
+          onAccepted={() => setAccessGranted(true)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="analytics-reports analytics-executive-page min-w-0 space-y-5 pb-8 text-white">

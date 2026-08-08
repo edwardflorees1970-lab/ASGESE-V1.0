@@ -44,12 +44,12 @@ export function ReportFilterPanel({
 
   return (
     <aside aria-label="Filtros del reporte" className="report-filter-panel rounded-2xl border p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-48">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><DashboardIcon name="filter" className="h-4 w-4 text-cyan-300" />Filtros</div>
           <p className="mt-1 text-[11px] text-white/45">Solo datos reales; las fichas TEST se excluyen en servidor.</p>
         </div>
-        <button type="button" onClick={onReset} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/60 hover:bg-white/5">Limpiar</button>
+        <button type="button" onClick={onReset} className="report-filter-reset ml-auto shrink-0 whitespace-nowrap rounded-lg border border-white/10 px-2.5 py-1.5 text-center text-xs leading-5 text-white/60 hover:bg-white/5">Limpiar</button>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">

@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DataExportConsentDialog } from "../components/DataExportConsentDialog";
 import { IconButton } from "../components/ui/IconButton";
 import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
 import {
@@ -16,6 +17,7 @@ import {
   type AnalyticsRow,
 } from "../lib/analyticsExport";
 import { deleteFormRunAtomic } from "../lib/formRunApi";
+import { loadMonitoringRunCounts } from "../lib/monitoringRunCounts";
 
 type RunRow = {
   id: string;
@@ -64,6 +66,10 @@ type MonitoreoRow = {
   descripcion?: string | null;
   fecha_fin?: string | null;
 };
+
+type PendingExport =
+  | { action: "report"; kind: "csv" | "xlsx"; label: string }
+  | { action: "run_pdf"; kind: "pdf"; label: string; run: RunRow };
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -370,6 +376,7 @@ export function ReportesPage() {
 
   const [years, setYears] = useState<string[]>([]);
   const [monitoreos, setMonitoreos] = useState<MonitoreoRow[]>([]);
+  const [monitoreoRunCounts, setMonitoreoRunCounts] = useState<Record<string, number>>({});
   const [monitoreoFichas, setMonitoreoFichas] = useState<FichaRow[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -384,6 +391,7 @@ export function ReportesPage() {
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfTitle, setPreviewPdfTitle] = useState("");
   const [reportMonitoreoModal, setReportMonitoreoModal] = useState<MonitoreoRow | null>(null);
+  const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
 
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
@@ -402,7 +410,7 @@ export function ReportesPage() {
       if (!alive) return;
       const uniq = Array.from(new Set((data ?? []).map((x: any) => String(x.anio))));
       setYears(uniq);
-      if (uniq.length && !uniq.includes(year)) setYear(uniq[0]);
+      if (uniq.length) setYear((current) => uniq.includes(current) ? current : uniq[0]);
     })();
     return () => {
       alive = false;
@@ -454,6 +462,27 @@ export function ReportesPage() {
       alive = false;
     };
   }, [year, selectedMonitoreo, isResponsableCdd, user?.id]);
+
+  useEffect(() => {
+    let alive = true;
+    const ids = monitoreos.map((item) => item.id);
+    if (!ids.length) {
+      setMonitoreoRunCounts({});
+      return;
+    }
+    loadMonitoringRunCounts(ids, isTestMode)
+      .then((counts) => {
+        if (alive) setMonitoreoRunCounts(counts);
+      })
+      .catch((cause) => {
+        if (!alive) return;
+        console.warn("No se pudieron cargar los conteos de fichas:", cause);
+        setMonitoreoRunCounts({});
+      });
+    return () => {
+      alive = false;
+    };
+  }, [monitoreos, isTestMode]);
 
   // Carga principal
   useEffect(() => {
@@ -1486,6 +1515,22 @@ export function ReportesPage() {
     }
   };
 
+  const exportedBy = [profile?.nombres, profile?.apellido_paterno, profile?.apellido_materno]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || profile?.correo || profile?.email || "Usuario autenticado";
+
+  const acceptPendingExport = async () => {
+    const requested = pendingExport;
+    if (!requested) return;
+    setPendingExport(null);
+    if (requested.action === "report") {
+      await exportReport(requested.kind);
+      return;
+    }
+    await exportRunPdf(requested.run);
+  };
+
   const handleEdit = (run: RunRow) => {
     const dynFicha = run.template_id ? fichasByTemplate[run.template_id] : null;
     const mon = dynFicha ? monById[dynFicha.monitoreo_id] : null;
@@ -1582,7 +1627,10 @@ export function ReportesPage() {
             <div className="reports-export-menu absolute right-0 top-full z-30 mt-2 w-60 overflow-hidden rounded-xl border p-1.5 shadow-2xl">
               <button
                 type="button"
-                onClick={() => void exportReport("csv")}
+                onClick={() => {
+                  setExportMenuOpen(false);
+                  setPendingExport({ action: "report", kind: "csv", label: "Reporte consolidado en CSV" });
+                }}
                 className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-white/10"
               >
                 <span className="mt-0.5 text-emerald-300"><IconDownload /></span>
@@ -1593,7 +1641,10 @@ export function ReportesPage() {
               </button>
               <button
                 type="button"
-                onClick={() => void exportReport("xlsx")}
+                onClick={() => {
+                  setExportMenuOpen(false);
+                  setPendingExport({ action: "report", kind: "xlsx", label: "Reporte consolidado en Excel" });
+                }}
                 className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-white/10"
               >
                 <span className="mt-0.5 text-sky-300"><IconReport /></span>
@@ -1715,9 +1766,15 @@ export function ReportesPage() {
                     </h2>
 
                     <div className="flex flex-1 flex-col pt-4">
-                      <div className="flex h-5 shrink-0 items-center gap-2 text-xs text-[var(--app-muted)]">
-                        <IconCalendar />
-                        <span className="truncate">Vence: {formatDateOnly(m.fecha_fin)}</span>
+                      <div className="reports-monitor-meta flex min-h-5 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs text-[var(--app-muted)]">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <IconCalendar />
+                          <span className="truncate">Vence: {formatDateOnly(m.fecha_fin)}</span>
+                        </span>
+                        <span className="reports-run-count inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 font-semibold">
+                          <IconReport />
+                          {monitoreoRunCounts[m.id] ?? 0} fichas
+                        </span>
                       </div>
                     </div>
 
@@ -2094,7 +2151,7 @@ export function ReportesPage() {
                       <IconEdit />
                     </ActionIconButton>
                   )}
-                  <ActionIconButton title="Exportar PDF" onClick={() => exportRunPdf(r)}>
+                  <ActionIconButton title="Exportar PDF" onClick={() => setPendingExport({ action: "run_pdf", kind: "pdf", label: "Ficha individual en PDF", run: r })}>
                     <IconPdf />
                   </ActionIconButton>
                   {canChangeStatus(r) && (
@@ -2288,7 +2345,7 @@ export function ReportesPage() {
                               <IconEdit />
                             </ActionIconButton>
                           )}
-                          <ActionIconButton title="Exportar PDF" onClick={() => exportRunPdf(r)}>
+                          <ActionIconButton title="Exportar PDF" onClick={() => setPendingExport({ action: "run_pdf", kind: "pdf", label: "Ficha individual en PDF", run: r })}>
                             <IconPdf />
                           </ActionIconButton>
                           {canChangeStatus(r) && (
@@ -2339,6 +2396,18 @@ export function ReportesPage() {
         busy={deleteBusy}
         onClose={() => !deleteBusy && setConfirmDeleteOpen(false)}
         onConfirm={deleteRun}
+      />
+      <DataExportConsentDialog
+        open={pendingExport !== null}
+        exportKind={pendingExport?.kind ?? "pdf"}
+        exportLabel={pendingExport?.label ?? "Exportación de información"}
+        exportedBy={exportedBy}
+        context={{
+          monitoring_code: selectedMonitoreo || null,
+          run_id: pendingExport?.action === "run_pdf" ? pendingExport.run.id : null,
+        }}
+        onClose={() => setPendingExport(null)}
+        onAccepted={acceptPendingExport}
       />
       {previewPdfUrl && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
