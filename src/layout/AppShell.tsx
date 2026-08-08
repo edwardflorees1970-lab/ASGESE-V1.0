@@ -6,6 +6,7 @@ import { canSeeAllRole, roleLabel } from "../lib/roles";
 import { useTheme } from "../app/ThemeProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { SessionExpiryNotice } from "../components/SessionExpiryNotice";
 import logoAgebreUrl from "../assets/logoagebresf.png";
 
 function cls(...xs: Array<string | false | null | undefined>) {
@@ -339,6 +340,7 @@ export function AppShell() {
           nav("/login");
         }}
       />
+      <SessionExpiryNotice />
     </div>
   );
 }
