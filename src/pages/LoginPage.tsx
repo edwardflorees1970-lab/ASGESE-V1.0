@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, clearLegacyAuthStorage } from "../lib/supabaseClient";
 import logoAgebreUrl from "../assets/logoagebresf.png";
@@ -8,8 +8,14 @@ import {
   sanitizeDocumentNumber,
   type DocumentType,
 } from "../lib/loginDocument";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "../components/auth/TurnstileWidget";
 
 type LoginMode = "usuario" | "admin";
+
+const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
+const turnstileEnabled = import.meta.env.VITE_TURNSTILE_ENABLED === "true"
+  || (import.meta.env.DEV && import.meta.env.VITE_TURNSTILE_ENABLED !== "false");
+const turnstileSiteKey = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || (import.meta.env.DEV ? TURNSTILE_TEST_SITE_KEY : "")).trim();
 
 function EyeIcon({ closed = false }: { closed?: boolean }) {
   return (
@@ -60,6 +66,9 @@ export function LoginPage() {
   const [numeroDoc, setNumeroDoc] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileWidgetHandle>(null);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -81,9 +90,32 @@ export function LoginPage() {
     setErrorMsg(null);
   };
 
+  const handleCaptchaVerify = useCallback((token: string) => {
+    setCaptchaToken(token);
+    setCaptchaError(null);
+  }, []);
+
+  const handleCaptchaExpire = useCallback(() => {
+    setCaptchaToken("");
+    setCaptchaError("La verificación venció. Complétala nuevamente.");
+  }, []);
+
+  const handleCaptchaError = useCallback(() => {
+    setCaptchaToken("");
+    setCaptchaError("No se pudo completar la verificación de seguridad. Intenta nuevamente.");
+  }, []);
+
   const handleLogin = async () => {
     if (loading) return;
     setErrorMsg(null);
+    if (turnstileEnabled && !turnstileSiteKey) {
+      setErrorMsg("La verificación de seguridad no está configurada.");
+      return;
+    }
+    if (turnstileEnabled && !captchaToken) {
+      setErrorMsg("Completa la verificación de seguridad antes de ingresar.");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -100,11 +132,17 @@ export function LoginPage() {
       // Solo limpia legado, no borra la sesión real.
       clearLegacyAuthStorage();
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: turnstileEnabled ? { captchaToken } : undefined,
+      });
 
       if (error) {
         const msg =
-          error.message.includes("Invalid login credentials")
+          /captcha/i.test(error.message)
+            ? "No se pudo validar la verificación de seguridad. Intenta nuevamente."
+            : error.message.includes("Invalid login credentials")
             ? "Usuario o contraseña incorrectos"
             : error.message;
         throw new Error(msg);
@@ -126,6 +164,10 @@ export function LoginPage() {
       setErrorMsg(err?.message || "Error al iniciar sesión");
     } finally {
       setLoading(false);
+      if (turnstileEnabled) {
+        setCaptchaToken("");
+        captchaRef.current?.reset();
+      }
     }
   };
 
@@ -228,9 +270,28 @@ export function LoginPage() {
               </div>
             </label>
 
+            {turnstileEnabled && turnstileSiteKey && (
+              <div className="login-turnstile-panel" aria-describedby="turnstile-status">
+                <div className="login-turnstile-heading">
+                  <span>Verificación de seguridad</span>
+                  <span className={captchaToken ? "is-verified" : ""}>{captchaToken ? "Completada" : "Protección activa"}</span>
+                </div>
+                <TurnstileWidget
+                  ref={captchaRef}
+                  siteKey={turnstileSiteKey}
+                  onVerify={handleCaptchaVerify}
+                  onExpire={handleCaptchaExpire}
+                  onError={handleCaptchaError}
+                />
+                <p id="turnstile-status" aria-live="polite" className={`login-turnstile-status ${captchaError ? "is-error" : ""}`}>
+                  {captchaError ?? (captchaToken ? "Tu acceso está listo para validarse." : "Cloudflare comprobará el acceso sin solicitar datos personales.")}
+                </p>
+              </div>
+            )}
+
             {errorMsg && <div role="alert" className="login-error-message rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-200">{errorMsg}</div>}
 
-            <button type="button" onClick={handleLogin} disabled={loading} aria-busy={loading} className={`executive-primary-action login-submit-button mt-1 h-11 w-full rounded-xl text-sm font-semibold disabled:cursor-wait disabled:opacity-90 lg:h-12 ${loading ? "is-loading" : ""}`}>
+            <button type="button" onClick={handleLogin} disabled={loading || (turnstileEnabled && !captchaToken)} aria-busy={loading} className={`executive-primary-action login-submit-button mt-1 h-11 w-full rounded-xl text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 lg:h-12 ${loading ? "is-loading" : ""}`}>
               {loading && <span className="login-submit-spinner" aria-hidden="true" />}
               <span>{loading ? "Verificando acceso..." : "Ingresar al sistema"}</span>
             </button>

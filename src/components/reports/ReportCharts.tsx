@@ -20,6 +20,8 @@ import { EXECUTIVE_CHART, EXECUTIVE_CHART_COLORS } from "../../lib/designSystem"
 import type { CrossItem, MatrixItem, QuestionDistribution, SeriesItem } from "../../lib/analyticsReportsApi";
 
 const COLORS = EXECUTIVE_CHART_COLORS;
+const CHART_TICK_COLOR = "var(--report-chart-tick)";
+const CHART_LABEL_COLOR = "var(--report-chart-label)";
 const percentFormat = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 type DisplaySeriesItem = SeriesItem & { percentage: number; display: string; valueLabel: string };
@@ -158,15 +160,15 @@ function SeriesBarChart({ data, horizontal, expanded = false }: { data: DisplayS
         <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={{ top: 28, right: expanded ? 38 : 22, bottom: horizontal ? 8 : 72, left: horizontal ? (expanded ? 70 : 30) : 0 }}>
           <CartesianGrid stroke={EXECUTIVE_CHART.grid} strokeDasharray="3 3" horizontal={!horizontal} vertical={horizontal} />
           {horizontal ? <>
-            <XAxis type="number" domain={[0, (maximum: number) => Math.max(1, Math.ceil(maximum * 1.22))]} tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} />
-            <YAxis type="category" dataKey="display" interval={0} minTickGap={0} width={expanded ? 200 : 145} tick={{ fill: "#cbd5e1", fontSize: expanded ? 12 : 10 }} axisLine={false} tickLine={false} />
+            <XAxis type="number" domain={[0, (maximum: number) => Math.max(1, Math.ceil(maximum * 1.22))]} tick={{ fill: CHART_TICK_COLOR, fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis type="category" dataKey="display" interval={0} minTickGap={0} width={expanded ? 200 : 145} tick={{ fill: CHART_LABEL_COLOR, fontSize: expanded ? 12 : 10 }} axisLine={false} tickLine={false} />
           </> : <>
-            <XAxis dataKey="display" interval={0} minTickGap={0} angle={-35} textAnchor="end" height={78} tick={{ fill: "#94a3b8", fontSize: expanded ? 11 : 9 }} axisLine={false} tickLine={false} />
-            <YAxis domain={[0, (maximum: number) => Math.max(1, Math.ceil(maximum * 1.18))]} tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="display" interval={0} minTickGap={0} angle={-35} textAnchor="end" height={78} tick={{ fill: CHART_TICK_COLOR, fontSize: expanded ? 11 : 9 }} axisLine={false} tickLine={false} />
+            <YAxis domain={[0, (maximum: number) => Math.max(1, Math.ceil(maximum * 1.18))]} tick={{ fill: CHART_TICK_COLOR, fontSize: 10 }} axisLine={false} tickLine={false} />
           </>}
           <Tooltip content={<SeriesTooltip />} />
           <Bar isAnimationActive={false} dataKey="value" name="Cantidad" fill={EXECUTIVE_CHART.primary} radius={horizontal ? [0, 5, 5, 0] : [5, 5, 0, 0]} maxBarSize={expanded ? 34 : 28}>
-            <LabelList dataKey="valueLabel" position={horizontal ? "right" : "top"} fill="#e2e8f0" fontSize={expanded ? 11 : 9} />
+            <LabelList dataKey="valueLabel" position={horizontal ? "right" : "top"} fill={CHART_LABEL_COLOR} fontSize={expanded ? 11 : 9} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -245,7 +247,7 @@ export function QuestionsConsolidatedPanel({ questions }: { questions: QuestionD
   const [autoExport, setAutoExport] = useState(false);
   const chart = (isExpanded: boolean) => {
     const height = Math.min(isExpanded ? 980 : 760, Math.max(isExpanded ? 300 : 280, rows.length * (isExpanded ? 58 : 48) + 100));
-    return <div style={{ height }}><ResponsiveContainer width="100%" height="100%"><BarChart data={rows} layout="vertical" margin={{ top: 12, left: isExpanded ? 36 : 8, right: isExpanded ? 125 : 105, bottom: 30 }}><CartesianGrid stroke="rgba(148,163,184,.12)" strokeDasharray="3 3" /><XAxis type="number" domain={[0, 112]} unit="%" tick={{ fill: "#94a3b8", fontSize: 10 }} /><YAxis type="category" dataKey="label" interval={0} width={isExpanded ? 112 : 82} tick={{ fill: "#cbd5e1", fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${percentFormat.format(Number(value))}%`, String(name)]} labelFormatter={(label, payload) => String(payload?.[0]?.payload?.question ?? label)} /><Legend />{answers.map((answer, index) => <Bar isAnimationActive={false} key={answer} dataKey={answer} fill={COLORS[index % COLORS.length]} maxBarSize={24}><LabelList dataKey={`${answer}__label`} position="right" fill="#e2e8f0" fontSize={isExpanded ? 11 : 9} /></Bar>)}</BarChart></ResponsiveContainer></div>;
+    return <div style={{ height }}><ResponsiveContainer width="100%" height="100%"><BarChart data={rows} layout="vertical" margin={{ top: 12, left: isExpanded ? 36 : 8, right: isExpanded ? 125 : 105, bottom: 30 }}><CartesianGrid stroke="rgba(148,163,184,.12)" strokeDasharray="3 3" /><XAxis type="number" domain={[0, 112]} unit="%" tick={{ fill: CHART_TICK_COLOR, fontSize: 10 }} /><YAxis type="category" dataKey="label" interval={0} width={isExpanded ? 112 : 82} tick={{ fill: CHART_LABEL_COLOR, fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${percentFormat.format(Number(value))}%`, String(name)]} labelFormatter={(label, payload) => String(payload?.[0]?.payload?.question ?? label)} /><Legend />{answers.map((answer, index) => <Bar isAnimationActive={false} key={answer} dataKey={answer} fill={COLORS[index % COLORS.length]} maxBarSize={24}><LabelList dataKey={`${answer}__label`} position="right" fill={CHART_LABEL_COLOR} fontSize={isExpanded ? 11 : 9} /></Bar>)}</BarChart></ResponsiveContainer></div>;
   };
   const details = <div className="space-y-2">{questions.map((question) => <div key={`${question.question_id}-${question.axis}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs"><div className="font-medium text-white/80">Ítem {question.question_order}: {question.question_text}</div><div className="mt-2 flex flex-wrap gap-2">{question.distribution.map((item) => <span key={item.label} className="rounded-lg bg-white/5 px-2 py-1 text-white/60">{item.label}: <strong className="text-cyan-200">{percentFormat.format(item.percentage)}%</strong> ({item.value})</span>)}</div></div>)}</div>;
   const openForExport = () => { setAutoExport(true); setExpanded(true); };

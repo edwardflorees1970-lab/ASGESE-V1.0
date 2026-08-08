@@ -1,3 +1,5 @@
+import type { Cell as ExcelCell, Feature } from "write-excel-file/browser";
+
 export type AnalyticsCell = string | number | boolean | Date | null;
 
 export type AnalyticsColumn = {
@@ -56,48 +58,56 @@ export async function exportAnalyticsExcel(
   columns: AnalyticsColumn[],
   rows: AnalyticsRow[]
 ) {
-  const ExcelJS = await import("exceljs");
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Sistema de Monitoreo AGEBERE - UGEL 06";
-  workbook.created = new Date();
+  const [{ default: writeExcelFile }, excelUtility] = await Promise.all([
+    import("write-excel-file/browser"),
+    import("write-excel-file/utility"),
+  ]);
 
-  const worksheet = workbook.addWorksheet(sheetName.slice(0, 31), {
-    views: [{ state: "frozen", ySplit: 1 }],
-  });
-
-  worksheet.columns = columns.map((column) => ({
-    header: column.header,
-    key: column.key,
-    width: column.width ?? 18,
-  }));
-
-  rows.forEach((row) => {
-    worksheet.addRow(
-      columns.reduce<Record<string, AnalyticsCell>>((result, column) => {
-        result[column.key] = row[column.key] ?? null;
-        return result;
-      }, {})
-    );
-  });
-
-  const header = worksheet.getRow(1);
-  header.font = { bold: true, color: { argb: "FFFFFFFF" } };
-  header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF17324D" },
+  const formatByKind: Partial<Record<NonNullable<AnalyticsColumn["kind"]>, string>> = {
+    text: "@",
+    number: "0.########",
+    integer: "0",
+    percentage: "0.00%",
+    date: "yyyy-mm-dd",
+    datetime: "yyyy-mm-dd hh:mm:ss",
   };
-  header.alignment = { vertical: "middle", horizontal: "center" };
-  header.height = 24;
 
-  columns.forEach((column, index) => {
-    const excelColumn = worksheet.getColumn(index + 1);
-    if (column.kind === "date") excelColumn.numFmt = "yyyy-mm-dd";
-    if (column.kind === "datetime") excelColumn.numFmt = "yyyy-mm-dd hh:mm:ss";
-    if (column.kind === "number") excelColumn.numFmt = "0.########";
-    if (column.kind === "integer") excelColumn.numFmt = "0";
-    if (column.kind === "percentage") excelColumn.numFmt = "0.00%";
+  const excelRows: ExcelCell[][] = [
+    columns.map((column) => ({
+      value: column.header,
+      type: String,
+      fontWeight: "bold",
+      textColor: "#FFFFFF",
+      backgroundColor: "#17324D",
+      align: "center",
+      alignVertical: "center",
+      height: 24,
+    })),
+    ...rows.map((row, rowIndex) =>
+      columns.map((column): ExcelCell => {
+        const value = row[column.key] ?? null;
+        if (value === null) return null;
 
+        return {
+          value,
+          type:
+            value instanceof Date
+              ? Date
+              : typeof value === "number"
+                ? Number
+                : typeof value === "boolean"
+                  ? Boolean
+                  : String,
+          format: formatByKind[column.kind ?? "text"],
+          alignVertical: "top",
+          wrap: false,
+          ...(rowIndex % 2 === 0 ? { backgroundColor: "#F2F6FA" } : {}),
+        };
+      })
+    ),
+  ];
+
+  const excelColumns = columns.map((column) => {
     let maxLength = column.header.length;
     const sampleLimit = Math.min(rows.length, 5000);
     for (let rowIndex = 0; rowIndex < sampleLimit; rowIndex += 1) {
@@ -110,33 +120,44 @@ export async function exportAnalyticsExcel(
           : String(value ?? "");
       maxLength = Math.max(maxLength, Math.min(display.length, 60));
     }
-    excelColumn.width = Math.max(column.width ?? 12, Math.min(maxLength + 2, 60));
+    return { width: Math.max(column.width ?? 12, Math.min(maxLength + 2, 60)) };
   });
 
+  const features: Feature<File | Blob | ArrayBuffer>[] = [];
   if (columns.length > 0) {
-    worksheet.autoFilter = {
-      from: { row: 1, column: 1 },
-      to: { row: Math.max(1, rows.length + 1), column: columns.length },
-    };
+    const lastCell = excelUtility.getCellAddress(rows.length, columns.length - 1);
+    features.push({
+      files: {
+        transform: {
+          "xl/worksheets/sheet{id}.xml": {
+            transform(xml) {
+              const order = excelUtility.getOrderOfSiblings(
+                "xl/worksheets/sheet{id}.xml",
+                "worksheet"
+              );
+              if (!order) return xml;
+              return excelUtility.insertElementMarkupAccordingToOrderOfSiblings(
+                xml,
+                `<autoFilter ref="A1:${lastCell}"/>`,
+                order,
+                "worksheet"
+              );
+            },
+          },
+        },
+      },
+    });
   }
 
-  worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
-    row.alignment = { vertical: "top", wrapText: false };
-    if (rowNumber % 2 === 0) {
-      row.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFF2F6FA" },
-      };
-    }
-  });
+  const blob = await writeExcelFile(
+    excelRows,
+    {
+      sheet: sheetName.slice(0, 31),
+      columns: excelColumns,
+      stickyRowsCount: 1,
+    },
+    { features }
+  ).toBlob();
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  downloadBlob(
-    filename,
-    new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    })
-  );
+  downloadBlob(filename, blob);
 }
