@@ -10,6 +10,7 @@ type ConfirmDialogProps = {
   cancelText?: string;
   variant?: ConfirmVariant;
   busy?: boolean;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 };
@@ -26,6 +27,7 @@ export function ConfirmDialog({
   cancelText = "Cancelar",
   variant = "default",
   busy = false,
+  confirmDisabled = false,
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
@@ -74,7 +76,7 @@ export function ConfirmDialog({
           aria-labelledby={titleId}
           aria-describedby={description ? descriptionId : undefined}
           onKeyDown={handleKeyDown}
-          className="agebre-dialog w-full max-w-md overflow-hidden"
+          className="agebre-dialog max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overflow-x-hidden"
         >
           <div className="border-b border-[var(--app-border)] px-5 py-4">
             <div id={titleId} className="text-sm font-semibold">{title}</div>
@@ -95,7 +97,7 @@ export function ConfirmDialog({
             <button
               type="button"
               onClick={onConfirm}
-              disabled={busy}
+              disabled={busy || confirmDisabled}
               className={cls(
                 "rounded-lg px-3 py-2 text-xs font-semibold transition-[background-color,border-color,box-shadow] duration-200 disabled:opacity-60",
                 variant === "danger"
