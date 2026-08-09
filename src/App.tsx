@@ -2,7 +2,6 @@ import { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { ProtectedRoute } from "./app/ProtectedRoute";
-import { useAuth } from "./app/AuthProvider";
 
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersPage })));
@@ -47,14 +46,6 @@ function PageLoader() {
   );
 }
 
-function HomeEntry() {
-  const { profile } = useAuth();
-  if (profile?.role === "responsable_cdd") {
-    return <Navigate to="/app/indicadores-cdd" replace />;
-  }
-  return <HomePage />;
-}
-
 export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -63,7 +54,7 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/app" element={<AppShell />}>
-            <Route index element={<HomeEntry />} />
+            <Route index element={<HomePage />} />
 
             {/* Monitoreo */}
             <Route element={<ProtectedRoute allowedRoles={["admin", "user", "jefe_area", "director", "responsable_cdd"]} />}>
