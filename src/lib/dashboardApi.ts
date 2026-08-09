@@ -17,6 +17,8 @@ export async function loadDashboardRunFacts(input: {
   to: Date;
   isTest: boolean;
   templateIds: string[] | null;
+  viewerId: string;
+  canSeeAll: boolean;
 }): Promise<DashboardRunFact[]> {
   if (input.templateIds?.length === 0) return [];
   const { data, error } = await supabase.rpc("dashboard_run_facts", {
@@ -26,10 +28,12 @@ export async function loadDashboardRunFacts(input: {
     p_template_ids: input.templateIds,
   });
   if (!error) {
-    return ((data ?? []) as Array<Omit<DashboardRunFact, "run_count"> & { run_count: number | string }>).map((row) => ({
-      ...row,
-      run_count: Number(row.run_count) || 0,
-    }));
+    return ((data ?? []) as Array<Omit<DashboardRunFact, "run_count"> & { run_count: number | string }>)
+      .filter((row) => input.canSeeAll || row.created_by === input.viewerId)
+      .map((row) => ({
+        ...row,
+        run_count: Number(row.run_count) || 0,
+      }));
   }
   if (!isMissingRpc(error)) throw new Error(error.message);
 
@@ -45,6 +49,7 @@ export async function loadDashboardRunFacts(input: {
       .neq("status", "borrador")
       .order("created_at", { ascending: false })
       .range(fromRow, fromRow + PAGE_SIZE - 1);
+    if (!input.canSeeAll) query = query.eq("created_by", input.viewerId);
     if (input.templateIds) query = query.in("template_id", input.templateIds);
     const result = await query;
     if (result.error) throw new Error(result.error.message);

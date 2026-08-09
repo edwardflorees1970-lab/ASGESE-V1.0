@@ -1778,11 +1778,11 @@ export function ReportesPage() {
                       </div>
                     </div>
 
-                    <div className="mt-auto grid shrink-0 gap-3">
+                    <div className="mt-auto grid shrink-0 grid-cols-2 gap-2 pt-4">
                       <button
                         type="button"
                         onClick={() => setReportMonitoreoModal(m)}
-                        className="reports-secondary-action inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition"
+                        className="reports-secondary-action inline-flex h-9 min-w-0 w-full items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-semibold transition"
                       >
                         <IconEye />
                         Ver más
@@ -1791,14 +1791,15 @@ export function ReportesPage() {
                         type="button"
                         disabled={disabled}
                         onClick={() => enterReportes(m.codigo)}
+                        aria-label={`Ingresar a reportes de ${m.nombre}`}
                         className={cls(
-                          "inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition",
+                          "inline-flex h-9 min-w-0 w-full items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-semibold transition",
                           disabled
                             ? "cursor-not-allowed border-white/10 bg-black/20 text-white/45"
                             : "executive-primary-action"
                         )}
                       >
-                        Ingresar a reportes
+                        Ingresar
                         <IconArrow />
                       </button>
                     </div>

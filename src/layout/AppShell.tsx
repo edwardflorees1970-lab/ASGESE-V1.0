@@ -164,16 +164,14 @@ export function AppShell() {
 
       <nav className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 pb-4">
         {sectionLabel("Principal")}
-        {!isResponsableCdD && (
-          <Item
-            to="/app"
-            label="Inicio"
-            icon={<HomeIcon />}
-            onClick={onItemClick}
-            reloadOnClick={inFichaRoute}
-            collapsed={collapsed}
-          />
-        )}
+        <Item
+          to="/app"
+          label="Inicio"
+          icon={<HomeIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+          collapsed={collapsed}
+        />
         {sectionLabel("Operación")}
         <Item
           to="/app/monitoreo"
