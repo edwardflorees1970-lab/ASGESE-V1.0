@@ -14,8 +14,9 @@ import {
   YAxis,
 } from "recharts";
 import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
-import { roleLabel } from "../lib/roles";
+import { canSeeAllRole, roleLabel } from "../lib/roles";
 import {
   ChartTooltip,
   DashboardIcon,
@@ -115,6 +116,8 @@ function userName(profile?: ProfileRow) {
 
 export function HomePage() {
   const { isTestMode } = useAppConfig();
+  const { user, profile } = useAuth();
+  const canSeeAll = canSeeAllRole(profile?.role);
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState("ALL");
@@ -193,11 +196,14 @@ export function HomePage() {
           }
         }
 
+        if (!user?.id) throw new Error("No se pudo identificar al usuario autenticado.");
         const runRows: RunRow[] = await loadDashboardRunFacts({
           from: start,
           to: end,
           isTest: isTestMode,
           templateIds: templateIdsByMonitoreo,
+          viewerId: user.id,
+          canSeeAll,
         });
         if (!alive) return;
 
@@ -243,7 +249,7 @@ export function HomePage() {
       }
     })();
     return () => { alive = false; };
-  }, [year, month, monitoreo, monitoreos, isTestMode]);
+  }, [year, month, monitoreo, monitoreos, isTestMode, user?.id, canSeeAll]);
 
   const analytics = useMemo(() => {
     const statusMap = new Map<string, number>();
@@ -353,9 +359,16 @@ export function HomePage() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-cyan-200">Business Intelligence</span>
             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${isTestMode ? "border-amber-400/20 bg-amber-400/10 text-amber-200" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"}`}>{isTestMode ? "Entorno de prueba" : "Datos de producción"}</span>
+            <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-200">
+              {canSeeAll ? "Vista general" : "Mis estadísticas"}
+            </span>
           </div>
           <h1 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-white sm:text-3xl">Dashboard ejecutivo</h1>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-white/50">Seguimiento consolidado de fichas, avance operativo y participación de usuarios.</p>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-white/50">
+            {canSeeAll
+              ? "Seguimiento consolidado de fichas, avance operativo y participación de usuarios."
+              : "Seguimiento de tus fichas registradas, avance operativo y resultados personales."}
+          </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-white/40">
           <span className={`h-2 w-2 rounded-full ${loading ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />

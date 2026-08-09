@@ -47,14 +47,6 @@ function PageLoader() {
   );
 }
 
-function HomeEntry() {
-  const { profile } = useAuth();
-  if (profile?.role === "responsable_cdd") {
-    return <Navigate to="/app/indicadores-cdd" replace />;
-  }
-  return <HomePage />;
-}
-
 function LoginRoute() {
   const { loading, user } = useAuth();
 
@@ -83,7 +75,7 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/app" element={<AppShell />}>
-            <Route index element={<HomeEntry />} />
+            <Route index element={<HomePage />} />
 
             {/* Monitoreo */}
             <Route element={<ProtectedRoute allowedRoles={["admin", "user", "jefe_area", "director", "responsable_cdd"]} />}>
