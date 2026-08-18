@@ -25,6 +25,7 @@ describe("roles", () => {
     expect(roleLabel("jefe_area")).toBe("Jefe de area");
     expect(roleLabel("director")).toBe("Director(a)");
     expect(roleLabel("responsable_cdd")).toBe("Responsable CdD");
+    expect(roleLabel("director_iiee")).toBe("Director IIEE");
     expect(roleLabel("user")).toBe("Monitor");
   });
 });

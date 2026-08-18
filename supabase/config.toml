@@ -437,3 +437,9 @@ entrypoint = "./functions/admin-users-delete/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/admin-users-delete/*.html" ]
+
+[functions.admin-users-import]
+enabled = true
+verify_jwt = false
+import_map = "./functions/admin-users-import/deno.json"
+entrypoint = "./functions/admin-users-import/index.ts"

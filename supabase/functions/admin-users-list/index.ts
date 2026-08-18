@@ -4,7 +4,7 @@ import { enforceRateLimit, getClientIp, readPositiveIntEnv } from "../_shared/ra
 
 type Body = {
   q?: string;
-  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
+  rol?: string;
   area?: string;
   ugel?: string;
   rei?: string;

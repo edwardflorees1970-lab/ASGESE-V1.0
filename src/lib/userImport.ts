@@ -1,0 +1,213 @@
+export const USER_IMPORT_HEADERS = [
+  "tipo_documento", "numero_documento", "apellido_paterno", "apellido_materno",
+  "nombres", "correo", "telefono", "fecha_nacimiento", "cargo", "area",
+  "comision", "ugel", "rei", "rol", "can_create_monitoreo",
+] as const;
+
+export type UserImportInput = {
+  source_row: number;
+  tipo_documento: "DNI" | "CE";
+  numero_documento: string;
+  apellido_paterno: string;
+  apellido_materno: string;
+  nombres: string;
+  correo: string;
+  telefono: string | null;
+  fecha_nacimiento: string | null;
+  cargo: string | null;
+  area: string | null;
+  comision: string | null;
+  ugel: string | null;
+  rei: string | null;
+  rol: string;
+  can_create_monitoreo: boolean;
+};
+
+export type UserImportPreviewRow = UserImportInput & {
+  errors: string[];
+  status: "valid" | "invalid";
+};
+
+export type UserImportResultRow = {
+  source_row: number;
+  correo: string;
+  numero_documento: string;
+  nombres: string;
+  status: "created" | "skipped" | "error";
+  message: string;
+  temporary_password?: string;
+};
+
+function cellText(value: unknown): string {
+  if (value == null) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "object") {
+    const candidate = value as { text?: unknown; result?: unknown; richText?: Array<{ text?: string }> };
+    if (typeof candidate.text === "string") return candidate.text;
+    if (candidate.result != null) return String(candidate.result);
+    if (Array.isArray(candidate.richText)) return candidate.richText.map((part) => part.text ?? "").join("");
+  }
+  return String(value);
+}
+
+function nullable(value: unknown) {
+  const text = cellText(value).trim();
+  return text || null;
+}
+
+export function normalizeUpperText(value: unknown) {
+  return cellText(value).trim().toLocaleUpperCase("es");
+}
+
+function nullableUpper(value: unknown) {
+  const text = normalizeUpperText(value);
+  return text || null;
+}
+
+export function isStrongPassword(password: string) {
+  return password.length >= 8
+    && /\p{Lu}/u.test(password)
+    && /\p{Ll}/u.test(password)
+    && /\p{N}/u.test(password)
+    && /[^\p{L}\p{N}]/u.test(password);
+}
+
+export function generateTemporaryPassword(apellidoPaterno: string) {
+  const base = apellidoPaterno
+    .trim()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .map((part) => {
+      const lower = part.toLocaleLowerCase("es");
+      return lower.charAt(0).toLocaleUpperCase("es") + lower.slice(1);
+    })
+    .join("");
+  return base ? `${base}123@@` : "";
+}
+
+function parseBoolean(value: unknown) {
+  const normalized = cellText(value).trim().toLocaleUpperCase("es");
+  if (["SI", "SÍ", "TRUE", "1", "X"].includes(normalized)) return true;
+  if (["", "NO", "FALSE", "0"].includes(normalized)) return false;
+  return null;
+}
+
+function parseDate(value: unknown) {
+  if (value == null || cellText(value).trim() === "") return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const text = cellText(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return undefined;
+  const date = new Date(`${text}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text ? undefined : text;
+}
+
+export function validateUserImportRows(
+  rows: Array<{ sourceRow: number; values: Record<string, unknown> }>,
+  activeRoleCodes: Set<string>,
+  existingEmails = new Set<string>(),
+  existingDocuments = new Set<string>()
+): UserImportPreviewRow[] {
+  const emailCounts = new Map<string, number>();
+  const documentCounts = new Map<string, number>();
+  for (const row of rows) {
+    const email = cellText(row.values.correo).trim().toLowerCase();
+    const document = cellText(row.values.numero_documento).trim();
+    if (email) emailCounts.set(email, (emailCounts.get(email) ?? 0) + 1);
+    if (document) documentCounts.set(document, (documentCounts.get(document) ?? 0) + 1);
+  }
+
+  return rows.map(({ sourceRow, values }) => {
+    const tipo = cellText(values.tipo_documento).trim().toUpperCase();
+    const correo = cellText(values.correo).trim().toLowerCase();
+    const documento = cellText(values.numero_documento).trim();
+    const rol = cellText(values.rol).trim().toLowerCase();
+    const fecha = parseDate(values.fecha_nacimiento);
+    const monitorFlag = parseBoolean(values.can_create_monitoreo);
+    const errors: string[] = [];
+    if (tipo !== "DNI" && tipo !== "CE") errors.push("Tipo de documento inválido");
+    if (!documento) errors.push("Documento obligatorio");
+    const apellidoPaterno = normalizeUpperText(values.apellido_paterno);
+    const temporaryPassword = generateTemporaryPassword(apellidoPaterno);
+    if (!apellidoPaterno) errors.push("Apellido paterno obligatorio");
+    if (!cellText(values.apellido_materno).trim()) errors.push("Apellido materno obligatorio");
+    if (!cellText(values.nombres).trim()) errors.push("Nombres obligatorios");
+    if (!correo.endsWith("@ugel06.gob.pe") || correo.startsWith("@")) errors.push("Correo institucional inválido");
+    if (!activeRoleCodes.has(rol)) errors.push("Rol inexistente o inactivo");
+    if (fecha === undefined) errors.push("Fecha inválida; usa AAAA-MM-DD");
+    if (monitorFlag === null) errors.push("can_create_monitoreo debe ser SI o NO");
+    if ((emailCounts.get(correo) ?? 0) > 1) errors.push("Correo duplicado en el archivo");
+    if ((documentCounts.get(documento) ?? 0) > 1) errors.push("Documento duplicado en el archivo");
+    if (existingEmails.has(correo)) errors.push("Correo ya registrado");
+    if (existingDocuments.has(documento)) errors.push("Documento ya registrado");
+    if (temporaryPassword && !isStrongPassword(temporaryPassword)) errors.push("No se pudo generar una contraseña temporal segura");
+
+    return {
+      source_row: sourceRow,
+      tipo_documento: tipo === "CE" ? "CE" : "DNI",
+      numero_documento: documento,
+      apellido_paterno: apellidoPaterno,
+      apellido_materno: normalizeUpperText(values.apellido_materno),
+      nombres: normalizeUpperText(values.nombres),
+      correo,
+      telefono: nullable(values.telefono),
+      fecha_nacimiento: fecha ?? null,
+      cargo: nullableUpper(values.cargo),
+      area: nullableUpper(values.area),
+      comision: nullableUpper(values.comision),
+      ugel: nullableUpper(values.ugel) ?? "UGEL 06",
+      rei: nullableUpper(values.rei) ?? "SIN REI",
+      rol,
+      can_create_monitoreo: monitorFlag ?? false,
+      errors,
+      status: errors.length ? "invalid" : "valid",
+    };
+  });
+}
+
+export async function readUserImportFile(file: File) {
+  if (!file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Selecciona un archivo .xlsx basado en la plantilla.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("El archivo supera el máximo permitido de 5 MB.");
+  const ExcelJS = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await file.arrayBuffer());
+  const sheet = workbook.getWorksheet("Usuarios");
+  if (!sheet) throw new Error("No se encontró la hoja Usuarios.");
+  const headers = (sheet.getRow(1).values as unknown[]).slice(1).map((value) => cellText(value).trim());
+  const missing = USER_IMPORT_HEADERS.filter((header) => !headers.includes(header));
+  if (missing.length) throw new Error(`Faltan columnas obligatorias: ${missing.join(", ")}.`);
+  const columnByHeader = new Map(headers.map((header, index) => [header, index + 1]));
+  const rows: Array<{ sourceRow: number; values: Record<string, unknown> }> = [];
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const values: Record<string, unknown> = {};
+    for (const header of USER_IMPORT_HEADERS) values[header] = row.getCell(columnByHeader.get(header) ?? 0).value;
+    if (USER_IMPORT_HEADERS.some((header) => cellText(values[header]).trim() !== "")) rows.push({ sourceRow: rowNumber, values });
+  });
+  if (!rows.length) throw new Error("La plantilla no contiene usuarios.");
+  if (rows.length > 300) throw new Error("La carga admite como máximo 300 usuarios por archivo.");
+  return rows;
+}
+
+export async function downloadUserImportResults(rows: UserImportResultRow[], fileName: string) {
+  const ExcelJS = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Resumen");
+  sheet.columns = [
+    { header: "fila", key: "source_row", width: 10 }, { header: "estado", key: "status", width: 14 },
+    { header: "correo", key: "correo", width: 34 }, { header: "documento", key: "numero_documento", width: 20 },
+    { header: "nombres", key: "nombres", width: 32 }, { header: "contraseña_temporal", key: "temporary_password", width: 24 },
+    { header: "detalle", key: "message", width: 55 },
+  ];
+  sheet.addRows(rows);
+  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F2747" } };
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  sheet.autoFilter = { from: "A1", to: "G1" };
+  for (let index = 2; index <= sheet.rowCount; index += 1) {
+    const status = sheet.getCell(index, 2).value;
+    sheet.getCell(index, 2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: status === "created" ? "FFD1FAE5" : status === "skipped" ? "FFFEF3C7" : "FFFEE2E2" } };
+  }
+  const data = await workbook.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click(); URL.revokeObjectURL(url);
+}

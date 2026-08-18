@@ -14,6 +14,8 @@ import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { supabase } from "../lib/supabaseClient";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { IconButton as UiIconButton } from "../components/ui/IconButton";
+import { UserImportDialog } from "../components/UserImportDialog";
+import { isStrongPassword } from "../lib/userImport";
 
 
 type Toast = { type: "ok" | "err"; msg: string } | null;
@@ -228,7 +230,8 @@ export function UsersPage() {
 
   // Query UI
   const [q, setQ] = useState("");
-  const [rol, setRol] = useState<"" | "admin" | "user" | "jefe_area" | "director" | "responsable_cdd">("");
+  const [rol, setRol] = useState("");
+  const [availableRoles, setAvailableRoles] = useState<Array<{ code: string; name: string }>>([]);
   const [area, setArea] = useState("");
   const [ugel, setUgel] = useState("");
   const [rei, setRei] = useState("");
@@ -262,6 +265,7 @@ export function UsersPage() {
 
   // Modals & actions
   const [openCreate, setOpenCreate] = useState(false);
+  const [openImport, setOpenImport] = useState(false);
   const [createForm, setCreateForm] = useState<AdminCreateUserInput>(
     emptyCreateForm
   );
@@ -278,6 +282,11 @@ export function UsersPage() {
   const [resetBusy, setResetBusy] = useState(false);
 
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("app_role").select("code,name").eq("is_active", true).order("name")
+      .then(({ data }) => setAvailableRoles((data ?? []) as Array<{ code: string; name: string }>));
+  }, []);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<ProfileRow | null>(null);
   const requestIdRef = useRef(0);
@@ -394,8 +403,8 @@ export function UsersPage() {
 
   const submitCreate = async () => {
     if (!canManageUsers) return;
-    if (!createForm.password || createForm.password.trim().length < 8) {
-      setToast({ type: "err", msg: "La contraseña debe tener mínimo 8 caracteres." });
+    if (!isStrongPassword(createForm.password.trim())) {
+      setToast({ type: "err", msg: "La contraseña debe tener mayúscula, minúscula, número, carácter especial y mínimo 8 caracteres." });
       return;
     }
     if (
@@ -494,6 +503,10 @@ export function UsersPage() {
   const submitReset = async () => {
     if (!canManageUsers) return;
     if (!resetUser) return;
+    if (!isStrongPassword(resetPass.trim())) {
+      setToast({ type: "err", msg: "La contraseña debe tener mayúscula, minúscula, número, carácter especial y mínimo 8 caracteres." });
+      return;
+    }
     setResetBusy(true);
     try {
       await adminResetPassword(resetUser.id, resetPass.trim());
@@ -576,14 +589,16 @@ export function UsersPage() {
               {loading ? "Actualizando..." : "Actualizar"}
             </Button>
             {canManageUsers && (
-              <Button
+              <><Button variant="ghost" onClick={() => setOpenImport(true)} disabled={availableRoles.length === 0}>
+                Importar Excel
+              </Button><Button
                 onClick={() => {
                   setCreateForm(emptyCreateForm);
                   setOpenCreate(true);
                 }}
               >
                 + Crear usuario
-              </Button>
+              </Button></>
             )}
             </div>
           </div>
@@ -616,11 +631,7 @@ export function UsersPage() {
               <Field label="Rol">
                 <Select value={rol} onChange={(e) => setRol(e.target.value as any)}>
                   <option value="">Todos</option>
-                  <option value="admin">Admin</option>
-                  <option value="jefe_area">Jefe de área</option>
-                  <option value="director">Director(a)</option>
-                  <option value="responsable_cdd">Responsable CdD</option>
-                  <option value="user">User</option>
+                  {availableRoles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </Select>
               </Field>
             </div>
@@ -927,11 +938,7 @@ export function UsersPage() {
                   value={createForm.rol ?? "user"}
                   onChange={(e) => setCreateForm((s) => ({ ...s, rol: e.target.value as any }))}
                 >
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                  <option value="jefe_area">jefe_area</option>
-                  <option value="director">director</option>
-                  <option value="responsable_cdd">responsable_cdd</option>
+                  {availableRoles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </Select>
               </Field>
             </div>
@@ -1058,7 +1065,7 @@ export function UsersPage() {
           </div>
 
           <div className="md:col-span-6">
-            <Field label="Contraseña inicial (mín. 8)">
+            <Field label="Contraseña inicial (mayúscula, minúscula, número y carácter especial)">
               <Input
                 type="password"
                 value={createForm.password}
@@ -1077,7 +1084,7 @@ export function UsersPage() {
               disabled={
                 createBusy ||
                 !createForm.password ||
-                createForm.password.trim().length < 8 ||
+                !isStrongPassword(createForm.password.trim()) ||
                 !createForm.correo.trim() ||
                 !createForm.numero_documento.trim() ||
                 !createForm.apellido_paterno.trim() ||
@@ -1134,11 +1141,7 @@ export function UsersPage() {
                     setEditUser((s) => (s ? { ...s, rol: e.target.value as any } : s))
                   }
                 >
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                  <option value="jefe_area">jefe_area</option>
-                  <option value="director">director</option>
-                  <option value="responsable_cdd">responsable_cdd</option>
+                  {availableRoles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </Select>
               </Field>
             </div>
@@ -1310,7 +1313,7 @@ export function UsersPage() {
               <div className="text-xs text-white/60">{resetUser.correo}</div>
             </div>
 
-            <Field label="Nueva contraseña (mín. 8)">
+            <Field label="Nueva contraseña (mayúscula, minúscula, número y carácter especial)">
               <div className="relative">
                 <Input
                   type={showResetPass ? "text" : "password"}
@@ -1337,7 +1340,7 @@ export function UsersPage() {
               </Button>
               <Button
                 onClick={submitReset}
-                disabled={resetBusy || resetPass.trim().length < 8}
+                disabled={resetBusy || !isStrongPassword(resetPass.trim())}
               >
                 {resetBusy ? "Reseteando..." : "Resetear"}
               </Button>
@@ -1362,6 +1365,13 @@ export function UsersPage() {
         onClose={() => !deleteBusyId && setConfirmDeleteOpen(false)}
         onConfirm={submitDelete}
       />
+      {canManageUsers && openImport && (
+        <UserImportDialog
+          roles={availableRoles}
+          onClose={() => setOpenImport(false)}
+          onComplete={() => { setPage(1); void load(); }}
+        />
+      )}
     </div>
   );
 }

@@ -13,6 +13,11 @@ type Body = {
 
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const RATE_LIMIT_SCOPE = "admin-reset-password";
+
+function isStrongPassword(password: string) {
+  return password.length >= 8 && /\p{Lu}/u.test(password) && /\p{Ll}/u.test(password)
+    && /\p{N}/u.test(password) && /[^\p{L}\p{N}]/u.test(password);
+}
 const RATE_LIMIT_MAX = readPositiveIntEnv("RATE_LIMIT_ADMIN_RESET_PASSWORD_MAX", 15);
 const RATE_LIMIT_WINDOW_SECONDS = readPositiveIntEnv("RATE_LIMIT_ADMIN_RESET_PASSWORD_WINDOW_SECONDS", 60);
 
@@ -118,8 +123,8 @@ serve(async (req) => {
 
     if (!userId) return json({ error: "userId es requerido" }, origin, 400);
     if (!newPassword) return json({ error: "password es requerido" }, origin, 400);
-    if (newPassword.length < 8) {
-      return json({ error: "password minimo 8 caracteres", details: { len: newPassword.length } }, origin, 400);
+    if (!isStrongPassword(newPassword)) {
+      return json({ error: "password requiere mayuscula, minuscula, numero, caracter especial y minimo 8 caracteres" }, origin, 400);
     }
 
     const { error: upErr } = await supaAdmin.auth.admin.updateUserById(userId, {

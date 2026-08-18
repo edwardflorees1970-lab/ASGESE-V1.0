@@ -1,9 +1,10 @@
 import { supabase } from "./supabaseClient";
+import type { UserImportInput, UserImportResultRow } from "./userImport";
 
 /** Tipos */
 export type UsersListQuery = {
   q?: string;
-  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
+  rol?: string;
   area?: string;
   ugel?: string;
   rei?: string;
@@ -28,7 +29,7 @@ export type ProfileRow = {
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
   // OJO: en BD es "role", pero en el frontend usamos "rol"
-  rol: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
+  rol: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -48,7 +49,7 @@ export type AdminCreateUserInput = {
   ugel?: string | null;
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
-  rol: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
+  rol: string;
   password: string;
 };
 
@@ -104,6 +105,24 @@ export async function adminUsersList(query: UsersListQuery) {
 
 export async function adminCreateUser(input: AdminCreateUserInput) {
   return callFn<{ ok: boolean; warning?: string }>("admin-create-user", input);
+}
+
+export async function adminStartUserImport(fileName: string, totalRows: number) {
+  return callFn<{ ok: true; job_id: string }>("admin-users-import", {
+    action: "start", file_name: fileName, total_rows: totalRows,
+  });
+}
+
+export async function adminProcessUserImport(jobId: string, rows: Array<UserImportInput & { validation_errors?: string[] }>) {
+  return callFn<{ ok: true; items: UserImportResultRow[] }>("admin-users-import", {
+    action: "process", job_id: jobId, rows,
+  });
+}
+
+export async function adminFinishUserImport(jobId: string) {
+  return callFn<{ ok: true; summary: { total: number; created: number; skipped: number; errors: number } }>("admin-users-import", {
+    action: "finish", job_id: jobId,
+  });
 }
 
 export async function adminUsersUpdate(payload: any) {

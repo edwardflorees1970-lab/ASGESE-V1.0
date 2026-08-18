@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
-import { isAdminRole } from "../lib/roles";
+import { roleLabel } from "../lib/roles";
 import { DashboardSelect, SearchableFilter } from "../components/dashboard/DashboardWidgets";
 
 type MonitoreoRow = {
@@ -42,8 +42,8 @@ function AssignmentIcon({ type = "assign" }: { type?: "assign" | "users" | "cale
 }
 
 export function AsignacionesPage() {
-  const { profile } = useAuth();
-  const canManageAssignments = isAdminRole(profile?.role);
+  const { canManageModule } = useAuth();
+  const canManageAssignments = canManageModule("asignaciones");
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [years, setYears] = useState<string[]>([]);
@@ -52,6 +52,9 @@ export function AsignacionesPage() {
 
   const [users, setUsers] = useState<ProfileRow[]>([]);
   const [assignments, setAssignments] = useState<Record<string, boolean>>({});
+  const [roles, setRoles] = useState<Array<{ code: string; name: string }>>([]);
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [roleAssignments, setRoleAssignments] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -68,7 +71,7 @@ export function AsignacionesPage() {
       if (!alive) return;
       const uniq = Array.from(new Set((data ?? []).map((x: any) => String(x.anio))));
       setYears(uniq);
-      if (uniq.length && !uniq.includes(year)) setYear(uniq[0]);
+      if (uniq.length) setYear((current) => uniq.includes(current) ? current : uniq[0]);
     })();
     return () => {
       alive = false;
@@ -91,10 +94,7 @@ export function AsignacionesPage() {
       }
       const list = (data ?? []) as MonitoreoRow[];
       setMonitoreos(list);
-      if (!monitoreoId && list.length) setMonitoreoId(list[0].id);
-      if (monitoreoId && !list.find((m) => m.id === monitoreoId)) {
-        setMonitoreoId(list[0]?.id || "");
-      }
+      setMonitoreoId((current) => current && list.some((m) => m.id === current) ? current : list[0]?.id || "");
     })();
     return () => {
       alive = false;
@@ -115,6 +115,8 @@ export function AsignacionesPage() {
         return;
       }
       setUsers((data ?? []) as ProfileRow[]);
+      const { data: roleData } = await supabase.from("app_role").select("code,name").eq("is_active", true).order("name");
+      setRoles((roleData ?? []) as Array<{ code: string; name: string }>);
     })();
     return () => {
       alive = false;
@@ -127,10 +129,10 @@ export function AsignacionesPage() {
     let alive = true;
     (async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      const [{ data, error }, roleResult] = await Promise.all([supabase
         .from("monitoreo_asignacion")
         .select("id, monitoreo_id, user_id")
-        .eq("monitoreo_id", monitoreoId);
+        .eq("monitoreo_id", monitoreoId), supabase.from("monitoreo_role_asignacion").select("role_code").eq("monitoreo_id", monitoreoId)]);
       if (!alive) return;
       if (error) {
         setToast({ type: "err", msg: error.message });
@@ -140,6 +142,7 @@ export function AsignacionesPage() {
       const map: Record<string, boolean> = {};
       (data ?? []).forEach((r: any) => (map[r.user_id] = true));
       setAssignments(map);
+      setRoleAssignments(Object.fromEntries((roleResult.data ?? []).map((row: any) => [row.role_code, true])));
       setLoading(false);
     })();
     return () => {
@@ -155,8 +158,9 @@ export function AsignacionesPage() {
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    if (!term) return users;
-    return users.filter((u) => {
+    const byRole = roleFilter === "ALL" ? users : users.filter((u) => u.role === roleFilter);
+    if (!term) return byRole;
+    return byRole.filter((u) => {
       const full = [
         u.apellido_paterno,
         u.apellido_materno,
@@ -169,7 +173,22 @@ export function AsignacionesPage() {
         .toLowerCase();
       return full.includes(term);
     });
-  }, [users, q]);
+  }, [users, q, roleFilter]);
+
+  const toggleRoleAssignment = async (roleCode: string) => {
+    if (!canManageAssignments || !monitoreoId) return;
+    setSaving(`role:${roleCode}`);
+    const assigned = !roleAssignments[roleCode];
+    const { error } = await supabase.rpc("set_monitoreo_role_assignment", { p_monitoreo_id: monitoreoId, p_role_code: roleCode, p_assigned: assigned });
+    if (error) setToast({ type: "err", msg: error.message });
+    else {
+      setRoleAssignments((value) => ({ ...value, [roleCode]: assigned }));
+      const { data } = await supabase.from("monitoreo_asignacion").select("user_id").eq("monitoreo_id", monitoreoId);
+      setAssignments(Object.fromEntries((data ?? []).map((row: any) => [row.user_id, true])));
+      setToast({ type: "ok", msg: assigned ? "Rol asignado al monitoreo." : "Asignacion por rol retirada." });
+    }
+    setSaving(null);
+  };
 
   const toggleAssign = async (u: ProfileRow) => {
     if (!canManageAssignments) return;
@@ -267,14 +286,21 @@ export function AsignacionesPage() {
       </section>
 
       <section className="assignments-panel rounded-2xl border p-4 sm:p-5">
+        <div className="assignments-eyebrow">Asignacion masiva</div>
+        <div className="mt-1 text-sm font-bold text-[var(--app-text)]">Asignar un rol completo</div>
+        <p className="mt-1 text-xs text-[var(--app-muted)]">Incluye a los usuarios actuales del rol sin reemplazar asignaciones manuales.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{roles.map((role) => { const assigned = Boolean(roleAssignments[role.code]); return <button key={role.code} type="button" disabled={!canManageAssignments || saving === `role:${role.code}`} onClick={() => toggleRoleAssignment(role.code)} className={cls("rounded-xl border px-3 py-2 text-left text-sm", assigned ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100" : "border-white/10 bg-white/5 text-[var(--app-text)]")}><div className="font-semibold">{role.name}</div><div className="text-xs opacity-70">{saving === `role:${role.code}` ? "Actualizando..." : assigned ? "Rol asignado" : "Asignar rol"}</div></button>; })}</div>
+      </section>
+
+      <section className="assignments-panel rounded-2xl border p-4 sm:p-5">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5"><div className="assignments-section-icon"><AssignmentIcon type="users" /></div><div><div className="assignments-eyebrow">Directorio</div><div className="text-sm font-bold">Usuarios</div></div></div>
-          <input
+          <div className="flex w-full gap-2 sm:max-w-xl"><select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="dashboard-control rounded-xl border px-3 py-2 text-sm"><option value="ALL">Todos los roles</option>{roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</select><input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar usuario..."
-            className="dashboard-control w-full rounded-xl border px-3 py-2 outline-none placeholder:text-white/30 sm:max-w-xs"
-          />
+            className="dashboard-control min-w-0 flex-1 rounded-xl border px-3 py-2 outline-none placeholder:text-white/30"
+          /></div>
         </div>
 
         {loading ? (
@@ -299,6 +325,7 @@ export function AsignacionesPage() {
                   <div>
                     <div className="text-sm font-semibold text-[var(--app-text)]">{name}</div>
                     <div className="text-xs text-[var(--app-muted)]">{u.correo || u.email}</div>
+                    <div className="mt-1 text-[10px] uppercase tracking-wide text-[var(--app-muted-2)]">{roles.find((role) => role.code === u.role)?.name || roleLabel(u.role)}</div>
                   </div>
                   <button
                     type="button"

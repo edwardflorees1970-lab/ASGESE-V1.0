@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
-import { canSeeAllRole, roleLabel } from "../lib/roles";
+import { roleLabel } from "../lib/roles";
 import { useTheme } from "../app/ThemeProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -59,7 +59,7 @@ const Item = ({
 );
 
 export function AppShell() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, canViewModule } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { isTestMode, setMode } = useAppConfig();
   const nav = useNavigate();
@@ -109,7 +109,6 @@ export function AppShell() {
       .trim() || profile?.correo || profile?.email || "Usuario";
 
   const role = profile?.role;
-  const canSeeAll = canSeeAllRole(role);
   const isResponsableCdD = role === "responsable_cdd";
   const inFichaRoute = /^\/app\/monitoreo\/[^/]+\/ficha\/[^/]+$/i.test(location.pathname);
   const [sidebarHidden, setSidebarHidden] = useState(false);
@@ -131,6 +130,10 @@ export function AppShell() {
             ? "Auditoría y alertas"
             : location.pathname.includes("asignaciones")
               ? "Asignaciones"
+              : location.pathname.includes("roles-permisos")
+                ? "Roles y permisos"
+                : location.pathname.includes("catalogos")
+                  ? "Catalogos"
               : location.pathname.includes("instituciones")
                 ? "Instituciones"
                 : location.pathname.includes("usuarios")
@@ -164,24 +167,24 @@ export function AppShell() {
 
       <nav className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 pb-4">
         {sectionLabel("Principal")}
-        <Item
+        {canViewModule("inicio") && <Item
           to="/app"
           label="Inicio"
           icon={<HomeIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
           collapsed={collapsed}
-        />
+        />}
         {sectionLabel("Operación")}
-        <Item
+        {canViewModule("monitoreo") && <Item
           to="/app/monitoreo"
           label="Monitoreo"
           icon={<ClipboardIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
           collapsed={collapsed}
-        />
-        {!isResponsableCdD && (
+        />}
+        {canViewModule("seguimiento") && !isResponsableCdD && (
           <Item
             to="/app/seguimiento"
             label="Seguimiento"
@@ -191,7 +194,7 @@ export function AppShell() {
             collapsed={collapsed}
           />
         )}
-        {!isResponsableCdD && (
+        {canViewModule("gestion_monitoreos") && !isResponsableCdD && (
           <Item
             to="/app/gestion-monitoreos"
             label={"Gesti\u00f3n de Monitoreos"}
@@ -201,7 +204,7 @@ export function AppShell() {
             collapsed={collapsed}
           />
         )}
-        {canSeeAll && (
+        {canViewModule("asignaciones") && (
           <Item
             to="/app/asignaciones"
             label="Asignaciones"
@@ -212,7 +215,7 @@ export function AppShell() {
           />
         )}
         {sectionLabel("Análisis")}
-        {role === "admin" && (
+        {canViewModule("operaciones") && (
           <Item
             to="/app/operaciones"
             label="Auditoria y alertas"
@@ -222,23 +225,23 @@ export function AppShell() {
             collapsed={collapsed}
           />
         )}
-        <Item
+        {canViewModule("reportes") && <Item
           to="/app/reportes"
           label="Reportes y resultados"
           icon={<ChartIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
           collapsed={collapsed}
-        />
-        <Item
+        />}
+        {canViewModule("reportes_analiticos") && <Item
           to="/app/reportes-analiticos"
           label="Reportes analíticos"
           icon={<SparkIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
           collapsed={collapsed}
-        />
-        {(role === "responsable_cdd" || canSeeAll) && (
+        />}
+        {canViewModule("indicadores_cdd") && (
           <Item
             to="/app/indicadores-cdd"
             label="Indicadores CdD"
@@ -249,15 +252,15 @@ export function AppShell() {
           />
         )}
         {sectionLabel("Administración")}
-        <Item
+        {canViewModule("instituciones") && <Item
           to="/app/instituciones"
           label="Instituciones"
           icon={<SchoolIcon />}
           onClick={onItemClick}
           reloadOnClick={inFichaRoute}
           collapsed={collapsed}
-        />
-        {canSeeAll && (
+        />}
+        {canViewModule("usuarios") && (
           <Item
             to="/app/usuarios"
             label="Usuarios"
@@ -267,6 +270,8 @@ export function AppShell() {
             collapsed={collapsed}
           />
         )}
+        {canViewModule("roles_permisos") && <Item to="/app/roles-permisos" label="Roles y permisos" icon={<UsersCheckIcon />} onClick={onItemClick} reloadOnClick={inFichaRoute} collapsed={collapsed} />}
+        {canViewModule("catalogos") && <Item to="/app/catalogos" label="Catalogos" icon={<FormIcon />} onClick={onItemClick} reloadOnClick={inFichaRoute} collapsed={collapsed} />}
       </nav>
 
       <div className="shrink-0 border-t border-slate-800 p-3">
