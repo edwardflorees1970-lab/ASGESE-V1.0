@@ -6,7 +6,7 @@ export type Profile = {
   id: string;
   email: string | null;
   correo: string | null;
-  role: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
+  role: string | null;
 
   nombres: string | null;
   apellido_paterno: string | null;
@@ -19,6 +19,7 @@ export type Profile = {
   ugel: string | null;
   rei: string | null;
   can_create_monitoreo: boolean | null;
+  must_change_password: boolean | null;
 };
 
 type AuthCtx = {
@@ -28,6 +29,10 @@ type AuthCtx = {
   session: Session | null;
   profile: Profile | null;
   profileError: string | null;
+  modulePermissions: Record<string, { canView: boolean; canManage: boolean }>;
+  permissionsLoading: boolean;
+  canViewModule: (moduleCode: string) => boolean;
+  canManageModule: (moduleCode: string) => boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -44,11 +49,20 @@ async function fetchProfile(userId: string) {
   return supabase
     .from("profiles")
     .select(
-      "id, email, correo, role, nombres, apellido_paterno, apellido_materno, numero_documento, tipo_documento, area, ugel, rei, can_create_monitoreo"
+      "id, email, correo, role, nombres, apellido_paterno, apellido_materno, numero_documento, tipo_documento, area, ugel, rei, can_create_monitoreo, must_change_password"
     )
     .eq("id", userId)
     .maybeSingle();
 }
+
+const legacyModulesByRole: Record<string, string[]> = {
+  admin: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios", "roles_permisos", "catalogos", "operaciones"],
+  jefe_area: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios"],
+  director: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios"],
+  responsable_cdd: ["inicio", "monitoreo", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones"],
+  director_iiee: ["inicio", "monitoreo", "reportes", "instituciones"],
+  user: ["inicio", "monitoreo", "reportes", "reportes_analiticos", "instituciones"],
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -59,6 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [modulePermissions, setModulePermissions] = useState<Record<string, { canView: boolean; canManage: boolean }>>({});
+  const [permissionsRole, setPermissionsRole] = useState<string | null>(null);
 
   const alive = useRef(true);
   const inflight = useRef<Promise<void> | null>(null);
@@ -94,6 +110,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const userId = user?.id;
+
+  useEffect(() => {
+    if (!userId || !profile?.role) {
+      return;
+    }
+    let active = true;
+    const role = profile.role;
+    (async () => {
+      const { data, error } = await supabase.rpc("get_my_module_permissions");
+      if (!active) return;
+      if (!error && data) {
+        const next: Record<string, { canView: boolean; canManage: boolean }> = {};
+        for (const row of data as Array<{ module_code: string; can_view: boolean; can_manage: boolean }>) {
+          next[row.module_code] = { canView: row.can_view, canManage: row.can_manage };
+        }
+        setModulePermissions(next);
+      } else {
+        const fallback: Record<string, { canView: boolean; canManage: boolean }> = {};
+        for (const code of legacyModulesByRole[role] ?? []) {
+          fallback[code] = { canView: true, canManage: role === "admin" };
+        }
+        setModulePermissions(fallback);
+      }
+      setPermissionsRole(role);
+    })();
+    return () => { active = false; };
+  }, [profile?.role, userId]);
 
   const refreshProfile = useCallback(async () => {
     if (!userId) return;
@@ -186,7 +229,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setProfileError(null);
     setProfileLoading(false);
+    setModulePermissions({});
+    setPermissionsRole(null);
   }, []);
+
+  const effectivePermissionsLoading = Boolean(profile?.role) && permissionsRole !== profile?.role;
+  const canViewModule = useCallback((moduleCode: string) => profile?.role === "admin" || (permissionsRole === profile?.role && Boolean(modulePermissions[moduleCode]?.canView)), [modulePermissions, permissionsRole, profile?.role]);
+  const canManageModule = useCallback((moduleCode: string) => profile?.role === "admin" || (permissionsRole === profile?.role && Boolean(modulePermissions[moduleCode]?.canManage)), [modulePermissions, permissionsRole, profile?.role]);
 
   const value = useMemo<AuthCtx>(
     () => ({
@@ -196,10 +245,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       profile,
       profileError,
+      modulePermissions,
+      permissionsLoading: effectivePermissionsLoading,
+      canViewModule,
+      canManageModule,
       signOut,
       refreshProfile,
     }),
-    [loading, profileLoading, user, session, profile, profileError, signOut, refreshProfile]
+    [loading, profileLoading, user, session, profile, profileError, modulePermissions, effectivePermissionsLoading, canViewModule, canManageModule, signOut, refreshProfile]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

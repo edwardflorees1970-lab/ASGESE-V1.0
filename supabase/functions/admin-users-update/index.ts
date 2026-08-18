@@ -18,19 +18,9 @@ type UpdateBody = {
   ugel?: string | null;
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
-  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
-  role?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd" | null;
+  rol?: string | null;
+  role?: string | null;
 };
-
-type AppRole = NonNullable<UpdateBody["role"]>;
-
-const APP_ROLES = new Set<AppRole>([
-  "admin",
-  "user",
-  "jefe_area",
-  "director",
-  "responsable_cdd",
-]);
 
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const RATE_LIMIT_SCOPE = "admin-users-update";
@@ -145,8 +135,9 @@ serve(async (req) => {
     const nextRole = body.role ?? body.rol ?? undefined;
     const updates: Record<string, unknown> = {};
 
-    if (nextRole !== undefined && nextRole !== null && !APP_ROLES.has(nextRole)) {
-      return json({ error: "Rol no permitido" }, origin, 400);
+    if (nextRole !== undefined && nextRole !== null) {
+      const { data: validRole, error: roleError } = await supaAdmin.from("app_role").select("code").eq("code", nextRole).eq("is_active", true).maybeSingle();
+      if (roleError || !validRole) return json({ error: "Rol no permitido" }, origin, 400);
     }
 
     const put = (k: string, v: unknown) => {

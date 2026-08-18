@@ -17,5 +17,7 @@ export function roleLabel(role: AppRole) {
   if (role === "jefe_area") return "Jefe de area";
   if (role === "director") return "Director(a)";
   if (role === "responsable_cdd") return "Responsable CdD";
+  if (role === "director_iiee") return "Director IIEE";
+  if (role && !["user"].includes(role)) return String(role).replaceAll("_", " ");
   return "Monitor";
 }

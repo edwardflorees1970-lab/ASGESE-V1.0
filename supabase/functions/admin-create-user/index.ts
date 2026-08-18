@@ -17,19 +17,14 @@ type CreateBody = {
   ugel?: string | null;
   rei?: string | null;
   can_create_monitoreo?: boolean | null;
-  rol?: "admin" | "user" | "jefe_area" | "director" | "responsable_cdd";
+  rol?: string;
   password: string;
 };
 
-type AppRole = NonNullable<CreateBody["rol"]>;
-
-const APP_ROLES = new Set<AppRole>([
-  "admin",
-  "user",
-  "jefe_area",
-  "director",
-  "responsable_cdd",
-]);
+function isStrongPassword(password: string) {
+  return password.length >= 8 && /\p{Lu}/u.test(password) && /\p{Ll}/u.test(password)
+    && /\p{N}/u.test(password) && /[^\p{L}\p{N}]/u.test(password);
+}
 
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const RATE_LIMIT_SCOPE = "admin-create-user";
@@ -138,8 +133,9 @@ serve(async (req) => {
 
     if (!correo) return bad(origin, "correo es obligatorio");
     if (!correo.endsWith("@ugel06.gob.pe")) return bad(origin, "Solo correos @ugel06.gob.pe");
-    if (password.length < 8) return bad(origin, "password debe tener minimo 8 caracteres");
-    if (!APP_ROLES.has(role)) return bad(origin, "Rol no permitido");
+    if (!isStrongPassword(password)) return bad(origin, "password requiere mayuscula, minuscula, numero, caracter especial y minimo 8 caracteres");
+    const { data: validRole, error: roleError } = await supaAdmin.from("app_role").select("code").eq("code", role).eq("is_active", true).maybeSingle();
+    if (roleError || !validRole) return bad(origin, "Rol no permitido");
 
     const { data: created, error: createErr } = await supaAdmin.auth.admin.createUser({
       email: correo,

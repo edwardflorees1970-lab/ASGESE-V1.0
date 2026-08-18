@@ -2,11 +2,11 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 import { canSeeAllRole } from "../lib/roles";
 
-export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { requireAdmin?: boolean; allowedRoles?: string[] }) {
-  const { loading, user, profile, profileLoading, profileError, refreshProfile } =
+export function ProtectedRoute({ requireAdmin = false, allowedRoles, requireModule }: { requireAdmin?: boolean; allowedRoles?: string[]; requireModule?: string }) {
+  const { loading, user, profile, profileLoading, profileError, refreshProfile, permissionsLoading, canViewModule } =
     useAuth();
   const location = useLocation();
-  const requiresProfileCheck = requireAdmin || Boolean(allowedRoles?.length);
+  const requiresProfileCheck = requireAdmin || Boolean(allowedRoles?.length) || Boolean(requireModule);
 
   // Solo bloquea durante carga inicial de sesión (rápido)
   if (loading) {
@@ -22,6 +22,14 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { require
   // Si no hay sesión => login
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (profileLoading && !profile) {
+    return <div className="agebre-app-shell grid min-h-screen place-items-center"><div className="agebre-surface px-5 py-4 text-sm text-[var(--app-muted)]">Validando perfil...</div></div>;
+  }
+
+  if (profile?.must_change_password) {
+    return <Navigate to="/setup-password" replace />;
   }
 
   // Si es ruta admin:
@@ -60,6 +68,9 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles }: { require
       return <Navigate to="/app" replace />;
     }
     if (allowedRoles?.length && !allowedRoles.includes(String(role ?? ""))) {
+      return <Navigate to="/app" replace />;
+    }
+    if (requireModule && !permissionsLoading && !canViewModule(requireModule)) {
       return <Navigate to="/app" replace />;
     }
   }
