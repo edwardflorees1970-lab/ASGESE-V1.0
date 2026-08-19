@@ -1,6 +1,7 @@
 ﻿import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enforceRateLimit, getClientIp, readPositiveIntEnv } from "../_shared/rateLimit.ts";
+import { normalizeRei } from "../_shared/rei.ts";
 
 type Body = {
   q?: string;
@@ -144,7 +145,11 @@ serve(async (req) => {
     if (body.rol) query = query.eq("role", body.rol);
     if (body.area) query = query.eq("area", body.area);
     if (body.ugel) query = query.eq("ugel", body.ugel);
-    if (body.rei) query = query.eq("rei", body.rei);
+    if (body.rei) {
+      const rei = normalizeRei(body.rei);
+      if (rei === null) return json({ error: "rei debe ser 01 a 19 o SIN REI" }, origin, 400);
+      query = query.eq("rei", rei);
+    }
 
     if (body.q && body.q.trim()) {
       const q = body.q.trim();

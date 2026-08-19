@@ -1,7 +1,7 @@
 export const USER_IMPORT_HEADERS = [
   "tipo_documento", "numero_documento", "apellido_paterno", "apellido_materno",
   "nombres", "correo", "telefono", "fecha_nacimiento", "cargo", "area",
-  "comision", "ugel", "rei", "rol", "can_create_monitoreo",
+  "comision", "ugel", "rei", "codigo_institucional", "rol", "can_create_monitoreo",
 ] as const;
 
 export type UserImportInput = {
@@ -19,11 +19,13 @@ export type UserImportInput = {
   comision: string | null;
   ugel: string | null;
   rei: string | null;
+  codigo_institucional: string | null;
   rol: string;
   can_create_monitoreo: boolean;
 };
 
 export type UserImportPreviewRow = UserImportInput & {
+  institucion_nombre: string | null;
   errors: string[];
   status: "valid" | "invalid";
 };
@@ -36,7 +38,11 @@ export type UserImportResultRow = {
   status: "created" | "skipped" | "error";
   message: string;
   temporary_password?: string;
+  codigo_institucional?: string | null;
+  institucion_nombre?: string | null;
 };
+
+export type InstitutionalCodeInfo = { name: string; isPublic: boolean };
 
 function cellText(value: unknown): string {
   if (value == null) return "";
@@ -57,6 +63,24 @@ function nullable(value: unknown) {
 
 export function normalizeUpperText(value: unknown) {
   return cellText(value).trim().toLocaleUpperCase("es");
+}
+
+export function normalizeRei(value: unknown): string | null {
+  const text = normalizeUpperText(value).replace(/\s+/g, " ");
+  if (!text || text === "SIN REI") return "SIN REI";
+  if (!/^(?:REI )?(?:0?[1-9]|1[0-9])$/.test(text)) return null;
+  return text.replace(/\D/g, "").padStart(2, "0");
+}
+
+export function normalizeInstitutionalCode(value: unknown): string {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 99_999_999) {
+    return String(value).padStart(8, "0");
+  }
+  return cellText(value).trim();
+}
+
+export function isPublicManagement(value: unknown) {
+  return normalizeUpperText(value).normalize("NFD").replace(/\p{Diacritic}/gu, "").includes("PUBLIC");
 }
 
 function nullableUpper(value: unknown) {
@@ -105,7 +129,8 @@ export function validateUserImportRows(
   rows: Array<{ sourceRow: number; values: Record<string, unknown> }>,
   activeRoleCodes: Set<string>,
   existingEmails = new Set<string>(),
-  existingDocuments = new Set<string>()
+  existingDocuments = new Set<string>(),
+  institutionalCodes?: Map<string, InstitutionalCodeInfo>
 ): UserImportPreviewRow[] {
   const emailCounts = new Map<string, number>();
   const documentCounts = new Map<string, number>();
@@ -123,6 +148,9 @@ export function validateUserImportRows(
     const rol = cellText(values.rol).trim().toLowerCase();
     const fecha = parseDate(values.fecha_nacimiento);
     const monitorFlag = parseBoolean(values.can_create_monitoreo);
+    const rei = normalizeRei(values.rei);
+    const institutionalCode = normalizeInstitutionalCode(values.codigo_institucional);
+    const institution = institutionalCodes?.get(institutionalCode);
     const errors: string[] = [];
     if (tipo !== "DNI" && tipo !== "CE") errors.push("Tipo de documento inválido");
     if (!documento) errors.push("Documento obligatorio");
@@ -135,6 +163,15 @@ export function validateUserImportRows(
     if (!activeRoleCodes.has(rol)) errors.push("Rol inexistente o inactivo");
     if (fecha === undefined) errors.push("Fecha inválida; usa AAAA-MM-DD");
     if (monitorFlag === null) errors.push("can_create_monitoreo debe ser SI o NO");
+    if (rei === null) errors.push("REI inválida; usa 01 a 19 o SIN REI");
+    if (rol === "director_iiee") {
+      if (!institutionalCode) errors.push("Código institucional obligatorio para Director IIEE");
+      else if (!/^\d{8}$/.test(institutionalCode)) errors.push("Código institucional debe tener exactamente 8 dígitos");
+      else if (institutionalCodes && !institution) errors.push("Código institucional no registrado");
+      else if (institution && !institution.isPublic) errors.push("El código institucional no pertenece a un colegio público");
+    } else if (institutionalCode) {
+      errors.push("Código institucional solo corresponde al rol Director IIEE");
+    }
     if ((emailCounts.get(correo) ?? 0) > 1) errors.push("Correo duplicado en el archivo");
     if ((documentCounts.get(documento) ?? 0) > 1) errors.push("Documento duplicado en el archivo");
     if (existingEmails.has(correo)) errors.push("Correo ya registrado");
@@ -155,9 +192,11 @@ export function validateUserImportRows(
       area: nullableUpper(values.area),
       comision: nullableUpper(values.comision),
       ugel: nullableUpper(values.ugel) ?? "UGEL 06",
-      rei: nullableUpper(values.rei) ?? "SIN REI",
+      rei: rei ?? "SIN REI",
+      codigo_institucional: institutionalCode || null,
       rol,
       can_create_monitoreo: monitorFlag ?? false,
+      institucion_nombre: institution?.name ?? null,
       errors,
       status: errors.length ? "invalid" : "valid",
     };
@@ -196,13 +235,15 @@ export async function downloadUserImportResults(rows: UserImportResultRow[], fil
     { header: "fila", key: "source_row", width: 10 }, { header: "estado", key: "status", width: 14 },
     { header: "correo", key: "correo", width: 34 }, { header: "documento", key: "numero_documento", width: 20 },
     { header: "nombres", key: "nombres", width: 32 }, { header: "contraseña_temporal", key: "temporary_password", width: 24 },
+    { header: "codigo_institucional", key: "codigo_institucional", width: 22 },
+    { header: "institucion", key: "institucion_nombre", width: 38 },
     { header: "detalle", key: "message", width: 55 },
   ];
   sheet.addRows(rows);
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F2747" } };
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = { from: "A1", to: "G1" };
+  sheet.autoFilter = { from: "A1", to: "I1" };
   for (let index = 2; index <= sheet.rowCount; index += 1) {
     const status = sheet.getCell(index, 2).value;
     sheet.getCell(index, 2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: status === "created" ? "FFD1FAE5" : status === "skipped" ? "FFFEF3C7" : "FFFEE2E2" } };

@@ -1,6 +1,7 @@
 ﻿import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enforceRateLimit, getClientIp, readPositiveIntEnv } from "../_shared/rateLimit.ts";
+import { normalizeRei } from "../_shared/rei.ts";
 
 type CreateBody = {
   tipo_documento?: string;
@@ -130,10 +131,12 @@ serve(async (req) => {
     const correo = (body.correo || "").trim().toLowerCase();
     const password = (body.password || "").trim();
     const role = body.rol ?? "user";
+    const rei = normalizeRei(body.rei);
 
     if (!correo) return bad(origin, "correo es obligatorio");
     if (!correo.endsWith("@ugel06.gob.pe")) return bad(origin, "Solo correos @ugel06.gob.pe");
     if (!isStrongPassword(password)) return bad(origin, "password requiere mayuscula, minuscula, numero, caracter especial y minimo 8 caracteres");
+    if (rei === null) return bad(origin, "rei debe ser 01 a 19 o SIN REI");
     const { data: validRole, error: roleError } = await supaAdmin.from("app_role").select("code").eq("code", role).eq("is_active", true).maybeSingle();
     if (roleError || !validRole) return bad(origin, "Rol no permitido");
 
@@ -168,7 +171,7 @@ serve(async (req) => {
       area: (body.area ?? null) ? String(body.area).trim() : null,
       comision: (body.comision ?? null) ? String(body.comision).trim() : null,
       ugel: (body.ugel ?? null) ? String(body.ugel).trim() : null,
-      rei: (body.rei ?? null) ? String(body.rei).trim() : "SIN REI",
+      rei,
       can_create_monitoreo: body.can_create_monitoreo ?? false,
       role,
       updated_at: new Date().toISOString(),

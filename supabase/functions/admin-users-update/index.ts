@@ -1,6 +1,7 @@
 ﻿import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enforceRateLimit, getClientIp, readPositiveIntEnv } from "../_shared/rateLimit.ts";
+import { normalizeRei } from "../_shared/rei.ts";
 
 type UpdateBody = {
   id: string;
@@ -135,6 +136,9 @@ serve(async (req) => {
     const nextRole = body.role ?? body.rol ?? undefined;
     const updates: Record<string, unknown> = {};
 
+    const rei = body.rei === undefined ? undefined : normalizeRei(body.rei);
+    if (rei === null) return json({ error: "rei debe ser 01 a 19 o SIN REI" }, origin, 400);
+
     if (nextRole !== undefined && nextRole !== null) {
       const { data: validRole, error: roleError } = await supaAdmin.from("app_role").select("code").eq("code", nextRole).eq("is_active", true).maybeSingle();
       if (roleError || !validRole) return json({ error: "Rol no permitido" }, origin, 400);
@@ -155,7 +159,7 @@ serve(async (req) => {
     put("area", body.area);
     put("comision", body.comision);
     put("ugel", body.ugel);
-    put("rei", body.rei);
+    put("rei", rei);
     put("can_create_monitoreo", body.can_create_monitoreo);
 
     let previousAuthEmail: string | null = null;
