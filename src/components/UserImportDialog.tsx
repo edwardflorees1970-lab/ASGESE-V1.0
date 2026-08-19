@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { adminFinishUserImport, adminProcessUserImport, adminStartUserImport } from "../lib/adminApi";
 import { supabase } from "../lib/supabaseClient";
-import { downloadUserImportResults, readUserImportFile, validateUserImportRows } from "../lib/userImport";
-import type { UserImportPreviewRow, UserImportResultRow } from "../lib/userImport";
+import { downloadUserImportResults, isPublicManagement, readUserImportFile, validateUserImportRows } from "../lib/userImport";
+import type { InstitutionalCodeInfo, UserImportInput, UserImportPreviewRow, UserImportResultRow } from "../lib/userImport";
 
 function chunks<T>(values: T[], size: number) {
   const result: T[][] = [];
@@ -19,6 +19,26 @@ async function existingValues(values: string[], column: "correo" | "numero_docum
     for (const row of data ?? []) {
       const value = String((row as Record<string, unknown>)[column] ?? "").trim();
       if (value) found.add(column === "correo" ? value.toLowerCase() : value);
+    }
+  }
+  return found;
+}
+
+async function institutionalCodeValues(values: string[]) {
+  const found = new Map<string, InstitutionalCodeInfo>();
+  for (const part of chunks(Array.from(new Set(values.filter((value) => /^\d{8}$/.test(value)))), 100)) {
+    if (!part.length) continue;
+    const { data, error } = await supabase.from("institucion_educativa").select("codigo_institucional,nombre,gestion").in("codigo_institucional", part);
+    if (error) throw new Error(`No se pudieron validar los códigos institucionales: ${error.message}`);
+    for (const row of data ?? []) {
+      const code = String(row.codigo_institucional ?? "").trim();
+      if (!code) continue;
+      const current = found.get(code);
+      const rowIsPublic = isPublicManagement(row.gestion);
+      found.set(code, {
+        name: rowIsPublic || !current ? String(row.nombre ?? "INSTITUCIÓN SIN NOMBRE").trim() : current.name,
+        isPublic: Boolean(current?.isPublic || rowIsPublic),
+      });
     }
   }
   return found;
@@ -42,11 +62,12 @@ export function UserImportDialog({ roles, onClose, onComplete }: { roles: Array<
     try {
       const raw = await readUserImportFile(file);
       const local = validateUserImportRows(raw, new Set(roles.map((role) => role.code)));
-      const [emails, documents] = await Promise.all([
+      const [emails, documents, institutions] = await Promise.all([
         existingValues(local.map((row) => row.correo), "correo"),
         existingValues(local.map((row) => row.numero_documento), "numero_documento"),
+        institutionalCodeValues(local.map((row) => row.codigo_institucional ?? "")),
       ]);
-      setPreview(validateUserImportRows(raw, new Set(roles.map((role) => role.code)), emails, documents));
+      setPreview(validateUserImportRows(raw, new Set(roles.map((role) => role.code)), emails, documents, institutions));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo leer la plantilla.");
     } finally { setBusy(false); }
@@ -60,7 +81,12 @@ export function UserImportDialog({ roles, onClose, onComplete }: { roles: Array<
       const allResults: UserImportResultRow[] = [];
       const batches = chunks(preview, 20);
       for (let index = 0; index < batches.length; index += 1) {
-        const payload = batches[index].map(({ errors, ...row }) => ({ ...row, validation_errors: errors }));
+        const payload = batches[index].map((previewRow) => {
+          const row = { ...previewRow } as Partial<UserImportPreviewRow>;
+          delete row.errors;
+          delete row.institucion_nombre;
+          return { ...row, validation_errors: previewRow.errors } as UserImportInput & { validation_errors: string[] };
+        });
         const response = await adminProcessUserImport(jobId, payload);
         allResults.push(...response.items);
         setResults([...allResults]);
@@ -82,14 +108,14 @@ export function UserImportDialog({ roles, onClose, onComplete }: { roles: Array<
         {error && <div role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>}
 
         {preview.length > 0 && !completed && <section className="mt-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><div className="text-sm font-semibold text-white">2. Vista previa y validación</div><div className="mt-1 text-xs text-white/50">Solo se crearán filas válidas. Las observadas quedarán registradas como error.</div></div><div className="grid grid-cols-3 gap-2"><Summary label="Total" value={previewSummary.total}/><Summary label="Válidos" value={previewSummary.valid} tone="green"/><Summary label="Observados" value={previewSummary.invalid} tone="red"/></div></div><div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">Los datos personales se convertirán a MAYÚSCULAS y el correo se conservará en minúsculas. Se generará una contraseña temporal como Quispe123@@ y el usuario deberá cambiarla al ingresar por primera vez.</div>
-          <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-white/10"><table className="w-full min-w-[900px] text-left text-xs"><thead className="sticky top-0 bg-slate-900 text-white/60"><tr><th className="px-3 py-2">Fila</th><th className="px-3 py-2">Usuario</th><th className="px-3 py-2">Correo</th><th className="px-3 py-2">Documento</th><th className="px-3 py-2">Rol</th><th className="px-3 py-2">Estado</th><th className="px-3 py-2">Detalle</th></tr></thead><tbody>{preview.map((row) => <tr key={row.source_row} className="border-t border-white/5"><td className="px-3 py-2 text-white/50">{row.source_row}</td><td className="px-3 py-2 text-white">{row.apellido_paterno} {row.apellido_materno}, {row.nombres}</td><td className="px-3 py-2 text-white/70">{row.correo}</td><td className="px-3 py-2 text-white/70">{row.numero_documento}</td><td className="px-3 py-2 text-white/70">{row.rol}</td><td className={`px-3 py-2 font-semibold ${row.status === "valid" ? "text-emerald-300" : "text-red-300"}`}>{row.status === "valid" ? "Válido" : "Observado"}</td><td className="max-w-sm px-3 py-2 text-white/55">{row.errors.join("; ") || "Listo para crear"}</td></tr>)}</tbody></table></div>
+          <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-white/10"><table className="w-full min-w-[1150px] text-left text-xs"><thead className="sticky top-0 bg-slate-900 text-white/60"><tr><th className="px-3 py-2">Fila</th><th className="px-3 py-2">Usuario</th><th className="px-3 py-2">Correo</th><th className="px-3 py-2">Documento</th><th className="px-3 py-2">Rol</th><th className="px-3 py-2">Código institucional</th><th className="px-3 py-2">Colegio</th><th className="px-3 py-2">Estado</th><th className="px-3 py-2">Detalle</th></tr></thead><tbody>{preview.map((row) => <tr key={row.source_row} className="border-t border-white/5"><td className="px-3 py-2 text-white/50">{row.source_row}</td><td className="px-3 py-2 text-white">{row.apellido_paterno} {row.apellido_materno}, {row.nombres}</td><td className="px-3 py-2 text-white/70">{row.correo}</td><td className="px-3 py-2 text-white/70">{row.numero_documento}</td><td className="px-3 py-2 text-white/70">{row.rol}</td><td className="px-3 py-2 font-mono text-white/70">{row.codigo_institucional ?? "—"}</td><td className="max-w-52 px-3 py-2 text-white/70">{row.institucion_nombre ?? "—"}</td><td className={`px-3 py-2 font-semibold ${row.status === "valid" ? "text-emerald-300" : "text-red-300"}`}>{row.status === "valid" ? "Válido" : "Observado"}</td><td className="max-w-sm px-3 py-2 text-white/55">{row.errors.join("; ") || "Listo para crear"}</td></tr>)}</tbody></table></div>
           {busy && <div className="mt-4"><div className="mb-1 flex justify-between text-xs text-white/60"><span>Creando usuarios por lotes...</span><span>{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-sky-500 transition-all" style={{ width: `${progress}%` }}/></div></div>}
           <div className="mt-4 flex justify-end"><button type="button" disabled={busy || previewSummary.valid === 0} onClick={processImport} className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Procesando..." : `Confirmar carga de ${previewSummary.valid} usuarios`}</button></div>
         </section>}
 
         {(completed || results.length > 0) && <section className="mt-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><div className="text-sm font-semibold text-white">3. Resumen de carga</div><div className="mt-1 text-xs text-white/50">Cada fila conserva su resultado para control y reintento.</div></div><div className="grid grid-cols-3 gap-2"><Summary label="Creados" value={resultSummary.created} tone="green"/><Summary label="Omitidos" value={resultSummary.skipped} tone="amber"/><Summary label="Errores" value={resultSummary.errors} tone="red"/></div></div>
           <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">Descarga y resguarda el resumen: las contraseñas temporales se muestran únicamente en este resultado y no se almacenan en la auditoría.</div>
-          <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-white/10"><table className="w-full min-w-[950px] text-left text-xs"><thead className="sticky top-0 bg-slate-900 text-white/60"><tr><th className="px-3 py-2">Fila</th><th className="px-3 py-2">Correo</th><th className="px-3 py-2">Documento</th><th className="px-3 py-2">Contraseña temporal</th><th className="px-3 py-2">Estado</th><th className="px-3 py-2">Detalle</th></tr></thead><tbody>{results.map((row) => <tr key={row.source_row} className="border-t border-white/5"><td className="px-3 py-2 text-white/50">{row.source_row}</td><td className="px-3 py-2 text-white/75">{row.correo}</td><td className="px-3 py-2 text-white/75">{row.numero_documento}</td><td className="px-3 py-2 font-mono text-amber-100">{row.temporary_password ?? "—"}</td><td className={`px-3 py-2 font-semibold ${row.status === "created" ? "text-emerald-300" : row.status === "skipped" ? "text-amber-300" : "text-red-300"}`}>{row.status === "created" ? "Creado" : row.status === "skipped" ? "Omitido" : "Error"}</td><td className="px-3 py-2 text-white/55">{row.message}</td></tr>)}</tbody></table></div>
+          <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-white/10"><table className="w-full min-w-[1100px] text-left text-xs"><thead className="sticky top-0 bg-slate-900 text-white/60"><tr><th className="px-3 py-2">Fila</th><th className="px-3 py-2">Correo</th><th className="px-3 py-2">Documento</th><th className="px-3 py-2">Contraseña temporal</th><th className="px-3 py-2">Código institucional</th><th className="px-3 py-2">Colegio</th><th className="px-3 py-2">Estado</th><th className="px-3 py-2">Detalle</th></tr></thead><tbody>{results.map((row) => <tr key={row.source_row} className="border-t border-white/5"><td className="px-3 py-2 text-white/50">{row.source_row}</td><td className="px-3 py-2 text-white/75">{row.correo}</td><td className="px-3 py-2 text-white/75">{row.numero_documento}</td><td className="px-3 py-2 font-mono text-amber-100">{row.temporary_password ?? "—"}</td><td className="px-3 py-2 font-mono text-white/75">{row.codigo_institucional ?? "—"}</td><td className="max-w-52 px-3 py-2 text-white/65">{row.institucion_nombre ?? "—"}</td><td className={`px-3 py-2 font-semibold ${row.status === "created" ? "text-emerald-300" : row.status === "skipped" ? "text-amber-300" : "text-red-300"}`}>{row.status === "created" ? "Creado" : row.status === "skipped" ? "Omitido" : "Error"}</td><td className="px-3 py-2 text-white/55">{row.message}</td></tr>)}</tbody></table></div>
           <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => void downloadUserImportResults(results, `resultado_carga_usuarios_${new Date().toISOString().slice(0,10)}.xlsx`)} className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-100">Descargar resumen Excel</button>{completed && <button type="button" onClick={onClose} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">Finalizar</button>}</div>
         </section>}
       </div>

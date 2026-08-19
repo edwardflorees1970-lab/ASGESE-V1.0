@@ -15,12 +15,12 @@ import { supabase } from "../lib/supabaseClient";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { IconButton as UiIconButton } from "../components/ui/IconButton";
 import { UserImportDialog } from "../components/UserImportDialog";
-import { isStrongPassword } from "../lib/userImport";
+import { isStrongPassword, normalizeRei } from "../lib/userImport";
 
 
 type Toast = { type: "ok" | "err"; msg: string } | null;
 
-const REI_OPTIONS = ["SIN REI", ...Array.from({ length: 19 }, (_, i) => `REI ${i + 1}`)];
+const REI_OPTIONS = ["SIN REI", ...Array.from({ length: 19 }, (_, i) => String(i + 1).padStart(2, "0"))];
 
 const emptyCreateForm: AdminCreateUserInput = {
   tipo_documento: "DNI",
@@ -345,7 +345,7 @@ export function UsersPage() {
           area: u.area,
           comision: u.comision,
           ugel: u.ugel,
-          rei: u.rei ?? "SIN REI",
+          rei: normalizeRei(u.rei) ?? "SIN REI",
           can_create_monitoreo: u.can_create_monitoreo ?? false,
           rol: u.role,
         })) as ProfileRow[];
@@ -432,7 +432,7 @@ export function UsersPage() {
         comision: createForm.comision?.trim() || null,
         cargo: createForm.cargo?.trim() || null,
         ugel: createForm.ugel?.trim() || null,
-        rei: createForm.rei?.trim() || "SIN REI",
+        rei: normalizeRei(createForm.rei) ?? "SIN REI",
         can_create_monitoreo: !!createForm.can_create_monitoreo,
         telefono: createForm.telefono?.trim() || null,
         fecha_nacimiento: createForm.fecha_nacimiento?.trim() || null,
@@ -480,7 +480,7 @@ export function UsersPage() {
         area: editUser.area,
         comision: editUser.comision,
         ugel: editUser.ugel,
-        rei: editUser.rei,
+        rei: normalizeRei(editUser.rei) ?? "SIN REI",
         can_create_monitoreo: editUser.can_create_monitoreo,
         rol: editUser.rol,
       });

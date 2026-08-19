@@ -1,12 +1,15 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enforceRateLimit, getClientIp, readPositiveIntEnv } from "../_shared/rateLimit.ts";
+import { normalizeRei } from "../_shared/rei.ts";
+import { isPublicManagement, normalizeInstitutionalCode } from "../_shared/institutionalCode.ts";
 
 type ImportRow = {
   source_row: number; tipo_documento: "DNI" | "CE"; numero_documento: string;
   apellido_paterno: string; apellido_materno: string; nombres: string; correo: string;
   telefono?: string | null; fecha_nacimiento?: string | null; cargo?: string | null;
   area?: string | null; comision?: string | null; ugel?: string | null; rei?: string | null;
+  codigo_institucional?: string | null;
   rol: string; can_create_monitoreo?: boolean;
   validation_errors?: string[];
 };
@@ -124,23 +127,46 @@ serve(async (req) => {
     const roles = new Set((roleRows ?? []).map((role) => role.code));
     const emails = rows.map((row) => clean(row.correo).toLowerCase()).filter(Boolean);
     const documents = rows.map((row) => clean(row.numero_documento)).filter(Boolean);
-    const [{ data: emailProfiles }, { data: documentProfiles }] = await Promise.all([
+    const institutionalCodes = Array.from(new Set(rows
+      .filter((row) => clean(row.rol).toLowerCase() === "director_iiee")
+      .map((row) => normalizeInstitutionalCode(row.codigo_institucional))
+      .filter((code) => /^\d{8}$/.test(code))));
+    const [{ data: emailProfiles }, { data: documentProfiles }, institutionResponse] = await Promise.all([
       admin.from("profiles").select("id,correo").in("correo", emails),
       admin.from("profiles").select("id,numero_documento").in("numero_documento", documents),
+      institutionalCodes.length
+        ? admin.from("institucion_educativa").select("codigo_institucional,nombre,gestion").in("codigo_institucional", institutionalCodes)
+        : Promise.resolve({ data: [], error: null }),
     ]);
+    if (institutionResponse.error) return json({ error: "No se pudieron validar los códigos institucionales", details: institutionResponse.error.message }, origin, 400);
     const existingEmails = new Set((emailProfiles ?? []).map((profile) => clean(profile.correo).toLowerCase()));
     const existingDocuments = new Set((documentProfiles ?? []).map((profile) => clean(profile.numero_documento)));
+    const institutionByCode = new Map<string, { name: string; isPublic: boolean }>();
+    for (const institution of institutionResponse.data ?? []) {
+      const code = normalizeInstitutionalCode(institution.codigo_institucional);
+      const current = institutionByCode.get(code);
+      const rowIsPublic = isPublicManagement(institution.gestion);
+      institutionByCode.set(code, {
+        name: rowIsPublic || !current ? clean(institution.nombre) || "INSTITUCIÓN SIN NOMBRE" : current.name,
+        isPublic: Boolean(current?.isPublic || rowIsPublic),
+      });
+    }
     const results: Array<Record<string, unknown>> = [];
 
     for (const raw of rows) {
       const previous = processed.get(Number(raw.source_row));
       if (previous) {
         const previousInput = previous.input_data as Record<string, unknown>;
-        results.push({ source_row: previous.source_row, correo: previous.correo, numero_documento: previous.numero_documento, nombres: clean(previousInput?.nombres), status: previous.status, message: previous.message, ...(previous.status === "created" ? { temporary_password: generateTemporaryPassword(previousInput?.apellido_paterno) } : {}) });
+        results.push({ source_row: previous.source_row, correo: previous.correo, numero_documento: previous.numero_documento, nombres: clean(previousInput?.nombres), codigo_institucional: nullable(previousInput?.codigo_institucional), institucion_nombre: nullable(previousInput?.institucion_nombre), status: previous.status, message: previous.message, ...(previous.status === "created" ? { temporary_password: generateTemporaryPassword(previousInput?.apellido_paterno) } : {}) });
         continue;
       }
       const rawDocumentType = upper(raw.tipo_documento);
       const row: ImportRow = { ...raw, source_row: Number(raw.source_row), tipo_documento: rawDocumentType === "CE" ? "CE" : "DNI", numero_documento: clean(raw.numero_documento), apellido_paterno: upper(raw.apellido_paterno), apellido_materno: upper(raw.apellido_materno), nombres: upper(raw.nombres), correo: clean(raw.correo).toLowerCase(), telefono: nullable(raw.telefono), fecha_nacimiento: nullable(raw.fecha_nacimiento), cargo: nullableUpper(raw.cargo), area: nullableUpper(raw.area), comision: nullableUpper(raw.comision), ugel: nullableUpper(raw.ugel) ?? "UGEL 06", rei: nullableUpper(raw.rei) ?? "SIN REI", rol: clean(raw.rol).toLowerCase(), can_create_monitoreo: raw.can_create_monitoreo === true };
+      const normalizedRei = normalizeRei(raw.rei);
+      row.rei = normalizedRei ?? "SIN REI";
+      const institutionalCode = normalizeInstitutionalCode(raw.codigo_institucional);
+      row.codigo_institucional = institutionalCode || null;
+      const institution = institutionByCode.get(institutionalCode);
       const temporaryPassword = generateTemporaryPassword(row.apellido_paterno);
       let status: "created" | "skipped" | "error" = "error";
       let message = "";
@@ -151,6 +177,12 @@ serve(async (req) => {
       else if (!row.correo.endsWith("@ugel06.gob.pe") || row.correo.startsWith("@")) message = "Correo institucional inválido";
       else if (!roles.has(row.rol)) message = "Rol inexistente o inactivo";
       else if (!validIsoDate(row.fecha_nacimiento)) message = "Fecha inválida; usa AAAA-MM-DD";
+      else if (normalizedRei === null) message = "REI inválida; usa 01 a 19 o SIN REI";
+      else if (row.rol === "director_iiee" && !institutionalCode) message = "Código institucional obligatorio para Director IIEE";
+      else if (row.rol === "director_iiee" && !/^\d{8}$/.test(institutionalCode)) message = "Código institucional debe tener exactamente 8 dígitos";
+      else if (row.rol === "director_iiee" && !institution) message = "Código institucional no registrado";
+      else if (row.rol === "director_iiee" && !institution?.isPublic) message = "El código institucional no pertenece a un colegio público";
+      else if (row.rol !== "director_iiee" && institutionalCode) message = "Código institucional solo corresponde al rol Director IIEE";
       else if (!isStrongPassword(temporaryPassword)) message = "No se pudo generar una contraseña temporal segura";
       else if (existingEmails.has(row.correo)) { status = "skipped"; message = "Correo ya registrado"; }
       else if (existingDocuments.has(row.numero_documento)) { status = "skipped"; message = "Documento ya registrado"; }
@@ -162,11 +194,24 @@ serve(async (req) => {
           const profile = { id: createdUserId, correo: row.correo, email: row.correo, email_login: row.correo, tipo_documento: row.tipo_documento, numero_documento: row.numero_documento, apellido_paterno: row.apellido_paterno, apellido_materno: row.apellido_materno, nombres: row.nombres, telefono: row.telefono, fecha_nacimiento: row.fecha_nacimiento, cargo: row.cargo, area: row.area, comision: row.comision, ugel: row.ugel, rei: row.rei, can_create_monitoreo: row.can_create_monitoreo ?? false, role: row.rol, must_change_password: true, updated_at: new Date().toISOString() };
           const { error: profileError } = await admin.from("profiles").upsert(profile, { onConflict: "id" });
           if (profileError) { await admin.auth.admin.deleteUser(createdUserId).catch(() => {}); createdUserId = null; message = `No se pudo guardar el perfil: ${profileError.message}`; }
-          else { status = "created"; message = "Usuario creado con contraseña temporal"; existingEmails.add(row.correo); existingDocuments.add(row.numero_documento); }
+          else {
+            const assignmentError = row.rol === "director_iiee"
+              ? (await admin.from("director_iiee_institucion").upsert({ user_id: createdUserId, codigo_institucional: institutionalCode, assigned_by: authData.user.id, updated_at: new Date().toISOString() }, { onConflict: "user_id" })).error
+              : null;
+            if (assignmentError) {
+              await admin.auth.admin.deleteUser(createdUserId).catch(() => {});
+              createdUserId = null;
+              message = `No se pudo asignar el colegio: ${assignmentError.message}`;
+            } else {
+              status = "created";
+              message = row.rol === "director_iiee" ? `Usuario creado y asignado a ${institution?.name ?? institutionalCode}` : "Usuario creado con contraseña temporal";
+              existingEmails.add(row.correo); existingDocuments.add(row.numero_documento);
+            }
+          }
         }
       }
-      const result = { source_row: row.source_row, correo: row.correo, numero_documento: row.numero_documento, nombres: row.nombres, status, message, ...(status === "created" ? { temporary_password: temporaryPassword } : {}) };
-      await admin.from("user_import_row").upsert({ job_id: jobId, source_row: row.source_row, correo: row.correo, numero_documento: row.numero_documento, input_data: { nombres: row.nombres, apellido_paterno: row.apellido_paterno, apellido_materno: row.apellido_materno, rol: row.rol }, status, message, created_user_id: createdUserId }, { onConflict: "job_id,source_row" });
+      const result = { source_row: row.source_row, correo: row.correo, numero_documento: row.numero_documento, nombres: row.nombres, codigo_institucional: row.codigo_institucional, institucion_nombre: institution?.name ?? null, status, message, ...(status === "created" ? { temporary_password: temporaryPassword } : {}) };
+      await admin.from("user_import_row").upsert({ job_id: jobId, source_row: row.source_row, correo: row.correo, numero_documento: row.numero_documento, input_data: { nombres: row.nombres, apellido_paterno: row.apellido_paterno, apellido_materno: row.apellido_materno, rol: row.rol, codigo_institucional: row.codigo_institucional, institucion_nombre: institution?.name ?? null }, status, message, created_user_id: createdUserId }, { onConflict: "job_id,source_row" });
       results.push(result);
     }
     return json({ ok: true, items: results }, origin);
