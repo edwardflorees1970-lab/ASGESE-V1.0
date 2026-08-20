@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabaseClient";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { IconButton as UiIconButton } from "../components/ui/IconButton";
 import { UserImportDialog } from "../components/UserImportDialog";
+import { DirectorPlazasDialog } from "../components/DirectorPlazasDialog";
 import { isStrongPassword, normalizeRei } from "../lib/userImport";
 
 
@@ -266,6 +267,7 @@ export function UsersPage() {
   // Modals & actions
   const [openCreate, setOpenCreate] = useState(false);
   const [openImport, setOpenImport] = useState(false);
+  const [openPlazas, setOpenPlazas] = useState(false);
   const [createForm, setCreateForm] = useState<AdminCreateUserInput>(
     emptyCreateForm
   );
@@ -589,7 +591,9 @@ export function UsersPage() {
               {loading ? "Actualizando..." : "Actualizar"}
             </Button>
             {canManageUsers && (
-              <><Button variant="ghost" onClick={() => setOpenImport(true)} disabled={availableRoles.length === 0}>
+              <><Button variant="ghost" onClick={() => setOpenPlazas(true)}>
+                Plazas Director IIEE
+              </Button><Button variant="ghost" onClick={() => setOpenImport(true)} disabled={availableRoles.length === 0}>
                 Importar Excel
               </Button><Button
                 onClick={() => {
@@ -938,7 +942,7 @@ export function UsersPage() {
                   value={createForm.rol ?? "user"}
                   onChange={(e) => setCreateForm((s) => ({ ...s, rol: e.target.value as any }))}
                 >
-                  {availableRoles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                  {availableRoles.filter((item) => item.code !== "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </Select>
               </Field>
             </div>
@@ -1137,11 +1141,12 @@ export function UsersPage() {
               <Field label="Rol">
                 <Select
                   value={editUser.rol}
+                  disabled={editUser.rol === "director_iiee"}
                   onChange={(e) =>
                     setEditUser((s) => (s ? { ...s, rol: e.target.value as any } : s))
                   }
                 >
-                  {availableRoles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                  {availableRoles.filter((item) => item.code !== "director_iiee" || editUser.rol === "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </Select>
               </Field>
             </div>
@@ -1177,6 +1182,7 @@ export function UsersPage() {
               <Field label="REI">
                 <Select
                   value={editUser.rei ?? "SIN REI"}
+                  disabled={editUser.rol === "director_iiee"}
                   onChange={(e) =>
                     setEditUser((s) => (s ? { ...s, rei: e.target.value } : s))
                   }
@@ -1222,9 +1228,10 @@ export function UsersPage() {
             </div>
 
             <div className="md:col-span-6">
-              <Field label="Correo">
+              <Field label={editUser.rol === "director_iiee" ? "Alias de acceso (definido por la plaza)" : "Correo"}>
                 <Input
                   value={editUser.correo}
+                  disabled={editUser.rol === "director_iiee"}
                   onChange={(e) =>
                     setEditUser((s) => (s ? { ...s, correo: e.target.value } : s))
                   }
@@ -1371,6 +1378,9 @@ export function UsersPage() {
           onClose={() => setOpenImport(false)}
           onComplete={() => { setPage(1); void load(); }}
         />
+      )}
+      {canManageUsers && openPlazas && (
+        <DirectorPlazasDialog onClose={() => setOpenPlazas(false)} />
       )}
     </div>
   );

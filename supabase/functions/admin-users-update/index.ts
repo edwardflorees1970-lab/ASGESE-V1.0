@@ -136,6 +136,19 @@ serve(async (req) => {
     const nextRole = body.role ?? body.rol ?? undefined;
     const updates: Record<string, unknown> = {};
 
+    const { data: currentProfile, error: currentProfileError } = await supaAdmin
+      .from("profiles")
+      .select("role,correo,rei")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentProfileError || !currentProfile) return json({ error: "El perfil no existe" }, origin, 404);
+    if (nextRole === "director_iiee" && currentProfile.role !== "director_iiee") {
+      return json({ error: "Director IIEE debe crearse desde una plaza y la carga Excel" }, origin, 400);
+    }
+    if (currentProfile.role === "director_iiee" && nextRole && nextRole !== "director_iiee") {
+      return json({ error: "Para cambiar el rol de un Director IIEE primero debe cerrarse su asignación de plaza" }, origin, 400);
+    }
+
     const rei = body.rei === undefined ? undefined : normalizeRei(body.rei);
     if (rei === null) return json({ error: "rei debe ser 01 a 19 o SIN REI" }, origin, 400);
 
@@ -159,8 +172,13 @@ serve(async (req) => {
     put("area", body.area);
     put("comision", body.comision);
     put("ugel", body.ugel);
-    put("rei", rei);
-    put("can_create_monitoreo", body.can_create_monitoreo);
+    if (currentProfile.role === "director_iiee") {
+      if (rei !== undefined && rei !== currentProfile.rei) return json({ error: "La REI del Director IIEE proviene de su plaza" }, origin, 400);
+      put("can_create_monitoreo", false);
+    } else {
+      put("rei", rei);
+      put("can_create_monitoreo", body.can_create_monitoreo);
+    }
 
     let previousAuthEmail: string | null = null;
     let updatedAuthEmail = false;
@@ -168,6 +186,9 @@ serve(async (req) => {
     if (body.correo !== undefined && body.correo !== null) {
       const correo = String(body.correo).trim().toLowerCase();
       if (!correo.endsWith("@ugel06.gob.pe")) return json({ error: "Solo correos @ugel06.gob.pe" }, origin, 400);
+      if (currentProfile.role === "director_iiee" && correo !== String(currentProfile.correo ?? "").toLowerCase()) {
+        return json({ error: "El alias del Director IIEE proviene de su plaza" }, origin, 400);
+      }
 
       const { data: authUserData, error: authUserError } = await supaAdmin.auth.admin.getUserById(id);
       if (authUserError || !authUserData.user) {

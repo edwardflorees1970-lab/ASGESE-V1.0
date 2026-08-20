@@ -383,7 +383,9 @@ function getNivelesByModalidades(mods: string[]) {
 export function GestionMonitoreosPage() {
   const { profile, user } = useAuth();
   const role = profile?.role ?? "user";
-  const canCreate = role !== "user" || !!profile?.can_create_monitoreo;
+  const canCreate = role === "director_iiee"
+    ? false
+    : role !== "user" || !!profile?.can_create_monitoreo;
   const canApproveLv1 = role === "jefe_area" || role === "director" || role === "admin";
   const canReject = role === "jefe_area" || role === "admin";
   const isAdmin = role === "admin";
