@@ -139,6 +139,7 @@ serve(async (req) => {
     if (rei === null) return bad(origin, "rei debe ser 01 a 19 o SIN REI");
     const { data: validRole, error: roleError } = await supaAdmin.from("app_role").select("code").eq("code", role).eq("is_active", true).maybeSingle();
     if (roleError || !validRole) return bad(origin, "Rol no permitido");
+    if (role === "director_iiee") return bad(origin, "Los Directores IIEE deben crearse ocupando una plaza mediante la carga Excel");
 
     const { data: created, error: createErr } = await supaAdmin.auth.admin.createUser({
       email: correo,
