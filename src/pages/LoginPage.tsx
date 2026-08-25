@@ -170,10 +170,10 @@ export function LoginPage() {
         <div className="relative">
           <div className="flex items-center gap-4">
             <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white shadow-xl">
-              <img src={logoAgebreUrl} alt="AGEBRE" className="h-12 w-12 object-contain" />
+              <img src={logoAgebreUrl} alt="ASGESE" className="h-12 w-12 object-contain" />
             </div>
             <div>
-              <p className="text-xl font-extrabold tracking-[0.04em] text-white">AGEBRE</p>
+              <p className="text-xl font-extrabold tracking-[0.04em] text-white">ASGESE</p>
               <p className="login-brand-accent text-[11px] font-semibold uppercase tracking-[0.2em]">Monitoreo integral</p>
             </div>
           </div>
@@ -204,10 +204,10 @@ export function LoginPage() {
         <div className="w-full max-w-md">
           <div className="mb-4 flex items-center gap-2.5 lg:hidden">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-white shadow-sm">
-              <img src={logoAgebreUrl} alt="AGEBRE" className="h-9 w-9 object-contain" />
+              <img src={logoAgebreUrl} alt="ASGESE" className="h-9 w-9 object-contain" />
             </div>
             <div>
-              <p className="text-base font-bold tracking-[0.025em] text-[var(--app-text)]">AGEBRE</p>
+              <p className="text-base font-bold tracking-[0.025em] text-[var(--app-text)]">ASGESE</p>
               <p className="text-[9px] font-semibold uppercase tracking-[0.17em] text-[var(--app-accent)]">UGEL 06</p>
             </div>
           </div>
@@ -291,7 +291,7 @@ export function LoginPage() {
           </div>
 
           <div className="mt-4 border-t border-[var(--app-border)] pt-2 text-center text-[9px] leading-4 text-[var(--app-muted-2)] lg:mt-7 lg:pt-4 lg:text-[10px] lg:leading-5">
-            <p>Acceso exclusivo para usuarios autorizados · AGEBRE 2026</p>
+            <p>Acceso exclusivo para usuarios autorizados · ASGESE 2026</p>
             <p className="mt-1">Ing. Alex Alberto Quispe Pillaca · Ing. Diego Axel Arce Muñoz</p>
             <p>Propietario UGEL 06®</p>
           </div>
