@@ -2370,7 +2370,7 @@ export function GestionMonitoreosPage() {
             <div className="management-hero-icon shrink-0"><ManagementIcon type="manage" /></div>
             <div className="min-w-0">
               <div className="management-eyebrow">Control operativo</div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-[1.7rem]">Gestión de Monitoreos</h1>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-[1.7rem]">Crear Monitoreo</h1>
               <p className="mt-1 text-sm text-[var(--app-muted)]">
                 Crea solicitudes, configura fichas y gestiona su publicación.
               </p>

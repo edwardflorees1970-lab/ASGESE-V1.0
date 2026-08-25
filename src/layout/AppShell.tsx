@@ -123,7 +123,7 @@ export function AppShell() {
     : location.pathname.includes("reportes-analiticos")
       ? "Reportes analíticos"
       : location.pathname.includes("gestion-monitoreos")
-        ? "Gestión de monitoreos"
+        ? "Crear Monitoreo"
         : location.pathname.includes("indicadores-cdd")
           ? "Indicadores CdD"
           : location.pathname.includes("operaciones")
@@ -197,7 +197,7 @@ export function AppShell() {
         {canViewModule("gestion_monitoreos") && !isResponsableCdD && (
           <Item
             to="/app/gestion-monitoreos"
-            label={"Gesti\u00f3n de Monitoreos"}
+            label={"Crear Monitoreo"}
             icon={<FormIcon />}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
