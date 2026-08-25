@@ -645,7 +645,7 @@ export function UsersPage() {
                 <Input
                   value={areaInput}
                   onChange={(e) => setAreaInput(e.target.value)}
-                  placeholder="AGEBRE..."
+                  placeholder="ASGESE..."
                 />
               </Field>
             </div>

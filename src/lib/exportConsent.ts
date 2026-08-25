@@ -1,7 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { captureTelemetry } from "./telemetry";
 
-export const EXPORT_NOTICE_VERSION = "AGEBRE-DATA-EXPORT-2026-08";
+export const EXPORT_NOTICE_VERSION = "ASGESE-DATA-EXPORT-2026-08";
 
 type ExportConsentInput = {
   exportKind: "view" | "csv" | "xlsx" | "pdf";

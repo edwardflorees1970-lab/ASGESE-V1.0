@@ -64,14 +64,36 @@ const legacyModulesByRole: Record<string, string[]> = {
   user: ["inicio", "monitoreo", "reportes", "reportes_analiticos", "instituciones"],
 };
 
+// PREVISUALIZACION LOCAL: activada con VITE_LOCAL_PREVIEW=true, sin backend real.
+// Solo para navegar el UI en localhost mientras no hay Supabase conectado. Quitar antes de producción.
+const LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === "true";
+const LOCAL_PREVIEW_PROFILE: Profile = {
+  id: "local-preview-user",
+  email: "preview@local.test",
+  correo: "preview@local.test",
+  role: "admin",
+  nombres: "Vista Previa",
+  apellido_paterno: "Local",
+  apellido_materno: "",
+  numero_documento: "00000000",
+  tipo_documento: "DNI",
+  area: null,
+  ugel: null,
+  rei: null,
+  can_create_monitoreo: true,
+  must_change_password: false,
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!LOCAL_PREVIEW);
   const [profileLoading, setProfileLoading] = useState(false);
 
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(
+    LOCAL_PREVIEW ? ({ id: LOCAL_PREVIEW_PROFILE.id } as User) : null
+  );
 
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(LOCAL_PREVIEW ? LOCAL_PREVIEW_PROFILE : null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [modulePermissions, setModulePermissions] = useState<Record<string, { canView: boolean; canManage: boolean }>>({});
   const [permissionsRole, setPermissionsRole] = useState<string | null>(null);
@@ -161,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshProfile, userId]);
 
   useEffect(() => {
+    if (LOCAL_PREVIEW) return;
     alive.current = true;
 
     (async () => {

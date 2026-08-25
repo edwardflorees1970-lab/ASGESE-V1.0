@@ -161,7 +161,7 @@ export function AppShell() {
         <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
           <img src={logoAgebreUrl} alt="" className="h-9 w-9 object-contain" />
         </div>
-        {!collapsed && <div className="min-w-0 flex-1"><div className="text-base font-extrabold tracking-[0.04em] text-white">AGEBRE</div><div className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">Monitoreo integral</div></div>}
+        {!collapsed && <div className="min-w-0 flex-1"><div className="text-base font-extrabold tracking-[0.04em] text-white">ASGESE</div><div className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">Monitoreo integral</div></div>}
         {mobile && <button type="button" onClick={onItemClick} className="agebre-shell-icon-button" aria-label="Cerrar menú"><CloseIcon /></button>}
       </div>
 
@@ -300,7 +300,7 @@ export function AppShell() {
         <header className="agebre-topbar flex h-[68px] shrink-0 items-center border-b px-3 sm:px-5">
           <button type="button" onClick={() => setMobileOpen(true)} className="agebre-shell-icon-button mr-2 lg:hidden" aria-label="Abrir menú"><MenuIcon /></button>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--app-muted-2)]"><span>AGEBRE</span><ChevronIcon /><span className="truncate text-[var(--app-muted)]">{pageTitle}</span></div>
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--app-muted-2)]"><span>ASGESE</span><ChevronIcon /><span className="truncate text-[var(--app-muted)]">{pageTitle}</span></div>
             <div className="mt-0.5 truncate text-sm font-bold text-[var(--app-text)] sm:text-base">{pageTitle}</div>
           </div>
 
