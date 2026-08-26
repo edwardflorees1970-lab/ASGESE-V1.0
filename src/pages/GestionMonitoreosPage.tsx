@@ -1310,7 +1310,7 @@ export function GestionMonitoreosPage() {
   };
 
   const toggleTemplateEnabled = async (templateId: string, enabled: boolean) => {
-    if (!selectedId || !canManageInactiveTemplates) return;
+    if (!selectedId || !canEditTemplates) return;
     setTemplateToggleBusyId(templateId);
     try {
       const linked = await getLinkedMonitoreo(selectedId);
@@ -2612,23 +2612,42 @@ export function GestionMonitoreosPage() {
                     ) : (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {templates.map((t) => (
-                          <button
+                          <span
                             key={t.id}
-                            onClick={() => { setSelectedTemplateId(t.id); setShowTemplateDetail(true); }}
-                            className={`rounded-full border px-3 py-1 text-xs ${
+                            className={`inline-flex items-center gap-1 rounded-full border pl-3 pr-1 py-1 text-xs ${
                               selectedTemplateId === t.id
                                 ? "border-[var(--app-accent)] bg-white/10"
                                 : "border-white/10 bg-white/5"
                             }`}
                           >
-                            {t.titulo}
-                            {t.subtitulo ? ` · ${t.subtitulo}` : ""}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedTemplateId(t.id); setShowTemplateDetail(true); }}
+                            >
+                              {t.titulo}
+                              {t.subtitulo ? ` · ${t.subtitulo}` : ""}
+                            </button>
+                            {canEditTemplates && (
+                              <button
+                                type="button"
+                                title="Renombrar ficha"
+                                aria-label={`Renombrar ${t.titulo}`}
+                                onClick={() => {
+                                  setSelectedTemplateId(t.id);
+                                  setShowTemplateDetail(true);
+                                  setActiveStep("encabezado");
+                                }}
+                                className="rounded-full px-1.5 py-0.5 text-white/50 hover:text-white/90"
+                              >
+                                ✎
+                              </button>
+                            )}
+                          </span>
                         ))}
                       </div>
                     )}
                   </div>
-                {canManageInactiveTemplates && templates.length > 0 && (
+                {canEditTemplates && templates.length > 0 && (
                   <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-sm font-semibold">Habilitar / inhabilitar fichas</div>
                     <p className="mt-1 text-xs text-white/50">
