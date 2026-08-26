@@ -2310,21 +2310,45 @@ export function GestionMonitoreosPage() {
                 <div className="min-w-0 flex-1 space-y-4">
               {activeStep === "aprobacion" && (
                 <>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold">{selected.nombre}</div>
-                  <div className="text-xs text-white/60">
-                    {statusLabel(selected.status)}
-                    {selectedExpired ? " • Vencido" : ""}
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-base font-semibold">{selected.nombre}</div>
+                    <div className="mt-1 text-xs text-white/50">Código: SOL-{selected.id.slice(0, 8).toUpperCase()}</div>
                   </div>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+                      selected.status === "approved"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                        : selected.status === "rejected"
+                        ? "border-red-500/30 bg-red-500/10 text-red-100"
+                        : selected.status === "inactive"
+                        ? "border-white/15 bg-white/5 text-white/60"
+                        : "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                    }`}
+                  >
+                    {statusLabel(selected.status)}
+                    {selectedExpired ? " · Vencido" : ""}
+                  </span>
                 </div>
-                <div className="flex flex-wrap items-start gap-3">
-                  <div className="flex flex-wrap gap-2">
+              </div>
+
+              {(canApproveLv1 && selected.status === "pending") ||
+              (isAdmin && selected.status === "approved_lv1") ||
+              (isAdmin && selected.status === "approved") ||
+              isAdmin ||
+              (isAdmin && selected.status === "inactive") ? (
+                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm font-semibold">Acciones</div>
+                  <p className="mt-1 text-xs text-white/50">
+                    Qué puedes hacer con esta solicitud según su estado actual.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {canApproveLv1 && selected.status === "pending" && (
                       <button
                         type="button"
                         onClick={() => approveLv1(selected.id)}
-                        className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100"
+                        className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100"
                       >
                         Aprobar nivel 1
                       </button>
@@ -2333,7 +2357,7 @@ export function GestionMonitoreosPage() {
                       <button
                         type="button"
                         onClick={() => approveFinal(selected.id)}
-                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100"
                       >
                         Aprobar final
                       </button>
@@ -2342,7 +2366,7 @@ export function GestionMonitoreosPage() {
                       <button
                         type="button"
                         onClick={() => inactivateMonitoreo(selected.id)}
-                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                       >
                         Inactivar monitoreo
                       </button>
@@ -2352,7 +2376,7 @@ export function GestionMonitoreosPage() {
                         type="button"
                         onClick={() => setRebuildIeOpen(true)}
                         disabled={rebuildIeBusy}
-                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                       >
                         {rebuildIeBusy ? "Reaplicando..." : "Reaplicar filtros IE"}
                       </button>
@@ -2361,75 +2385,81 @@ export function GestionMonitoreosPage() {
                       <button
                         type="button"
                         onClick={() => reactivateMonitoreo(selected.id)}
-                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100"
                       >
                         Reactivar monitoreo
                       </button>
                     )}
                   </div>
-                  {(canReject && selected.status === "pending") ||
-                  (isAdmin && (selected.status === "approved" || selected.status === "inactive")) ||
-                  (isAdmin && (selected.status === "pending" || selected.status === "rejected")) ? (
-                    <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-2">
-                      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-200/80">
-                        Zona de riesgo
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {canReject && selected.status === "pending" && (
-                          <button
-                            type="button"
-                            onClick={() => rejectSolicitud(selected.id)}
-                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
-                          >
-                            Rechazar
-                          </button>
-                        )}
-                        {isAdmin && (selected.status === "approved" || selected.status === "inactive") && (
-                          <button
-                            type="button"
-                            onClick={() => openDeleteMonitoreoDialog(selected.id)}
-                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
-                          >
-                            Eliminar monitoreo
-                          </button>
-                        )}
-                        {isAdmin && (selected.status === "pending" || selected.status === "rejected") && (
-                          <button
-                            type="button"
-                            onClick={() => deleteSolicitud(selected.id)}
-                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
-                          >
-                            Eliminar solicitud
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
-              </div>
+              ) : null}
+
               {isAdmin && selected.status === "approved" && selectedExpired && (
-                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-                  <div className="text-xs text-amber-100">
-                    Monitoreo vencido. Para habilitarlo, define una nueva fecha de vencimiento (Ampliación).
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                  <div className="text-sm font-semibold text-amber-100">Monitoreo vencido</div>
+                  <p className="mt-1 text-xs text-amber-100/80">
+                    Define una nueva fecha de vencimiento para volver a habilitarlo.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <input
                       type="date"
                       value={extendFechaFin}
                       onChange={(e) => setExtendFechaFin(e.target.value)}
-                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs"
+                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs"
                     />
                     <button
                       type="button"
                       onClick={() => extendMonitoreo(selected.id)}
                       disabled={extendBusy}
-                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100 disabled:opacity-50"
+                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 disabled:opacity-50"
                     >
                       {extendBusy ? "Guardando..." : "Aplicar ampliación"}
                     </button>
                   </div>
                 </div>
               )}
+
+              {(canReject && selected.status === "pending") ||
+              (isAdmin && (selected.status === "approved" || selected.status === "inactive")) ||
+              (isAdmin && (selected.status === "pending" || selected.status === "rejected")) ? (
+                <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-red-200/80">
+                    Zona de riesgo
+                  </div>
+                  <p className="mt-1 text-xs text-red-100/70">
+                    Estas acciones no se pueden deshacer.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {canReject && selected.status === "pending" && (
+                      <button
+                        type="button"
+                        onClick={() => rejectSolicitud(selected.id)}
+                        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-100"
+                      >
+                        Rechazar solicitud
+                      </button>
+                    )}
+                    {isAdmin && (selected.status === "approved" || selected.status === "inactive") && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteMonitoreoDialog(selected.id)}
+                        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-100"
+                      >
+                        Eliminar monitoreo
+                      </button>
+                    )}
+                    {isAdmin && (selected.status === "pending" || selected.status === "rejected") && (
+                      <button
+                        type="button"
+                        onClick={() => deleteSolicitud(selected.id)}
+                        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-100"
+                      >
+                        Eliminar solicitud
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
                 </>
               )}
 
