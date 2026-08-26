@@ -6,6 +6,7 @@ const {
   getSession,
   onAuthStateChange,
   signOut,
+  signInWithPassword,
   rpc,
   fromMock,
   maybeSingle,
@@ -15,6 +16,7 @@ const {
   getSession: vi.fn(),
   onAuthStateChange: vi.fn(),
   signOut: vi.fn(),
+  signInWithPassword: vi.fn(),
   rpc: vi.fn(),
   fromMock: vi.fn(),
   maybeSingle: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock("../lib/supabaseClient", () => ({
       getSession,
       onAuthStateChange,
       signOut,
+      signInWithPassword,
     },
     rpc,
     from: fromMock,
@@ -83,6 +86,7 @@ describe("AuthProvider", () => {
 
     rpc.mockResolvedValue({ data: [], error: null });
     maybeSingle.mockResolvedValue({ data: SAMPLE_PROFILE, error: null });
+    signInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: null });
   });
 
   afterEach(() => {
@@ -239,7 +243,7 @@ describe("AuthProvider", () => {
     });
   });
 
-  describe("VITE_LOCAL_PREVIEW dev-bypass gate", () => {
+  describe("VITE_LOCAL_PREVIEW dev auto-login gate", () => {
     it("no-ops (uses the real Supabase session flow) when the env var is unset", async () => {
       vi.stubEnv("VITE_LOCAL_PREVIEW", undefined as unknown as string);
       getSession.mockResolvedValue({ data: { session: null }, error: null });
@@ -247,7 +251,7 @@ describe("AuthProvider", () => {
       const { getValue } = await renderProvider();
 
       await waitFor(() => expect(getSession).toHaveBeenCalledTimes(1));
-      // Real flow: no fake "local-preview-user" is granted.
+      expect(signInWithPassword).not.toHaveBeenCalled();
       expect(getValue().user).toBeNull();
       expect(getValue().profile).toBeNull();
     });
@@ -259,22 +263,66 @@ describe("AuthProvider", () => {
       const { getValue } = await renderProvider();
 
       await waitFor(() => expect(getSession).toHaveBeenCalledTimes(1));
+      expect(signInWithPassword).not.toHaveBeenCalled();
       expect(getValue().user).toBeNull();
     });
 
-    it("bypasses real auth and grants a synthetic admin profile only when set to 'true'", async () => {
+    it("signs in with the dedicated preview account when 'true' and no session exists yet", async () => {
       vi.stubEnv("VITE_LOCAL_PREVIEW", "true");
-      // Even if getSession were called, ensure it's not driving the result.
+      vi.stubEnv("VITE_LOCAL_PREVIEW_EMAIL", "dev-preview@asgese.local");
+      vi.stubEnv("VITE_LOCAL_PREVIEW_PASSWORD", "test-password-not-real");
+
+      // First getSession call (pre-login check) finds nothing; after the
+      // mocked sign-in, the second getSession call (the normal flow's own
+      // check) returns the real session it produced.
+      const previewSession = { user: { id: "preview-user-1" } };
+      getSession
+        .mockResolvedValueOnce({ data: { session: null }, error: null })
+        .mockResolvedValueOnce({ data: { session: previewSession }, error: null });
+      signInWithPassword.mockResolvedValue({ data: { session: previewSession, user: previewSession.user }, error: null });
+      maybeSingle.mockResolvedValue({
+        data: { ...SAMPLE_PROFILE, id: "preview-user-1", role: "admin" },
+        error: null,
+      });
+
+      const { getValue } = await renderProvider();
+
+      await waitFor(() => expect(signInWithPassword).toHaveBeenCalledWith({
+        email: "dev-preview@asgese.local",
+        password: "test-password-not-real",
+      }));
+      await waitFor(() => expect(getValue().user?.id).toBe("preview-user-1"));
+      await waitFor(() => expect(getValue().profile?.role).toBe("admin"));
+    });
+
+    it("does not attempt sign-in when a real session already exists", async () => {
+      vi.stubEnv("VITE_LOCAL_PREVIEW", "true");
+      vi.stubEnv("VITE_LOCAL_PREVIEW_EMAIL", "dev-preview@asgese.local");
+      vi.stubEnv("VITE_LOCAL_PREVIEW_PASSWORD", "test-password-not-real");
+
+      const existingSession = { user: { id: "already-logged-in" } };
+      getSession.mockResolvedValue({ data: { session: existingSession }, error: null });
+
+      const { getValue } = await renderProvider();
+
+      await waitFor(() => expect(getValue().user?.id).toBe("already-logged-in"));
+      expect(signInWithPassword).not.toHaveBeenCalled();
+    });
+
+    it("warns and falls through to the normal (logged-out) flow when credentials are missing", async () => {
+      vi.stubEnv("VITE_LOCAL_PREVIEW", "true");
+      vi.stubEnv("VITE_LOCAL_PREVIEW_EMAIL", undefined as unknown as string);
+      vi.stubEnv("VITE_LOCAL_PREVIEW_PASSWORD", undefined as unknown as string);
       getSession.mockResolvedValue({ data: { session: null }, error: null });
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const { getValue } = await renderProvider();
 
       await waitFor(() => expect(getValue().loading).toBe(false));
-
-      // The bypass path never touches Supabase auth at all.
-      expect(getSession).not.toHaveBeenCalled();
-      expect(getValue().user?.id).toBe("local-preview-user");
-      expect(getValue().profile?.role).toBe("admin");
+      expect(signInWithPassword).not.toHaveBeenCalled();
+      expect(getValue().user).toBeNull();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("faltan VITE_LOCAL_PREVIEW_EMAIL"));
+      warnSpy.mockRestore();
     });
   });
 });
