@@ -24,10 +24,6 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles, requireModu
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (profileLoading && !profile) {
-    return <div className="agebre-app-shell grid min-h-screen place-items-center"><div className="agebre-surface px-5 py-4 text-sm text-[var(--app-muted)]">Validando perfil...</div></div>;
-  }
-
   if (profile?.must_change_password) {
     return <Navigate to="/setup-password" replace />;
   }
