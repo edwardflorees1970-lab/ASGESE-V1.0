@@ -154,7 +154,7 @@ export function GestionMonitoreosPage() {
   const [previewData, setPreviewData] = useState<Record<string, any>>({});
   const [showTemplateDetail, setShowTemplateDetail] = useState(true);
   const [activeStep, setActiveStep] = useState<
-    "datos" | "aprobacion" | "fichas" | "estructura" | "preview"
+    "datos" | "aprobacion" | "fichas" | "encabezado" | "preguntas" | "preview"
   >("datos");
   const skipNextStepResetRef = useRef(false);
   const [solicitudDetailModal, setSolicitudDetailModal] = useState<Solicitud | null>(null);
@@ -247,10 +247,15 @@ export function GestionMonitoreosPage() {
         status: statusFor("fichas", templates.length > 0),
       },
       {
-        id: "estructura",
-        label: "Estructura de la ficha",
+        id: "encabezado",
+        label: "Encabezado y cierre",
+        status: statusFor("encabezado", !!selectedTemplateId),
+      },
+      {
+        id: "preguntas",
+        label: "Secciones y preguntas",
         status: statusFor(
-          "estructura",
+          "preguntas",
           !!selectedTemplateId && sections.length > 0 && questions.length > 0
         ),
       },
@@ -1299,7 +1304,7 @@ export function GestionMonitoreosPage() {
       }
     }
     loadTemplates(selectedId);
-    setActiveStep("estructura");
+    setActiveStep("encabezado");
   };
 
   const toggleTemplateEnabled = async (templateId: string, enabled: boolean) => {
@@ -2713,13 +2718,13 @@ export function GestionMonitoreosPage() {
               </div>
                 )}
 
-                {activeStep === "estructura" && (
+                {activeStep === "encabezado" && (
                 <>
                 {!selectedTemplateId && (
                   <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
                     <div className="text-sm font-semibold">Primero elige o crea una ficha</div>
                     <p className="mt-1 text-xs text-white/60">
-                      La estructura (encabezado, secciones y preguntas) se configura dentro de una ficha.
+                      El encabezado y cierre se configuran dentro de una ficha.
                     </p>
                     <button
                       type="button"
@@ -2744,7 +2749,7 @@ export function GestionMonitoreosPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {selectedTemplateId && showTemplateDetail && (
                   <div>
                     <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -3035,7 +3040,45 @@ export function GestionMonitoreosPage() {
                         ))}
                       </div>
                     </div>
+                  </div>
+                )}
+                </>
+                )}
 
+                {activeStep === "preguntas" && (
+                <>
+                {!selectedTemplateId && (
+                  <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
+                    <div className="text-sm font-semibold">Primero elige o crea una ficha</div>
+                    <p className="mt-1 text-xs text-white/60">
+                      Las secciones y preguntas se configuran dentro de una ficha.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveStep("fichas")}
+                      className="mt-3 rounded-lg border border-[var(--app-accent)] bg-white/5 px-3 py-1.5 text-xs font-semibold text-[var(--app-accent)]"
+                    >
+                      Ir a Fichas
+                    </button>
+                  </div>
+                )}
+                {selectedTemplateId && !showTemplateDetail && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold">Ficha seleccionada</div>
+                      <button
+                        type="button"
+                        onClick={() => setShowTemplateDetail(true)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                      >
+                        Abrir ficha
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTemplateId && showTemplateDetail && (
+                  <div>
                     <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
                       <div className="text-sm font-semibold">Secciones</div>
                       <div className="mt-2 flex flex-wrap gap-2">
