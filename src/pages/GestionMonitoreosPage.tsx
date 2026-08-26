@@ -1660,7 +1660,18 @@ export function GestionMonitoreosPage() {
   };
 
   const saveQuestion = async (keepEditing = false) => {
-    if (!selectedTemplateId || !qTexto.trim() || !selectedSectionId) return;
+    if (!selectedTemplateId) {
+      setToast({ type: "err", msg: "Selecciona una plantilla antes de agregar preguntas." });
+      return;
+    }
+    if (!selectedSectionId) {
+      setToast({ type: "err", msg: "Crea o selecciona una sección antes de agregar preguntas." });
+      return;
+    }
+    if (!qTexto.trim()) {
+      setToast({ type: "err", msg: "Escribe el texto de la pregunta." });
+      return;
+    }
     const config: any = {};
     if (qTipo === "yes_no_nivel") {
       config.levels = qNiveles;
@@ -1678,7 +1689,7 @@ export function GestionMonitoreosPage() {
     if (qExtraFields.length) config.extra_fields = qExtraFields;
 
     if (editingQuestionId) {
-      await supabase
+      const { error } = await supabase
         .from("form_question")
         .update({
           tipo: qTipo,
@@ -1687,9 +1698,13 @@ export function GestionMonitoreosPage() {
           config_json: Object.keys(config).length ? config : null,
         })
         .eq("id", editingQuestionId);
+      if (error) {
+        setToast({ type: "err", msg: error.message });
+        return;
+      }
     } else {
       const countInSection = questions.filter((x) => x.section_id === selectedSectionId).length;
-      await supabase.from("form_question").insert({
+      const { error } = await supabase.from("form_question").insert({
         template_id: selectedTemplateId,
         section_id: selectedSectionId,
         tipo: qTipo,
@@ -1699,7 +1714,12 @@ export function GestionMonitoreosPage() {
         required: qRequired,
         config_json: Object.keys(config).length ? config : null,
       });
+      if (error) {
+        setToast({ type: "err", msg: error.message });
+        return;
+      }
     }
+    setToast({ type: "ok", msg: editingQuestionId ? "Pregunta actualizada." : "Pregunta guardada." });
     if (keepEditing) {
       setQTexto("");
       setQOpciones("");
