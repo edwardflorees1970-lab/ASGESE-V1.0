@@ -2503,7 +2503,7 @@ export function GestionMonitoreosPage() {
                   />
                 </div>
                 <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div className="text-xs text-white/60">Filtros</div>
+                  <div className="text-sm font-semibold">Filtros</div>
                   <div className="mt-1 text-[11px] text-white/45">
                     ¿A qué tipo de instituciones aplica este monitoreo?
                   </div>
@@ -2586,34 +2586,55 @@ export function GestionMonitoreosPage() {
                   </div>
                 </div>
               )}
+              {!canOwnerOrAdmin && (
+                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-white/60">
+                  No tienes permiso para editar esta solicitud.
+                </div>
+              )}
                 </>
               )}
 
               <div className="mt-4 grid gap-4">
                 {activeStep === "fichas" && (
                 <div>
-                  <div className="text-sm font-semibold">Fichas</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {templates.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => { setSelectedTemplateId(t.id); setShowTemplateDetail(true); }}
-                      className={`rounded-full border px-3 py-1 text-xs ${
-                        selectedTemplateId === t.id
-                          ? "border-[var(--app-accent)] bg-white/10"
-                          : "border-white/10 bg-white/5"
-                      }`}
-                    >
-                      {t.titulo}
-                      {t.subtitulo ? ` · ${t.subtitulo}` : ""}
-                    </button>
-                  ))}
-                </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-sm font-semibold">Fichas</div>
+                    <p className="mt-1 text-xs text-white/50">
+                      Elige la ficha que quieres configurar, o crea una nueva.
+                    </p>
+                    {templates.length === 0 ? (
+                      <div className="mt-3 rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
+                        <div className="text-sm font-semibold">Aún no hay fichas</div>
+                        <p className="mt-1 text-xs text-white/60">
+                          Crea la primera abajo.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {templates.map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => { setSelectedTemplateId(t.id); setShowTemplateDetail(true); }}
+                            className={`rounded-full border px-3 py-1 text-xs ${
+                              selectedTemplateId === t.id
+                                ? "border-[var(--app-accent)] bg-white/10"
+                                : "border-white/10 bg-white/5"
+                            }`}
+                          >
+                            {t.titulo}
+                            {t.subtitulo ? ` · ${t.subtitulo}` : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 {canManageInactiveTemplates && templates.length > 0 && (
-                  <div className="mt-2 grid gap-2">
-                    <p className="text-xs text-white/50">
+                  <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-sm font-semibold">Habilitar / inhabilitar fichas</div>
+                    <p className="mt-1 text-xs text-white/50">
                       Una ficha inhabilitada no aparece para los monitores en campo.
                     </p>
+                    <div className="mt-2 grid gap-2">
                     {templates.map((t) => (
                       <label
                         key={`toggle-${t.id}`}
@@ -2634,11 +2655,17 @@ export function GestionMonitoreosPage() {
                         </span>
                       </label>
                     ))}
+                    </div>
                   </div>
                 )}
 
                 {canEditTemplates && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-sm font-semibold">Nueva ficha</div>
+                    <p className="mt-1 text-xs text-white/50">
+                      Crea una ficha en blanco, o reutiliza una existente como punto de partida.
+                    </p>
+                    <div className="mt-3 space-y-3">
                     <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_140px_140px_120px]">
                       <input
                         className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
@@ -2668,7 +2695,7 @@ export function GestionMonitoreosPage() {
                     </div>
 
                     <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-                      <div className="text-xs font-semibold text-white/80">Crear desde template existente</div>
+                      <div className="text-sm font-semibold">Crear desde template existente</div>
                       <div className="mt-2 space-y-2">
                         <input
                           className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
@@ -2752,6 +2779,7 @@ export function GestionMonitoreosPage() {
                         </button>
                       </div>
                     </div>
+                  </div>
                   </div>
                 )}
               </div>
@@ -3037,7 +3065,8 @@ export function GestionMonitoreosPage() {
                           )}
                         </div>
                       </div>
-                      <p className="mt-4 text-xs text-white/50">
+                      <div className="mt-4 text-sm font-semibold">Cierre de la ficha</div>
+                      <p className="mt-1 text-xs text-white/50">
                         Marca los datos que van impresos al final de la ficha (firmas, compromisos, etc.).
                       </p>
                       <div className="mt-2 grid gap-3 md:grid-cols-2">
@@ -3162,15 +3191,17 @@ export function GestionMonitoreosPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Preguntas</div>
-                      <button
-                        type="button"
-                        onClick={() => setShowTemplateDetail(false)}
-                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80"
-                      >
-                        Cerrar ficha
-                      </button>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Preguntas</div>
+                        <button
+                          type="button"
+                          onClick={() => setShowTemplateDetail(false)}
+                          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80"
+                        >
+                          Cerrar ficha
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-2 space-y-2">
                       {sections.map((s) => (
@@ -3393,7 +3424,7 @@ export function GestionMonitoreosPage() {
                           Incluir campo Observaciones
                         </label>
                         <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                          <div className="text-xs text-white/60">
+                          <div className="text-sm font-semibold">
                             Campos adicionales por pregunta
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -3581,8 +3612,18 @@ export function GestionMonitoreosPage() {
                     </p>
                   </div>
                   {!selectedTemplateId ? (
-                    <div className="rounded-lg border border-dashed border-white/15 bg-black/20 p-3 text-xs text-white/60">
-                      Selecciona una ficha en el paso "Fichas" para ver su vista previa.
+                    <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
+                      <div className="text-sm font-semibold">Primero elige o crea una ficha</div>
+                      <p className="mt-1 text-xs text-white/60">
+                        Selecciona una ficha en el paso "Fichas" para ver su vista previa.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveStep("fichas")}
+                        className="mt-3 rounded-lg border border-[var(--app-accent)] bg-white/5 px-3 py-1.5 text-xs font-semibold text-[var(--app-accent)]"
+                      >
+                        Ir a Fichas
+                      </button>
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
