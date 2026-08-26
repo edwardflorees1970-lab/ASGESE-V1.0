@@ -157,6 +157,7 @@ export function GestionMonitoreosPage() {
     "datos" | "aprobacion" | "fichas" | "encabezado" | "preguntas" | "preview"
   >("datos");
   const skipNextStepResetRef = useRef(false);
+  const questionFormRef = useRef<HTMLDivElement | null>(null);
   const [solicitudDetailModal, setSolicitudDetailModal] = useState<Solicitud | null>(null);
   const [templateEnabledMap, setTemplateEnabledMap] = useState<Record<string, boolean>>({});
   const [templateToggleBusyId, setTemplateToggleBusyId] = useState<string | null>(null);
@@ -1805,6 +1806,7 @@ export function GestionMonitoreosPage() {
     setQExtraFieldMode("registro");
     setQExtraFieldDefault("");
     setShowQuestionForm(true);
+    requestAnimationFrame(() => questionFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
 
   const deleteQuestion = async (id: string) => {
@@ -3245,6 +3247,7 @@ export function GestionMonitoreosPage() {
                             onClick={() => {
                               resetQuestionForm();
                               setShowQuestionForm(true);
+                              requestAnimationFrame(() => questionFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
                             }}
                             className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
@@ -3271,7 +3274,16 @@ export function GestionMonitoreosPage() {
                         </div>
 
                         {showQuestionForm && (
-                        <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                        <div
+                          ref={questionFormRef}
+                          className="mt-3 space-y-2 rounded-xl border-2 border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_8%,transparent)] p-3 shadow-[0_0_0_4px_color-mix(in_srgb,var(--app-accent)_12%,transparent)]"
+                        >
+                        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--app-accent)]">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--app-accent)] text-[11px] text-white">
+                            {editingQuestionId ? "✎" : "+"}
+                          </span>
+                          {editingQuestionId ? "Editando pregunta" : "Nueva pregunta"}
+                        </div>
                         <div className="grid gap-2 md:grid-cols-2">
                           <select
                             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
