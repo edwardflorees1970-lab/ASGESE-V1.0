@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -34,6 +34,7 @@ import {
   toggleValue,
 } from "./GestionMonitoreos/helpers";
 import { ManagementIcon } from "./GestionMonitoreos/ManagementIcon";
+import { StepNav, type StepNavItem } from "./GestionMonitoreos/StepNav";
 import { PreviewModal } from "./GestionMonitoreos/PreviewModal";
 import { exportPreviewPdf as exportPreviewPdfUtil } from "./GestionMonitoreos/exportPreviewPdf";
 import type {
@@ -152,6 +153,10 @@ export function GestionMonitoreosPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<Record<string, any>>({});
   const [showTemplateDetail, setShowTemplateDetail] = useState(true);
+  const [activeStep, setActiveStep] = useState<
+    "datos" | "aprobacion" | "fichas" | "estructura" | "preview"
+  >("datos");
+  const skipNextStepResetRef = useRef(false);
   const [solicitudDetailModal, setSolicitudDetailModal] = useState<Solicitud | null>(null);
   const [templateEnabledMap, setTemplateEnabledMap] = useState<Record<string, boolean>>({});
   const [templateToggleBusyId, setTemplateToggleBusyId] = useState<string | null>(null);
@@ -225,6 +230,33 @@ export function GestionMonitoreosPage() {
         });
     return rows.slice(0, 7);
   }, [allTemplates, reuseTemplateSearch]);
+
+  const stepItems: StepNavItem[] = useMemo(() => {
+    const statusFor = (id: typeof activeStep, done: boolean): StepNavItem["status"] =>
+      id === activeStep ? "active" : done ? "done" : "pending";
+    return [
+      { id: "datos", label: "Datos y alcance", status: statusFor("datos", true) },
+      {
+        id: "aprobacion",
+        label: "Aprobación",
+        status: statusFor("aprobacion", selected?.status === "approved"),
+      },
+      {
+        id: "fichas",
+        label: "Fichas",
+        status: statusFor("fichas", templates.length > 0),
+      },
+      {
+        id: "estructura",
+        label: "Estructura de la ficha",
+        status: statusFor(
+          "estructura",
+          !!selectedTemplateId && sections.length > 0 && questions.length > 0
+        ),
+      },
+      { id: "preview", label: "Revisar y publicar", status: statusFor("preview", false) },
+    ];
+  }, [activeStep, selected, templates, selectedTemplateId, sections, questions]);
 
   const loadSolicitudes = async () => {
     setLoading(true);
@@ -396,6 +428,15 @@ export function GestionMonitoreosPage() {
   useEffect(() => {
     if (!selectedId) return;
     loadTemplates(selectedId);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (skipNextStepResetRef.current) {
+      skipNextStepResetRef.current = false;
+      return;
+    }
+    setActiveStep("datos");
   }, [selectedId]);
 
   useEffect(() => {
@@ -647,7 +688,9 @@ export function GestionMonitoreosPage() {
     if (!secondaryError) setToast({ type: "ok", msg: "Solicitud creada." });
     resetForm();
     await loadSolicitudes();
+    skipNextStepResetRef.current = true;
     setSelectedId(solicitudId);
+    setActiveStep("aprobacion");
     setSaving(false);
   };
 
@@ -1256,6 +1299,7 @@ export function GestionMonitoreosPage() {
       }
     }
     loadTemplates(selectedId);
+    setActiveStep("estructura");
   };
 
   const toggleTemplateEnabled = async (templateId: string, enabled: boolean) => {
@@ -2108,6 +2152,9 @@ export function GestionMonitoreosPage() {
 
               <div className="management-subpanel rounded-xl border p-3.5">
                 <div className="management-subpanel-title text-xs font-bold">Filtros de alcance</div>
+                <div className="mt-1 text-[11px] text-[var(--app-muted)]">
+                  ¿A qué tipo de instituciones aplica este monitoreo? (opcional: deja vacío para aplicar a todas)
+                </div>
                 <div className="management-filter-groups mt-3 grid grid-cols-2 gap-4 2xl:grid-cols-4">
                   <div>
                     <div className="management-group-title text-xs">Gestión</div>
@@ -2242,6 +2289,17 @@ export function GestionMonitoreosPage() {
 
           {selected && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex flex-col gap-4 md:flex-row">
+                <div className="md:w-[220px] md:shrink-0">
+                  <StepNav
+                    steps={stepItems}
+                    current={activeStep}
+                    onSelect={(id) => setActiveStep(id as typeof activeStep)}
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+              {activeStep === "aprobacion" && (
+                <>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-semibold">{selected.nombre}</div>
@@ -2250,80 +2308,93 @@ export function GestionMonitoreosPage() {
                     {selectedExpired ? " • Vencido" : ""}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {canApproveLv1 && selected.status === "pending" && (
-                    <button
-                      type="button"
-                      onClick={() => approveLv1(selected.id)}
-                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100"
-                    >
-                      Aprobar nivel 1
-                    </button>
-                  )}
-                  {isAdmin && selected.status === "approved_lv1" && (
-                    <button
-                      type="button"
-                      onClick={() => approveFinal(selected.id)}
-                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
-                    >
-                      Aprobar final
-                    </button>
-                  )}
-                  {canReject && selected.status === "pending" && (
-                    <button
-                      type="button"
-                      onClick={() => rejectSolicitud(selected.id)}
-                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
-                    >
-                      Rechazar
-                    </button>
-                  )}
-                  {isAdmin && selected.status === "approved" && (
-                    <button
-                      type="button"
-                      onClick={() => inactivateMonitoreo(selected.id)}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
-                    >
-                      Inactivar monitoreo
-                    </button>
-                  )}
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => setRebuildIeOpen(true)}
-                      disabled={rebuildIeBusy}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
-                    >
-                      {rebuildIeBusy ? "Reaplicando..." : "Reaplicar filtros IE"}
-                    </button>
-                  )}
-                  {isAdmin && selected.status === "inactive" && (
-                    <button
-                      type="button"
-                      onClick={() => reactivateMonitoreo(selected.id)}
-                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
-                    >
-                      Reactivar monitoreo
-                    </button>
-                  )}
-                  {isAdmin && (selected.status === "approved" || selected.status === "inactive") && (
-                    <button
-                      type="button"
-                      onClick={() => openDeleteMonitoreoDialog(selected.id)}
-                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
-                    >
-                      Eliminar monitoreo
-                    </button>
-                  )}
-                  {isAdmin && (selected.status === "pending" || selected.status === "rejected") && (
-                    <button
-                      type="button"
-                      onClick={() => deleteSolicitud(selected.id)}
-                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
-                    >
-                      Eliminar
-                    </button>
-                  )}
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {canApproveLv1 && selected.status === "pending" && (
+                      <button
+                        type="button"
+                        onClick={() => approveLv1(selected.id)}
+                        className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100"
+                      >
+                        Aprobar nivel 1
+                      </button>
+                    )}
+                    {isAdmin && selected.status === "approved_lv1" && (
+                      <button
+                        type="button"
+                        onClick={() => approveFinal(selected.id)}
+                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                      >
+                        Aprobar final
+                      </button>
+                    )}
+                    {isAdmin && selected.status === "approved" && (
+                      <button
+                        type="button"
+                        onClick={() => inactivateMonitoreo(selected.id)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                      >
+                        Inactivar monitoreo
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setRebuildIeOpen(true)}
+                        disabled={rebuildIeBusy}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                      >
+                        {rebuildIeBusy ? "Reaplicando..." : "Reaplicar filtros IE"}
+                      </button>
+                    )}
+                    {isAdmin && selected.status === "inactive" && (
+                      <button
+                        type="button"
+                        onClick={() => reactivateMonitoreo(selected.id)}
+                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                      >
+                        Reactivar monitoreo
+                      </button>
+                    )}
+                  </div>
+                  {(canReject && selected.status === "pending") ||
+                  (isAdmin && (selected.status === "approved" || selected.status === "inactive")) ||
+                  (isAdmin && (selected.status === "pending" || selected.status === "rejected")) ? (
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-2">
+                      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-200/80">
+                        Zona de riesgo
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {canReject && selected.status === "pending" && (
+                          <button
+                            type="button"
+                            onClick={() => rejectSolicitud(selected.id)}
+                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
+                          >
+                            Rechazar
+                          </button>
+                        )}
+                        {isAdmin && (selected.status === "approved" || selected.status === "inactive") && (
+                          <button
+                            type="button"
+                            onClick={() => openDeleteMonitoreoDialog(selected.id)}
+                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
+                          >
+                            Eliminar monitoreo
+                          </button>
+                        )}
+                        {isAdmin && (selected.status === "pending" || selected.status === "rejected") && (
+                          <button
+                            type="button"
+                            onClick={() => deleteSolicitud(selected.id)}
+                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
+                          >
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
               {isAdmin && selected.status === "approved" && selectedExpired && (
@@ -2349,7 +2420,11 @@ export function GestionMonitoreosPage() {
                   </div>
                 </div>
               )}
+                </>
+              )}
 
+              {activeStep === "datos" && (
+                <>
               {canOwnerOrAdmin && (
                 <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
                   <div className="text-sm font-semibold">Editar solicitud</div>
@@ -2389,6 +2464,9 @@ export function GestionMonitoreosPage() {
                 </div>
                 <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
                   <div className="text-xs text-white/60">Filtros</div>
+                  <div className="mt-1 text-[11px] text-white/45">
+                    ¿A qué tipo de instituciones aplica este monitoreo?
+                  </div>
                   <div className="mt-2 grid gap-3 md:grid-cols-4">
                     <div>
                       <div className="text-xs text-white/60">Gestión</div>
@@ -2467,8 +2545,11 @@ export function GestionMonitoreosPage() {
                   </div>
                 </div>
               )}
+                </>
+              )}
 
               <div className="mt-4 grid gap-4">
+                {activeStep === "fichas" && (
                 <div>
                   <div className="text-sm font-semibold">Fichas</div>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -2630,7 +2711,25 @@ export function GestionMonitoreosPage() {
                   </div>
                 )}
               </div>
+                )}
 
+                {activeStep === "estructura" && (
+                <>
+                {!selectedTemplateId && (
+                  <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
+                    <div className="text-sm font-semibold">Primero elige o crea una ficha</div>
+                    <p className="mt-1 text-xs text-white/60">
+                      La estructura (encabezado, secciones y preguntas) se configura dentro de una ficha.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveStep("fichas")}
+                      className="mt-3 rounded-lg border border-[var(--app-accent)] bg-white/5 px-3 py-1.5 text-xs font-semibold text-[var(--app-accent)]"
+                    >
+                      Ir a Fichas
+                    </button>
+                  </div>
+                )}
                 {selectedTemplateId && !showTemplateDetail && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                     <div className="flex items-center justify-between">
@@ -2982,8 +3081,9 @@ export function GestionMonitoreosPage() {
                         ))}
                       </div>
                       {canEditTemplates && (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div id="add-section-row" className="mt-3 flex flex-wrap gap-2">
                           <input
+                            id="add-section-input"
                             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                             placeholder="Nombre de sección"
                             value={sectionTitle}
@@ -3074,6 +3174,28 @@ export function GestionMonitoreosPage() {
 
                     {canEditTemplates && (
                       <div className="mt-3 space-y-2">
+                        {sections.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
+                            <div className="text-sm font-semibold">Primero crea una sección</div>
+                            <p className="mt-1 text-xs text-white/60">
+                              Las preguntas se organizan dentro de secciones. Crea al menos una para poder
+                              agregar preguntas.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                document.getElementById("add-section-input")?.focus();
+                                document
+                                  .getElementById("add-section-row")
+                                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                              }}
+                              className="mt-3 rounded-lg border border-[var(--app-accent)] bg-white/5 px-3 py-1.5 text-xs font-semibold text-[var(--app-accent)]"
+                            >
+                              Crear mi primera sección
+                            </button>
+                          </div>
+                        ) : (
+                        <>
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
@@ -3364,10 +3486,65 @@ export function GestionMonitoreosPage() {
                         </div>
                         </div>
                         )}
+                        </>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
+                </>
+                )}
+              </div>
+
+              {activeStep === "preview" && (
+                <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div>
+                    <div className="text-sm font-semibold">Revisar y publicar</div>
+                    <p className="mt-1 text-xs text-white/60">
+                      Revisa cómo se verá la ficha antes de publicarla. Puedes volver a cualquier paso
+                      anterior para hacer ajustes.
+                    </p>
+                  </div>
+                  {!selectedTemplateId ? (
+                    <div className="rounded-lg border border-dashed border-white/15 bg-black/20 p-3 text-xs text-white/60">
+                      Selecciona una ficha en el paso "Fichas" para ver su vista previa.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          loadPreview();
+                          setPreviewOpen(true);
+                        }}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                      >
+                        Vista previa
+                      </button>
+                      {canEditTemplates && (
+                        <button
+                          type="button"
+                          disabled={publishingVersion}
+                          onClick={publishSelectedTemplateVersion}
+                          className="rounded-lg border border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--app-accent)] disabled:opacity-50"
+                        >
+                          {publishingVersion ? "Publicando..." : "Publicar versión de la ficha"}
+                        </button>
+                      )}
+                      {isAdmin && selected.status === "approved_lv1" && (
+                        <button
+                          type="button"
+                          onClick={() => approveFinal(selected.id)}
+                          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                        >
+                          Aprobar final y publicar solicitud
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
               </div>
             </div>
           )}

@@ -64,36 +64,25 @@ const legacyModulesByRole: Record<string, string[]> = {
   user: ["inicio", "monitoreo", "reportes", "reportes_analiticos", "instituciones"],
 };
 
-// PREVISUALIZACION LOCAL: activada con VITE_LOCAL_PREVIEW=true, sin backend real.
-// Solo para navegar el UI en localhost mientras no hay Supabase conectado. Quitar antes de producción.
+// PREVISUALIZACION LOCAL: activada con VITE_LOCAL_PREVIEW=true.
+// Hace un inicio de sesion real (no simulado) contra una cuenta de prueba
+// dedicada, usando las credenciales de VITE_LOCAL_PREVIEW_EMAIL /
+// VITE_LOCAL_PREVIEW_PASSWORD (solo en .env local, nunca en produccion).
+// Asi las llamadas a Supabase corren autenticadas de verdad en local,
+// respetando RLS igual que un usuario real. Nunca se activa en produccion
+// porque esas env vars no existen ahi.
 const LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === "true";
-const LOCAL_PREVIEW_PROFILE: Profile = {
-  id: "local-preview-user",
-  email: "preview@local.test",
-  correo: "preview@local.test",
-  role: "admin",
-  nombres: "Vista Previa",
-  apellido_paterno: "Local",
-  apellido_materno: "",
-  numero_documento: "00000000",
-  tipo_documento: "DNI",
-  area: null,
-  ugel: null,
-  rei: null,
-  can_create_monitoreo: true,
-  must_change_password: false,
-};
+const LOCAL_PREVIEW_EMAIL = import.meta.env.VITE_LOCAL_PREVIEW_EMAIL as string | undefined;
+const LOCAL_PREVIEW_PASSWORD = import.meta.env.VITE_LOCAL_PREVIEW_PASSWORD as string | undefined;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(!LOCAL_PREVIEW);
+  const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(
-    LOCAL_PREVIEW ? ({ id: LOCAL_PREVIEW_PROFILE.id } as User) : null
-  );
+  const [user, setUser] = useState<User | null>(null);
 
-  const [profile, setProfile] = useState<Profile | null>(LOCAL_PREVIEW ? LOCAL_PREVIEW_PROFILE : null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [modulePermissions, setModulePermissions] = useState<Record<string, { canView: boolean; canManage: boolean }>>({});
   const [permissionsRole, setPermissionsRole] = useState<string | null>(null);
@@ -183,11 +172,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshProfile, userId]);
 
   useEffect(() => {
-    if (LOCAL_PREVIEW) return;
     alive.current = true;
 
     (async () => {
       setLoading(true);
+
+      if (LOCAL_PREVIEW) {
+        const { data: existing } = await supabase.auth.getSession();
+        if (!existing.session) {
+          if (LOCAL_PREVIEW_EMAIL && LOCAL_PREVIEW_PASSWORD) {
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+              email: LOCAL_PREVIEW_EMAIL,
+              password: LOCAL_PREVIEW_PASSWORD,
+            });
+            if (signInError) {
+              console.warn("VITE_LOCAL_PREVIEW: no se pudo iniciar sesion con la cuenta de prueba:", signInError.message);
+            }
+          } else {
+            console.warn("VITE_LOCAL_PREVIEW=true pero faltan VITE_LOCAL_PREVIEW_EMAIL / VITE_LOCAL_PREVIEW_PASSWORD en .env");
+          }
+        }
+      }
 
       // ✅ 1) Solo sesión (rápido)
       const { data, error } = await supabase.auth.getSession();
