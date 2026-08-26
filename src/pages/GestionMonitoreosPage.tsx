@@ -34,6 +34,7 @@ import {
   toggleValue,
 } from "./GestionMonitoreos/helpers";
 import { ManagementIcon } from "./GestionMonitoreos/ManagementIcon";
+import { ReorderButtons } from "./GestionMonitoreos/ReorderButtons";
 import { StepNav, type StepNavItem } from "./GestionMonitoreos/StepNav";
 import { PreviewModal } from "./GestionMonitoreos/PreviewModal";
 import { exportPreviewPdf as exportPreviewPdfUtil } from "./GestionMonitoreos/exportPreviewPdf";
@@ -2273,6 +2274,8 @@ export function GestionMonitoreosPage() {
                         <button
                           type="button"
                           onClick={() => setIeSelected((v) => v.filter((x) => x.id !== ie.id))}
+                          aria-label={`Quitar ${ie.nombre}`}
+                          title={`Quitar ${ie.nombre}`}
                           className="text-white/60"
                         >
                           ✕
@@ -2396,7 +2399,7 @@ export function GestionMonitoreosPage() {
                             onClick={() => deleteSolicitud(selected.id)}
                             className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100"
                           >
-                            Eliminar
+                            Eliminar solicitud
                           </button>
                         )}
                       </div>
@@ -2407,7 +2410,7 @@ export function GestionMonitoreosPage() {
               {isAdmin && selected.status === "approved" && selectedExpired && (
                 <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
                   <div className="text-xs text-amber-100">
-                    Monitoreo vencido. Para habilitarlo, define una nueva fecha de vencimiento (Ampliacion).
+                    Monitoreo vencido. Para habilitarlo, define una nueva fecha de vencimiento (Ampliación).
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <input
@@ -2422,7 +2425,7 @@ export function GestionMonitoreosPage() {
                       disabled={extendBusy}
                       className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100 disabled:opacity-50"
                     >
-                      {extendBusy ? "Guardando..." : "Aplicar ampliacion"}
+                      {extendBusy ? "Guardando..." : "Aplicar ampliación"}
                     </button>
                   </div>
                 </div>
@@ -2545,8 +2548,9 @@ export function GestionMonitoreosPage() {
                   <button
                     type="button"
                     onClick={updateSolicitud}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                     >
+                      <span className="h-3.5 w-3.5"><ManagementIcon type="save" /></span>
                       Guardar cambios
                     </button>
                   </div>
@@ -2577,6 +2581,9 @@ export function GestionMonitoreosPage() {
                 </div>
                 {canManageInactiveTemplates && templates.length > 0 && (
                   <div className="mt-2 grid gap-2">
+                    <p className="text-xs text-white/50">
+                      Una ficha inhabilitada no aparece para los monitores en campo.
+                    </p>
                     {templates.map((t) => (
                       <label
                         key={`toggle-${t.id}`}
@@ -2724,7 +2731,7 @@ export function GestionMonitoreosPage() {
                 <>
                 {!selectedTemplateId && (
                   <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
-                    <div className="text-sm font-semibold">Primero elige o crea una ficha</div>
+                    <div className="text-sm font-semibold">Primero elige o crea una ficha para configurar su encabezado</div>
                     <p className="mt-1 text-xs text-white/60">
                       El encabezado y cierre se configuran dentro de una ficha.
                     </p>
@@ -2740,7 +2747,7 @@ export function GestionMonitoreosPage() {
                 {selectedTemplateId && !showTemplateDetail && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Ficha seleccionada</div>
+                      <div className="text-sm font-semibold">Ficha seleccionada — encabezado</div>
                       <button
                         type="button"
                         onClick={() => setShowTemplateDetail(true)}
@@ -2778,23 +2785,28 @@ export function GestionMonitoreosPage() {
                           <button
                             type="button"
                             onClick={updateTemplateMeta}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="save" /></span>
                             Guardar ficha
                           </button>
                           <button
                             type="button"
                             disabled={publishingVersion}
                             onClick={publishSelectedTemplateVersion}
-                            className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-50"
                           >
-                            {publishingVersion ? "Publicando..." : "Publicar version"}
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="publish" /></span>
+                            {publishingVersion ? "Publicando..." : "Publicar versión"}
                           </button>
                         </div>
                       )}
-                      <div className="text-sm font-semibold">Encabezado / Cierre</div>
+                      <div className="text-sm font-semibold">Encabezado y cierre</div>
+                      <p className="mt-1 text-xs text-white/50">
+                        Marca los datos que van impresos en la parte superior de la ficha.
+                      </p>
                       <div className="mt-3 space-y-2">
-                        {orderedFixedHeaderFields.map((field) => (
+                        {orderedFixedHeaderFields.map((field, index) => (
                           <div
                             key={field.key}
                             className="grid items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 md:grid-cols-[1fr_auto]"
@@ -2811,24 +2823,13 @@ export function GestionMonitoreosPage() {
                               />
                               {field.label}
                             </label>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => moveFixedHeaderField(field.key, -1)}
-                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
-                                title="Subir"
-                              >
-                                ↑
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => moveFixedHeaderField(field.key, 1)}
-                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
-                                title="Bajar"
-                              >
-                                ↓
-                              </button>
-                            </div>
+                            <ReorderButtons
+                              label="campo"
+                              onUp={() => moveFixedHeaderField(field.key, -1)}
+                              onDown={() => moveFixedHeaderField(field.key, 1)}
+                              disabledUp={index === 0}
+                              disabledDown={index === orderedFixedHeaderFields.length - 1}
+                            />
                           </div>
                         ))}
                       </div>
@@ -2895,11 +2896,15 @@ export function GestionMonitoreosPage() {
                           <button
                             type="button"
                             onClick={addTemplateCustomField}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
-                            Agregar
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="add" /></span>
+                            Agregar campo
                           </button>
                         </div>
+                        <p className="mt-1 text-xs text-white/50">
+                          Un campo obligatorio no deja guardar el registro si se deja sin responder.
+                        </p>
                         {templateCustomFieldType === "select" && (
                           <textarea
                             className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
@@ -2909,7 +2914,7 @@ export function GestionMonitoreosPage() {
                           />
                         )}
                         <div className="mt-3 space-y-2">
-                          {(templateHeader.custom_fields ?? []).map((field: HeaderFieldDef) => (
+                          {(templateHeader.custom_fields ?? []).map((field: HeaderFieldDef, fieldIndex: number) => (
                             <div
                               key={field.id}
                               className={`grid gap-2 rounded-lg border p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_130px_minmax(0,1fr)_110px_auto] ${editingTemplateFieldId === field.id ? "border-sky-400/40 bg-sky-500/10" : "border-white/10 bg-white/5"}`}
@@ -2978,28 +2983,13 @@ export function GestionMonitoreosPage() {
                                     <path d="M11.5 5.5L14.5 8.5" />
                                   </svg>
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => moveTemplateCustomField(field.id, -1)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-white/80"
-                                  title="Subir"
-                                >
-                                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                                    <path d="M10 15V5" />
-                                    <path d="M6.5 8.5L10 5L13.5 8.5" />
-                                  </svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => moveTemplateCustomField(field.id, 1)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-white/80"
-                                  title="Bajar"
-                                >
-                                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                                    <path d="M10 5V15" />
-                                    <path d="M6.5 11.5L10 15L13.5 11.5" />
-                                  </svg>
-                                </button>
+                                <ReorderButtons
+                                  label="campo"
+                                  onUp={() => moveTemplateCustomField(field.id, -1)}
+                                  onDown={() => moveTemplateCustomField(field.id, 1)}
+                                  disabledUp={fieldIndex === 0}
+                                  disabledDown={fieldIndex === (templateHeader.custom_fields ?? []).length - 1}
+                                />
                                 <button
                                   type="button"
                                   onClick={() => removeTemplateCustomField(field.id)}
@@ -3017,7 +3007,10 @@ export function GestionMonitoreosPage() {
                           )}
                         </div>
                       </div>
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <p className="mt-4 text-xs text-white/50">
+                        Marca los datos que van impresos al final de la ficha (firmas, compromisos, etc.).
+                      </p>
+                      <div className="mt-2 grid gap-3 md:grid-cols-2">
                         {[
                           ["observacion", "Observación general"],
                           ["compromiso", "Compromiso general"],
@@ -3051,7 +3044,7 @@ export function GestionMonitoreosPage() {
                 <>
                 {!selectedTemplateId && (
                   <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
-                    <div className="text-sm font-semibold">Primero elige o crea una ficha</div>
+                    <div className="text-sm font-semibold">Primero elige o crea una ficha para agregar sus secciones y preguntas</div>
                     <p className="mt-1 text-xs text-white/60">
                       Las secciones y preguntas se configuran dentro de una ficha.
                     </p>
@@ -3067,7 +3060,7 @@ export function GestionMonitoreosPage() {
                 {selectedTemplateId && !showTemplateDetail && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Ficha seleccionada</div>
+                      <div className="text-sm font-semibold">Ficha seleccionada — preguntas</div>
                       <button
                         type="button"
                         onClick={() => setShowTemplateDetail(true)}
@@ -3084,7 +3077,7 @@ export function GestionMonitoreosPage() {
                     <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
                       <div className="text-sm font-semibold">Secciones</div>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {sections.map((s) => (
+                        {sections.map((s, sIndex) => (
                           <div key={s.id} className="flex items-center gap-2">
                             <button
                               type="button"
@@ -3104,22 +3097,15 @@ export function GestionMonitoreosPage() {
                                   onClick={() => renameSection(s.id)}
                                   className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
                                 >
-                                  Editar
+                                  Editar sección
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => moveSection(s.id, -1)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
-                                >
-                                  ↑
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => moveSection(s.id, 1)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
-                                >
-                                  ↓
-                                </button>
+                                <ReorderButtons
+                                  label="sección"
+                                  onUp={() => moveSection(s.id, -1)}
+                                  onDown={() => moveSection(s.id, 1)}
+                                  disabledUp={sIndex === 0}
+                                  disabledDown={sIndex === sections.length - 1}
+                                />
                               </>
                             )}
                           </div>
@@ -3137,8 +3123,9 @@ export function GestionMonitoreosPage() {
                           <button
                             type="button"
                             onClick={addSection}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="add" /></span>
                             Agregar sección
                           </button>
                         </div>
@@ -3160,9 +3147,9 @@ export function GestionMonitoreosPage() {
                         <div key={s.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
                           <div className="text-sm font-semibold">{s.titulo}</div>
                           <div className="mt-2 space-y-2">
-                            {questions
-                              .filter((q) => q.section_id === s.id)
-                              .map((q) => (
+                            {(() => {
+                              const sectionQuestions = questions.filter((q) => q.section_id === s.id);
+                              return sectionQuestions.map((q, qIndex) => (
                         <div
                           key={q.id}
                           className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
@@ -3176,39 +3163,35 @@ export function GestionMonitoreosPage() {
                             ) : null}
                           </div>
                           {canEditTemplates && (
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => startEditQuestion(q)}
                                 className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80"
                               >
-                                Editar
+                                Editar pregunta
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => moveQuestion(q, -1)}
-                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
-                              >
-                                ↑
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => moveQuestion(q, 1)}
-                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
-                              >
-                                ↓
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => deleteQuestion(q.id)}
-                                className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] text-red-100"
-                              >
-                                Eliminar
-                              </button>
+                              <ReorderButtons
+                                label="pregunta"
+                                onUp={() => moveQuestion(q, -1)}
+                                onDown={() => moveQuestion(q, 1)}
+                                disabledUp={qIndex === 0}
+                                disabledDown={qIndex === sectionQuestions.length - 1}
+                              />
+                              <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => deleteQuestion(q.id)}
+                                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] text-red-100"
+                                >
+                                  Eliminar pregunta
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
-                              ))}
+                              ));
+                            })()}
                             {questions.filter((q) => q.section_id === s.id).length === 0 && (
                               <div className="text-xs text-white/50">Sin preguntas</div>
                             )}
@@ -3249,16 +3232,18 @@ export function GestionMonitoreosPage() {
                               setShowQuestionForm(true);
                               requestAnimationFrame(() => questionFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
                             }}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="add" /></span>
                             Agregar pregunta
                           </button>
                           <button
                             type="button"
                             onClick={saveTemplateConfig}
                             disabled={savingConfig}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="save" /></span>
                             {savingConfig ? "Guardando..." : "Guardar configuración"}
                           </button>
                           <button
@@ -3267,8 +3252,9 @@ export function GestionMonitoreosPage() {
                               loadPreview();
                               setPreviewOpen(true);
                             }}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="eye" /></span>
                             Vista previa
                           </button>
                         </div>
@@ -3334,6 +3320,9 @@ export function GestionMonitoreosPage() {
                             </select>
                           )}
                         </div>
+                        <p className="text-xs text-white/50">
+                          El monitor no podrá guardar el registro si la deja sin responder.
+                        </p>
                         {qTipo === "yes_no_nivel" && (
                           <div className="grid gap-2 md:grid-cols-3">
                             {Array.from({ length: qNiveles }, (_, i) => (
@@ -3452,7 +3441,7 @@ export function GestionMonitoreosPage() {
                               }}
                               className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                             >
-                              Agregar
+                              Agregar campo
                             </button>
                           </div>
                           {qExtraFields.length > 0 && (
@@ -3517,8 +3506,9 @@ export function GestionMonitoreosPage() {
                           <button
                             type="button"
                             onClick={() => saveQuestion(false)}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                           >
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="save" /></span>
                             {editingQuestionId ? "Guardar cambios" : "Guardar pregunta"}
                           </button>
                           <button
@@ -3572,8 +3562,9 @@ export function GestionMonitoreosPage() {
                           loadPreview();
                           setPreviewOpen(true);
                         }}
-                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                       >
+                        <span className="h-3.5 w-3.5"><ManagementIcon type="eye" /></span>
                         Vista previa
                       </button>
                       {canEditTemplates && (
@@ -3581,8 +3572,9 @@ export function GestionMonitoreosPage() {
                           type="button"
                           disabled={publishingVersion}
                           onClick={publishSelectedTemplateVersion}
-                          className="rounded-lg border border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--app-accent)] disabled:opacity-50"
+                          className="flex items-center gap-1.5 rounded-lg border border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--app-accent)] disabled:opacity-50"
                         >
+                          <span className="h-3.5 w-3.5"><ManagementIcon type="publish" /></span>
                           {publishingVersion ? "Publicando..." : "Publicar versión de la ficha"}
                         </button>
                       )}
