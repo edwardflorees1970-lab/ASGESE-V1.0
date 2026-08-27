@@ -103,6 +103,10 @@ export function GestionMonitoreosPage() {
   const [ieQuery, setIeQuery] = useState("");
   const [ieResults, setIeResults] = useState<InstitucionLite[]>([]);
   const [ieSelected, setIeSelected] = useState<InstitucionLite[]>([]);
+  const [editIeQuery, setEditIeQuery] = useState("");
+  const [editIeResults, setEditIeResults] = useState<InstitucionLite[]>([]);
+  const [editIeSelected, setEditIeSelected] = useState<InstitucionLite[]>([]);
+  const [savingEditIe, setSavingEditIe] = useState(false);
   const [solSearch, setSolSearch] = useState("");
   const [solStatusFilter, setSolStatusFilter] = useState("ALL");
   const [solPage, setSolPage] = useState(1);
@@ -479,6 +483,22 @@ export function GestionMonitoreosPage() {
         dupVal === DUP_RULE_LOCAL || dupVal === DUP_RULE_MODULAR ? dupVal : DUP_RULE_NONE
       );
     })();
+    setEditIeQuery("");
+    setEditIeResults([]);
+    (async () => {
+      const { data } = await supabase
+        .from("monitoreo_solicitud_ie")
+        .select("institucion_id, institucion_educativa(id, nombre, codigo_modular, codigo_local)")
+        .eq("solicitud_id", selected.id);
+      const rows = (data ?? []) as Array<{
+        institucion_id: string;
+        institucion_educativa: InstitucionLite | InstitucionLite[] | null;
+      }>;
+      const list = rows
+        .map((r) => (Array.isArray(r.institucion_educativa) ? r.institucion_educativa[0] : r.institucion_educativa))
+        .filter((ie): ie is InstitucionLite => !!ie);
+      setEditIeSelected(list);
+    })();
   }, [selected]);
 
   useEffect(() => {
@@ -540,6 +560,23 @@ export function GestionMonitoreosPage() {
     }, 300);
     return () => clearTimeout(handle);
   }, [ieQuery]);
+
+  useEffect(() => {
+    if (!editIeQuery.trim()) {
+      setEditIeResults([]);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      const q = editIeQuery.trim();
+      const { data } = await supabase
+        .from("institucion_educativa")
+        .select("id, nombre, codigo_modular, codigo_local")
+        .or(`nombre.ilike.%${q}%,codigo_modular.ilike.%${q}%`)
+        .limit(20);
+      setEditIeResults((data as InstitucionLite[]) ?? []);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [editIeQuery]);
 
   const resetForm = () => {
     setNombre("");
@@ -622,6 +659,32 @@ export function GestionMonitoreosPage() {
       setToast({ type: "ok", msg: "Solicitud actualizada." });
     }
     setSaving(false);
+  };
+
+  const saveEditIe = async () => {
+    if (!selected || !canOwnerOrAdmin) return;
+    setSavingEditIe(true);
+    const { error: delErr } = await supabase
+      .from("monitoreo_solicitud_ie")
+      .delete()
+      .eq("solicitud_id", selected.id);
+    if (delErr) {
+      setToast({ type: "err", msg: delErr.message });
+      setSavingEditIe(false);
+      return;
+    }
+    if (editIeSelected.length) {
+      const { error: insErr } = await supabase
+        .from("monitoreo_solicitud_ie")
+        .insert(editIeSelected.map((ie) => ({ solicitud_id: selected.id, institucion_id: ie.id })));
+      if (insErr) {
+        setToast({ type: "err", msg: insErr.message });
+        setSavingEditIe(false);
+        return;
+      }
+    }
+    setToast({ type: "ok", msg: "Instituciones actualizadas." });
+    setSavingEditIe(false);
   };
 
 
@@ -2583,6 +2646,68 @@ export function GestionMonitoreosPage() {
                       <span className="h-3.5 w-3.5"><ManagementIcon type="save" /></span>
                       Guardar cambios
                     </button>
+                  </div>
+                  <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-sm font-semibold">Instituciones (selección manual)</div>
+                    <p className="mt-1 text-xs text-white/50">
+                      Instituciones específicas para este monitoreo — úsalo para marcar las IE que cuentan para una meta focalizada (CdD).
+                    </p>
+                    <input
+                      className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                      placeholder="Buscar por nombre o código modular"
+                      value={editIeQuery}
+                      onChange={(e) => setEditIeQuery(e.target.value)}
+                    />
+                    {editIeResults.length > 0 && (
+                      <div className="management-ie-results mt-2 max-h-40 overflow-y-auto rounded-lg border">
+                        {editIeResults.map((ie) => (
+                          <button
+                            key={ie.id}
+                            type="button"
+                            onClick={() => {
+                              if (!editIeSelected.find((x) => x.id === ie.id)) {
+                                setEditIeSelected((v) => [...v, ie]);
+                              }
+                            }}
+                            className="management-ie-option w-full px-3 py-2 text-left text-xs"
+                          >
+                            {ie.nombre} · {ie.codigo_modular}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {editIeSelected.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {editIeSelected.map((ie) => (
+                          <span
+                            key={ie.id}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[11px]"
+                          >
+                            {ie.nombre}
+                            <button
+                              type="button"
+                              onClick={() => setEditIeSelected((v) => v.filter((x) => x.id !== ie.id))}
+                              aria-label={`Quitar ${ie.nombre}`}
+                              title={`Quitar ${ie.nombre}`}
+                              className="text-white/60"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={saveEditIe}
+                        disabled={savingEditIe}
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 disabled:opacity-50"
+                      >
+                        <span className="h-3.5 w-3.5"><ManagementIcon type="save" /></span>
+                        {savingEditIe ? "Guardando..." : "Guardar instituciones"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
