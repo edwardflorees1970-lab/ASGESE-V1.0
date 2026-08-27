@@ -1235,8 +1235,11 @@ export function ReportesPage() {
             ]);
             // Se ajusta al recuadro preservando la proporcion real de la imagen
             // (antes se forzaba a 70x13mm y la firma salia deformada/aplastada).
+            // maxH esta acotado a 12mm: la banda libre entre el fin de la tabla
+            // "Cierre" (en y) y la linea de firma (en y+12) es de solo 12mm, asi
+            // que una altura mayor hacia que la firma invadiera la fila anterior.
             const maxW = 70;
-            const maxH = 16;
+            const maxH = 12;
             const ratio = bitmap.width / bitmap.height;
             let w = maxW;
             let h = w / ratio;
@@ -1246,7 +1249,7 @@ export function ReportesPage() {
             }
             const drawX = x + (maxW - w) / 2;
             const lineY = y + 12;
-            doc.addImage(dataUrl, "PNG", drawX, lineY - h, w, h);
+            doc.addImage(dataUrl, "PNG", drawX, Math.max(y, lineY - h), w, h);
           } catch {
             // sin firma digital disponible: se deja la linea en blanco para firmar a mano
           }
