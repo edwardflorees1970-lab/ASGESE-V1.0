@@ -1219,9 +1219,17 @@ export function ReportesPage() {
               .from("monitoreo-firmas")
               .createSignedUrl(path, 300);
             if (signedErr || !signedData?.signedUrl) return;
-            const img = await loadImage(signedData.signedUrl);
-            const dataUrl = toDataUrl(img);
-            if (!dataUrl) return;
+            // Se descarga como blob (en vez de <img>+canvas) para evitar que un
+            // canvas "tainted" por CORS bloquee toDataURL en el origen de Storage.
+            const res = await fetch(signedData.signedUrl);
+            if (!res.ok) return;
+            const blob = await res.blob();
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result));
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(blob);
+            });
             doc.addImage(dataUrl, "PNG", x, y - 2, 70, 13);
           } catch {
             // sin firma digital disponible: se deja la linea en blanco para firmar a mano
