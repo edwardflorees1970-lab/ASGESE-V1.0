@@ -741,6 +741,9 @@ export function SeguimientoPage() {
               {busyAuto ? "Asignando..." : "Asignar automáticamente por REI"}
             </button>
           </div>
+          <p className="mt-1 text-xs text-white/50">
+            Elige qué monitor va a visitar cada institución educativa de este monitoreo.
+          </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_auto]">
             <div className="space-y-2">
               <input
@@ -908,6 +911,9 @@ export function SeguimientoPage() {
               </span>
             )}
           </div>
+          <p className="mt-1 text-xs text-white/50">
+            Lista de tareas que cada monitor debe completar en cada IE asignada, aparte de las preguntas de la ficha.
+          </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-[1.5fr_auto_auto]">
             <input
               className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
@@ -952,6 +958,9 @@ export function SeguimientoPage() {
       {canManage && (
         <div className="tracking-panel tracking-monitors-panel rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="tracking-section-title text-sm font-semibold">Resumen por monitor</div>
+          <p className="mt-1 text-xs text-white/50">
+            Porcentaje de avance validado por cada monitor, según las IE que tiene asignadas.
+          </p>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
             <label className="text-xs text-white/60">
               Buscar monitor
@@ -1043,6 +1052,9 @@ export function SeguimientoPage() {
 
       <div className="tracking-panel tracking-my-panel rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="tracking-section-title text-sm font-semibold">Mis instituciones asignadas</div>
+        <p className="mt-1 text-xs text-white/50">
+          Las instituciones que tú tienes asignadas para visitar, si también eres monitor.
+        </p>
         {monitorBlockedByExpiry && (
           <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
             Monitoreo vencido: las actividades estan bloqueadas para el monitor.
