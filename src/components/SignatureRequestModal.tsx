@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import QRCode from "qrcode";
 import { supabase } from "../lib/supabaseClient";
 
@@ -6,9 +6,17 @@ type Signer = "docente" | "monitor";
 
 type RunLike = { id: string };
 
+type Evidence = {
+  status: string;
+  signedAt: string | null;
+  fotoPath: string | null;
+  signerIp: string | null;
+  signerUserAgent: string | null;
+};
+
 type SignerState = {
   loading: boolean;
-  signed: boolean;
+  evidence: Evidence | null;
   link: string | null;
   qrDataUrl: string | null;
   error: string | null;
@@ -20,7 +28,7 @@ const SIGNER_LABEL: Record<Signer, string> = {
 };
 
 function emptySignerState(): SignerState {
-  return { loading: false, signed: false, link: null, qrDataUrl: null, error: null };
+  return { loading: false, evidence: null, link: null, qrDataUrl: null, error: null };
 }
 
 export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; onClose: () => void }) {
@@ -39,16 +47,43 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
     (async () => {
       setChecking(true);
       setSigners({ docente: emptySignerState(), monitor: emptySignerState() });
-      const { data } = await supabase
-        .from("form_run")
-        .select("docente_firma_path, monitor_firma_path")
-        .eq("id", run.id)
-        .maybeSingle();
+      const { data } = await supabase.rpc("list_firma_solicitudes", { p_run_id: run.id });
       if (cancelled) return;
-      setSigners((prev) => ({
-        docente: { ...prev.docente, signed: Boolean(data?.docente_firma_path) },
-        monitor: { ...prev.monitor, signed: Boolean(data?.monitor_firma_path) },
-      }));
+      const rows = (data ?? []) as Array<{
+        signer: Signer;
+        status: string;
+        signed_at: string | null;
+        foto_path: string | null;
+        signer_ip: string | null;
+        signer_user_agent: string | null;
+      }>;
+      const latestBySigner: Partial<Record<Signer, (typeof rows)[number]>> = {};
+      for (const row of rows) {
+        if (row.status !== "firmado") continue;
+        const current = latestBySigner[row.signer];
+        if (!current || (row.signed_at ?? "") > (current.signed_at ?? "")) {
+          latestBySigner[row.signer] = row;
+        }
+      }
+      setSigners((prev) => {
+        const next = { ...prev };
+        (["docente", "monitor"] as Signer[]).forEach((signer) => {
+          const row = latestBySigner[signer];
+          next[signer] = {
+            ...next[signer],
+            evidence: row
+              ? {
+                  status: row.status,
+                  signedAt: row.signed_at,
+                  fotoPath: row.foto_path,
+                  signerIp: row.signer_ip,
+                  signerUserAgent: row.signer_user_agent,
+                }
+              : null,
+          };
+        });
+        return next;
+      });
       setChecking(false);
     })();
     return () => {
@@ -95,6 +130,20 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
     }
   };
 
+  const verFoto = async (fotoPath: string) => {
+    const { data } = await supabase.storage.from("monitoreo-firmas").createSignedUrl(fotoPath, 300);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const crossDeviceWarning = useMemo(() => {
+    const d = signers.docente.evidence;
+    const m = signers.monitor.evidence;
+    if (!d || !m) return false;
+    const sameIp = Boolean(d.signerIp) && d.signerIp === m.signerIp;
+    const sameUa = Boolean(d.signerUserAgent) && d.signerUserAgent === m.signerUserAgent;
+    return sameIp && sameUa;
+  }, [signers]);
+
   if (!run) return null;
 
   return (
@@ -120,18 +169,35 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
           </div>
 
           <div className="space-y-3 px-5 py-4">
+            {crossDeviceWarning && (
+              <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                ⚠ Ambas firmas se hicieron desde el mismo dispositivo/IP. Revise las fotos de verificación antes de dar por válido el registro.
+              </div>
+            )}
+
             {(["docente", "monitor"] as Signer[]).map((signer) => {
               const state = signers[signer];
+              const signed = Boolean(state.evidence);
               return (
                 <div key={signer} className="rounded-xl border border-white/10 bg-white/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-semibold text-white">{SIGNER_LABEL[signer]}</div>
-                    {state.signed && (
+                    {signed && (
                       <span className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-100">Firmado</span>
                     )}
                   </div>
 
-                  {!state.signed && !state.link && (
+                  {signed && state.evidence?.fotoPath && (
+                    <button
+                      type="button"
+                      onClick={() => verFoto(state.evidence!.fotoPath!)}
+                      className="mt-2 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-white/70 hover:bg-white/5"
+                    >
+                      Ver foto de verificación
+                    </button>
+                  )}
+
+                  {!signed && !state.link && (
                     <button
                       type="button"
                       onClick={() => generateLink(signer)}
@@ -144,7 +210,7 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
 
                   {state.error && <p className="mt-2 text-xs text-red-300">{state.error}</p>}
 
-                  {!state.signed && state.link && (
+                  {!signed && state.link && (
                     <div className="mt-3 flex flex-col items-center gap-3 sm:flex-row sm:items-start">
                       {state.qrDataUrl && (
                         <img src={state.qrDataUrl} alt={`Código QR para firma de ${SIGNER_LABEL[signer]}`} className="h-28 w-28 rounded-lg bg-white p-1" />
