@@ -615,7 +615,7 @@ export function UsersPage() {
               <span>DIRECTORIO DE CUENTAS</span>
               <h2>Buscar y filtrar usuarios</h2>
             </div>
-            <span>{total} registros</span>
+            <span>{total} {total === 1 ? "registro" : "registros"}</span>
           </div>
           <div className="users-filter-grid grid gap-3 md:grid-cols-12">
             <div className="md:col-span-5">
