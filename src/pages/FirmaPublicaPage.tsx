@@ -126,9 +126,25 @@ export function FirmaPublicaPage() {
       const { data, error: fnError } = await supabase.functions.invoke("submit-firma-signature", {
         body: { token, signature_png_base64: dataUrl, foto_base64: fotoDataUrl, dni },
       });
-      if (fnError || !(data as { ok?: boolean })?.ok) {
-        const message = (data as { error?: string })?.error ?? "No se pudo guardar la firma. Intente nuevamente.";
+      if (fnError) {
+        // FunctionsHttpError no trae el JSON del body en `data`; hay que leerlo
+        // de la Response cruda en `context` para mostrar el motivo real
+        // (DNI no coincide, enlace vencido, etc.) en vez de un mensaje generico.
+        let message = "No se pudo guardar la firma. Intente nuevamente.";
+        const context = (fnError as { context?: Response }).context;
+        if (context && typeof context.json === "function") {
+          try {
+            const body = await context.json();
+            if (body?.error) message = body.error;
+          } catch {
+            // respuesta sin JSON valido, se deja el mensaje generico
+          }
+        }
         setSubmitError(message);
+        return;
+      }
+      if (!(data as { ok?: boolean })?.ok) {
+        setSubmitError((data as { error?: string })?.error ?? "No se pudo guardar la firma. Intente nuevamente.");
         return;
       }
       setSaved(true);
