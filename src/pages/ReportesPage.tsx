@@ -8,6 +8,7 @@ import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DataExportConsentDialog } from "../components/DataExportConsentDialog";
+import { SignatureRequestModal } from "../components/SignatureRequestModal";
 import { IconButton } from "../components/ui/IconButton";
 import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
 import {
@@ -270,6 +271,15 @@ function answerPrimary(value: any) {
   return "";
 }
 
+function IconSignature() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M3 15.5C4.5 13.5 5.5 16.5 7 14.5C8.5 12.5 8.5 16 10 14C11.5 12 11.8 15.5 13.5 13" />
+      <path d="M13.5 9.5L16 7C16.6 6.4 16.6 5.4 16 4.8C15.4 4.2 14.4 4.2 13.8 4.8L11.3 7.3L10.7 9.8L13.5 9.5Z" />
+    </svg>
+  );
+}
+
 function IconDraft() {
   return (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
@@ -391,6 +401,7 @@ export function ReportesPage() {
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfTitle, setPreviewPdfTitle] = useState("");
   const [reportMonitoreoModal, setReportMonitoreoModal] = useState<MonitoreoRow | null>(null);
+  const [signatureModalRun, setSignatureModalRun] = useState<RunRow | null>(null);
   const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
 
   const [runs, setRuns] = useState<RunRow[]>([]);
@@ -820,7 +831,7 @@ export function ReportesPage() {
             .order("orden", { ascending: true }),
           supabase
             .from("form_run")
-            .select("id, header_json, footer_json")
+            .select("id, header_json, footer_json, docente_firma_path, monitor_firma_path")
             .eq("id", run.id)
             .maybeSingle(),
           supabase
@@ -1200,6 +1211,25 @@ export function ReportesPage() {
         doc.setDrawColor(120);
         doc.line(M, y + 12, M + 70, y + 12);
         doc.line(pageW - M - 70, y + 12, pageW - M, y + 12);
+
+        const drawSignatureImage = async (path: string | null | undefined, x: number) => {
+          if (!path) return;
+          try {
+            const { data: signedData, error: signedErr } = await supabase.storage
+              .from("monitoreo-firmas")
+              .createSignedUrl(path, 300);
+            if (signedErr || !signedData?.signedUrl) return;
+            const img = await loadImage(signedData.signedUrl);
+            const dataUrl = toDataUrl(img);
+            if (!dataUrl) return;
+            doc.addImage(dataUrl, "PNG", x, y - 2, 70, 13);
+          } catch {
+            // sin firma digital disponible: se deja la linea en blanco para firmar a mano
+          }
+        };
+        await drawSignatureImage(runRow.docente_firma_path, M);
+        await drawSignatureImage(runRow.monitor_firma_path, pageW - M - 70);
+
         doc.setFontSize(8);
         doc.text("Firma docente monitoreado", M, y + 16);
         doc.text("Firma monitor", pageW - M - 70, y + 16);
@@ -2155,6 +2185,11 @@ export function ReportesPage() {
                   <ActionIconButton title="Exportar PDF" onClick={() => setPendingExport({ action: "run_pdf", kind: "pdf", label: "Ficha individual en PDF", run: r })}>
                     <IconPdf />
                   </ActionIconButton>
+                  {canEditOrDelete(r) && (
+                    <ActionIconButton title="Firmas" onClick={() => setSignatureModalRun(r)}>
+                      <IconSignature />
+                    </ActionIconButton>
+                  )}
                   {canChangeStatus(r) && (
                     <ActionIconButton
                       title={r.status === "final" ? "Pasar a borrador" : "Finalizar"}
@@ -2349,6 +2384,11 @@ export function ReportesPage() {
                           <ActionIconButton title="Exportar PDF" onClick={() => setPendingExport({ action: "run_pdf", kind: "pdf", label: "Ficha individual en PDF", run: r })}>
                             <IconPdf />
                           </ActionIconButton>
+                          {canEditOrDelete(r) && (
+                            <ActionIconButton title="Firmas" onClick={() => setSignatureModalRun(r)}>
+                              <IconSignature />
+                            </ActionIconButton>
+                          )}
                           {canChangeStatus(r) && (
                             <ActionIconButton
                               title={r.status === "final" ? "Pasar a borrador" : "Finalizar"}
@@ -2397,6 +2437,10 @@ export function ReportesPage() {
         busy={deleteBusy}
         onClose={() => !deleteBusy && setConfirmDeleteOpen(false)}
         onConfirm={deleteRun}
+      />
+      <SignatureRequestModal
+        run={signatureModalRun}
+        onClose={() => setSignatureModalRun(null)}
       />
       <DataExportConsentDialog
         open={pendingExport !== null}

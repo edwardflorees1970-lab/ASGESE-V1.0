@@ -6,6 +6,7 @@ import { useAuth } from "./app/AuthProvider";
 
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const SetupPasswordPage = lazy(() => import("./pages/SetupPasswordPage").then((m) => ({ default: m.SetupPasswordPage })));
+const FirmaPublicaPage = lazy(() => import("./pages/FirmaPublicaPage").then((m) => ({ default: m.FirmaPublicaPage })));
 const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersPage })));
 const MonitoreoPage = lazy(() =>
   import("./pages/MonitoreoPage").then((m) => ({ default: m.MonitoreoPage }))
@@ -76,6 +77,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/setup-password" element={<SetupPasswordPage />} />
+        <Route path="/firmar/:token" element={<FirmaPublicaPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/app" element={<AppShell />}>
