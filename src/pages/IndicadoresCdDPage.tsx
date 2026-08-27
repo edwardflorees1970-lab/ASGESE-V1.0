@@ -572,7 +572,7 @@ export function IndicadoresCdDPage() {
               </span>
             </div>
             <p className="mt-2 max-w-3xl text-sm text-slate-400">
-              Panel estadistico de monitoreos CdD asignados a {profile?.nombres || "tu cuenta"}. Usa la meta y el avance registrados en las fichas estandar para construir indicadores y cronograma.
+              Panel estadístico de monitoreos CdD asignados a {profile?.nombres || "tu cuenta"}. Usa la meta y el avance registrados en las fichas estándar para construir indicadores y cronograma.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -638,7 +638,7 @@ export function IndicadoresCdDPage() {
         <>
           {filteredRecords.length === 0 && (
             <div className="rounded-[24px] border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-              Aun no hay registros para los filtros elegidos. Se muestra la plantilla del tablero sin datos.
+              Aún no hay registros para los filtros elegidos. Se muestra la plantilla del tablero sin datos.
             </div>
           )}
           <section className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -677,7 +677,7 @@ export function IndicadoresCdDPage() {
               <div className="mb-6 flex items-center justify-between gap-4">
                 <div>
                   <h2 className="font-headline text-lg font-bold text-slate-100">Meta vs avance por compromiso</h2>
-                  <p className="mt-1 text-xs text-slate-500">Se consideran las respuestas numericas de Meta del CdD y Avance del CdD.</p>
+                  <p className="mt-1 text-xs text-slate-500">Se consideran las respuestas numéricas de Meta del CdD y Avance del CdD.</p>
                 </div>
                 <div className="flex gap-4 text-[11px] text-slate-500">
                   <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-sky-900" />Meta</span>
@@ -721,7 +721,7 @@ export function IndicadoresCdDPage() {
 
             <div className="rounded-[24px] border border-white/10 bg-[var(--app-surface)] p-5 md:p-6">
               <h2 className="font-headline text-lg font-bold text-slate-100">Avance por Responsable CdD</h2>
-              <p className="mt-1 text-xs text-slate-500">Promedio de avance por responsable y fecha corta de actualizacion.</p>
+              <p className="mt-1 text-xs text-slate-500">Promedio de avance por responsable y fecha corta de actualización.</p>
               <div className="mt-6 space-y-5">
                 {updatesList.length ? (
                   updatesList.map((item) => {
@@ -732,7 +732,7 @@ export function IndicadoresCdDPage() {
                           <div className="min-w-0">
                           <div className="truncate font-semibold text-slate-200">{item.name}</div>
                             <div className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500">{item.area || "-"}</div>
-                            <div className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500">Fecha actualizacion: {shortDate(item.fecha)}</div>
+                            <div className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500">Fecha actualización: {shortDate(item.fecha)}</div>
                           </div>
                           <div className={cls("font-bold", tone === "good" ? "text-emerald-300" : tone === "warn" ? "text-amber-300" : "text-rose-300")}>{pct(item.avance).toFixed(1)}%</div>
                         </div>
@@ -743,7 +743,7 @@ export function IndicadoresCdDPage() {
                     );
                   })
                 ) : (
-                  <div className="py-12 text-center text-xs text-slate-500">Sin actualizaciones todavia.</div>
+                  <div className="py-12 text-center text-xs text-slate-500">Sin actualizaciones todavía.</div>
                 )}
               </div>
             </div>
@@ -752,7 +752,7 @@ export function IndicadoresCdDPage() {
           <section className="rounded-[24px] border border-white/10 bg-[var(--app-surface)] p-5 md:p-6">
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
-                <h2 className="font-headline text-lg font-bold text-slate-100">Cronograma de ejecucion</h2>
+                <h2 className="font-headline text-lg font-bold text-slate-100">Cronograma de ejecución</h2>
                 <p className="mt-1 text-xs text-slate-500">Rango del monitoreo CdD y progreso temporal contra fecha de cierre.</p>
               </div>
               <div className="text-xs text-slate-500">Hoy: {shortDate(new Date().toISOString())}</div>
@@ -809,7 +809,7 @@ export function IndicadoresCdDPage() {
           <section>
             <div className="mb-4 flex items-center gap-2">
               <span className="rounded-full bg-rose-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-200">Alertas</span>
-              <h2 className="font-headline text-lg font-bold text-slate-100">Alertas e hitos criticos</h2>
+              <h2 className="font-headline text-lg font-bold text-slate-100">Alertas e hitos críticos</h2>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               {alerts.length ? (
@@ -834,7 +834,7 @@ export function IndicadoresCdDPage() {
                 ))
               ) : (
                 <div className="rounded-[20px] border border-white/10 bg-[var(--app-surface)] p-4 text-xs text-slate-500">
-                  Sin alertas criticas por ahora.
+                  Sin alertas críticas por ahora.
                 </div>
               )}
             </div>
