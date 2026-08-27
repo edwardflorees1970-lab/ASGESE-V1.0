@@ -309,10 +309,10 @@ export function OperationsPage() {
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="operations-table w-full min-w-[760px] text-left text-xs">
-            <thead><tr><th className="p-2">Fecha</th><th className="p-2">Operación</th><th className="p-2">Cambios incluidos</th><th className="p-2">Actor</th><th className="p-2">Detalle</th></tr></thead>
+            <thead><tr><th className="p-2">Fecha</th><th className="p-2">Operación</th><th className="p-2">Cambios incluidos</th><th className="p-2">Actor</th></tr></thead>
             <tbody>
               {!loading && auditOperations.length === 0 && (
-                <tr><td colSpan={5} className="border-t border-white/10 p-6 text-center text-sm text-white/50">No se encontraron eventos de auditoria.</td></tr>
+                <tr><td colSpan={4} className="border-t border-white/10 p-6 text-center text-sm text-white/50">No se encontraron eventos de auditoria.</td></tr>
               )}
               {auditOperations.map((operation) => (
                 <tr key={operation.id} className="border-t border-white/10 align-top">
@@ -327,7 +327,6 @@ export function OperationsPage() {
                     )}
                     <div className="text-white/40">{operation.actorRole ?? "sistema"}</div>
                   </td>
-                  <td className="p-2"><details><summary className="operations-json-toggle cursor-pointer font-semibold">Ver {operation.events.length} cambios</summary><div className="operations-json mt-2 max-h-72 max-w-xl space-y-2 overflow-auto rounded p-2 text-[10px]">{operation.events.map((event) => <div key={event.id} className="border-b border-white/10 pb-2 last:border-0"><div className="mb-1 font-semibold">{actionLabel(event.action)} · {tableLabel(event.entity_table)} · {event.entity_id ?? "Sin ID"}</div><pre className="whitespace-pre-wrap">{JSON.stringify({ before: event.before_data, after: event.after_data, requestId: event.request_id, operationId: event.operation_id }, null, 2)}</pre></div>)}</div></details></td>
                 </tr>
               ))}
             </tbody>
