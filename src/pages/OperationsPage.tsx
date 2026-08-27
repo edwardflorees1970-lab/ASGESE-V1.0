@@ -47,6 +47,66 @@ const dateFormatter = new Intl.DateTimeFormat("es-PE", { dateStyle: "short", tim
 const AUDIT_PAGE_SIZE = 25;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const TABLE_LABELS: Record<string, string> = {
+  form_template: "Ficha",
+  form_template_version: "Versión de ficha",
+  form_section: "Sección",
+  form_question: "Pregunta",
+  form_run: "Registro de ficha",
+  form_answer: "Respuesta",
+  form_answer_evidence: "Evidencia de respuesta",
+  ficha_catalog: "Ficha publicada",
+  monitoreo_catalog: "Monitoreo",
+  monitoreo_solicitud: "Solicitud",
+  monitoreo_solicitud_ie: "Instituciones del monitoreo",
+  monitoreo_solicitud_filtro: "Filtros del monitoreo",
+  monitoreo_asignacion: "Asignación de usuario",
+  monitoreo_role_asignacion: "Asignación de rol",
+  profiles: "Usuario",
+};
+
+function humanizeTableName(table: string) {
+  return table
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function tableLabel(table: string) {
+  return TABLE_LABELS[table] ?? humanizeTableName(table);
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  INSERT: "Creación",
+  UPDATE: "Edición",
+  DELETE: "Eliminación",
+};
+
+function actionLabel(action: string) {
+  return ACTION_LABELS[action] ?? action;
+}
+
+type ProfileRow = {
+  id: string;
+  nombres: string | null;
+  apellido_paterno: string | null;
+  apellido_materno: string | null;
+};
+
+function profileDisplayName(profile?: ProfileRow) {
+  if (!profile) return null;
+  const name = [profile.apellido_paterno, profile.apellido_materno, profile.nombres]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return name || null;
+}
+
+function shortActorId(actorId: string) {
+  return actorId.slice(0, 8);
+}
+
 function auditSearchFilter(value: string) {
   const safe = value.replace(/[,%()]/g, " ").trim();
   if (!safe) return "";
@@ -82,6 +142,7 @@ function OperationsIcon({ type = "audit" }: { type?: "audit" | "log" | "alert" |
 
 export function OperationsPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [actorProfiles, setActorProfiles] = useState<Map<string, ProfileRow>>(new Map());
   const [telemetry, setTelemetry] = useState<TelemetryRow[]>([]);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -143,6 +204,10 @@ export function OperationsPage() {
     } else {
       setTelemetryLifecycleAvailable(true);
     }
+    const actorIds = Array.from(new Set(auditRows.map((row) => row.actor_id).filter((id): id is string => Boolean(id))));
+    const profileResult = actorIds.length
+      ? await supabase.from("profiles").select("id, nombres, apellido_paterno, apellido_materno").in("id", actorIds)
+      : { data: [] as ProfileRow[], error: null };
     if (sequence !== loadSequence.current) return;
     const resultError = auditError ?? telemetryError;
     if (resultError) setError(resultError.message);
@@ -152,6 +217,7 @@ export function OperationsPage() {
       setAudit(auditRows);
       setAuditTotal(total);
       setTelemetry(telemetryRows);
+      setActorProfiles(new Map(((profileResult.data ?? []) as ProfileRow[]).map((profile) => [profile.id, profile])));
       if (auditPage > lastPage) setAuditPage(lastPage);
     }
     setLoading(false);
@@ -251,10 +317,17 @@ export function OperationsPage() {
               {auditOperations.map((operation) => (
                 <tr key={operation.id} className="border-t border-white/10 align-top">
                   <td className="p-2 whitespace-nowrap">{dateFormatter.format(new Date(operation.occurredAt))}</td>
-                  <td className="p-2"><div className="font-semibold">{operation.actions.join(" + ")}</div><div className="text-white/40">{operation.events.length} cambio{operation.events.length === 1 ? "" : "s"}</div></td>
-                  <td className="p-2">{operation.entities.map((entity) => <div key={entity.table}>{entity.table} <span className="text-white/40">× {entity.count}</span></div>)}</td>
-                  <td className="p-2">{operation.actorRole ?? "sistema"}<div className="text-white/40">{operation.actorId ?? "interno"}</div></td>
-                  <td className="p-2"><details><summary className="operations-json-toggle cursor-pointer font-semibold">Ver {operation.events.length} cambios</summary><div className="operations-json mt-2 max-h-72 max-w-xl space-y-2 overflow-auto rounded p-2 text-[10px]">{operation.events.map((event) => <div key={event.id} className="border-b border-white/10 pb-2 last:border-0"><div className="mb-1 font-semibold">{event.action} · {event.entity_table} · {event.entity_id ?? "Sin ID"}</div><pre className="whitespace-pre-wrap">{JSON.stringify({ before: event.before_data, after: event.after_data, requestId: event.request_id, operationId: event.operation_id }, null, 2)}</pre></div>)}</div></details></td>
+                  <td className="p-2"><div className="font-semibold">{operation.actions.map(actionLabel).join(" + ")}</div><div className="text-white/40">{operation.events.length} cambio{operation.events.length === 1 ? "" : "s"}</div></td>
+                  <td className="p-2">{operation.entities.map((entity) => <div key={entity.table}>{tableLabel(entity.table)} <span className="text-white/40">× {entity.count}</span></div>)}</td>
+                  <td className="p-2">
+                    {operation.actorId ? (
+                      <span title={operation.actorId}>{profileDisplayName(actorProfiles.get(operation.actorId)) ?? shortActorId(operation.actorId)}</span>
+                    ) : (
+                      <span>Sistema</span>
+                    )}
+                    <div className="text-white/40">{operation.actorRole ?? "sistema"}</div>
+                  </td>
+                  <td className="p-2"><details><summary className="operations-json-toggle cursor-pointer font-semibold">Ver {operation.events.length} cambios</summary><div className="operations-json mt-2 max-h-72 max-w-xl space-y-2 overflow-auto rounded p-2 text-[10px]">{operation.events.map((event) => <div key={event.id} className="border-b border-white/10 pb-2 last:border-0"><div className="mb-1 font-semibold">{actionLabel(event.action)} · {tableLabel(event.entity_table)} · {event.entity_id ?? "Sin ID"}</div><pre className="whitespace-pre-wrap">{JSON.stringify({ before: event.before_data, after: event.after_data, requestId: event.request_id, operationId: event.operation_id }, null, 2)}</pre></div>)}</div></details></td>
                 </tr>
               ))}
             </tbody>
