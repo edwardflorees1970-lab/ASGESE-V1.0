@@ -294,7 +294,7 @@ export function AsignacionesPage() {
 
       <section className="assignments-panel rounded-2xl border p-4 sm:p-5">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5"><div className="assignments-section-icon"><AssignmentIcon type="users" /></div><div><div className="assignments-eyebrow">Directorio</div><div className="text-sm font-bold">Usuarios</div></div></div>
+          <div className="flex items-center gap-2.5"><div className="assignments-section-icon"><AssignmentIcon type="users" /></div><div><div className="assignments-eyebrow">Directorio</div><div className="text-sm font-bold">Usuarios</div><p className="mt-0.5 text-xs text-[var(--app-muted)]">Asigna usuarios uno por uno a este monitoreo.</p></div></div>
           <div className="flex w-full gap-2 sm:max-w-xl"><select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="dashboard-control rounded-xl border px-3 py-2 text-sm"><option value="ALL">Todos los roles</option>{roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</select><input
             value={q}
             onChange={(e) => setQ(e.target.value)}
