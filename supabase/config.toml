@@ -443,3 +443,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/admin-users-import/deno.json"
 entrypoint = "./functions/admin-users-import/index.ts"
+
+[functions.submit-firma-signature]
+enabled = true
+verify_jwt = false
+import_map = "./functions/submit-firma-signature/deno.json"
+entrypoint = "./functions/submit-firma-signature/index.ts"
