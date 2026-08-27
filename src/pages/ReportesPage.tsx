@@ -1224,13 +1224,29 @@ export function ReportesPage() {
             const res = await fetch(signedData.signedUrl);
             if (!res.ok) return;
             const blob = await res.blob();
-            const dataUrl = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(String(reader.result));
-              reader.onerror = () => reject(reader.error);
-              reader.readAsDataURL(blob);
-            });
-            doc.addImage(dataUrl, "PNG", x, y - 2, 70, 13);
+            const [dataUrl, bitmap] = await Promise.all([
+              new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(blob);
+              }),
+              createImageBitmap(blob),
+            ]);
+            // Se ajusta al recuadro preservando la proporcion real de la imagen
+            // (antes se forzaba a 70x13mm y la firma salia deformada/aplastada).
+            const maxW = 70;
+            const maxH = 16;
+            const ratio = bitmap.width / bitmap.height;
+            let w = maxW;
+            let h = w / ratio;
+            if (h > maxH) {
+              h = maxH;
+              w = h * ratio;
+            }
+            const drawX = x + (maxW - w) / 2;
+            const lineY = y + 12;
+            doc.addImage(dataUrl, "PNG", drawX, lineY - h, w, h);
           } catch {
             // sin firma digital disponible: se deja la linea en blanco para firmar a mano
           }
