@@ -40,21 +40,11 @@ export function SignaturePad({
   const clearCanvas = () => {
     const ctx = ctxRef.current;
     if (!ctx) return;
-    // ctx is already scaled by devicePixelRatio (see effect below), so all
-    // drawing here happens in logical export-space coordinates, not physical pixels.
+    // Solo se limpia (queda transparente). El fondo blanco y la linea guia
+    // son decoracion CSS por detras del canvas: el PNG exportado debe llevar
+    // unicamente la tinta sobre fondo transparente, para no tapar la linea
+    // de firma que ya dibuja el PDF debajo de la imagen.
     ctx.clearRect(0, 0, EXPORT_WIDTH, EXPORT_HEIGHT);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, EXPORT_WIDTH, EXPORT_HEIGHT);
-    ctx.strokeStyle = "#c7cdd6";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 6]);
-    const guideY = EXPORT_HEIGHT * 0.72;
-    ctx.beginPath();
-    ctx.moveTo(EXPORT_WIDTH * 0.06, guideY);
-    ctx.lineTo(EXPORT_WIDTH * 0.94, guideY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = "#0f172a";
   };
 
   useEffect(() => {
@@ -149,16 +139,23 @@ export function SignaturePad({
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-      <canvas
-        ref={canvasRef}
-        className="w-full touch-none rounded-lg border border-white/10 bg-white"
-        style={{ aspectRatio: `${EXPORT_WIDTH} / ${EXPORT_HEIGHT}` }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={finishStroke}
-        onPointerLeave={finishStroke}
-        onPointerCancel={finishStroke}
-      />
+      <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white">
+        <div
+          className="pointer-events-none absolute inset-x-[6%] border-t border-dashed border-slate-300"
+          style={{ top: "72%" }}
+          aria-hidden="true"
+        />
+        <canvas
+          ref={canvasRef}
+          className="relative block w-full touch-none"
+          style={{ aspectRatio: `${EXPORT_WIDTH} / ${EXPORT_HEIGHT}` }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishStroke}
+          onPointerLeave={finishStroke}
+          onPointerCancel={finishStroke}
+        />
+      </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="text-[11px] text-white/45">Firme con el dedo sobre la línea punteada.</p>
         <button
