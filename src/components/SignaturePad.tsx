@@ -5,8 +5,11 @@ type Point = { x: number; y: number; t: number };
 const EXPORT_WIDTH = 900;
 const EXPORT_HEIGHT = 300;
 const MIN_DISTANCE = 1.5;
-const MIN_WIDTH = 1.6;
-const MAX_WIDTH = 4.2;
+// El PDF imprime esta firma a ~70mm de ancho (factor ~0.078mm/px sobre este
+// canvas de 900px). Un trazo de 1.6-4.2px quedaba en ~0.12-0.33mm impreso:
+// practicamente invisible. Se sube a un rango que imprime ~0.35-0.7mm.
+const MIN_WIDTH = 4.5;
+const MAX_WIDTH = 9;
 const REF_VELOCITY = 1.1;
 
 function midpoint(a: Point, b: Point) {
