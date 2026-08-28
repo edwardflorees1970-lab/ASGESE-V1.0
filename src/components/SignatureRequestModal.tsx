@@ -12,6 +12,7 @@ type Evidence = {
   fotoPath: string | null;
   signerIp: string | null;
   signerUserAgent: string | null;
+  deviceId: string | null;
 };
 
 type SignerState = {
@@ -56,6 +57,7 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
         foto_path: string | null;
         signer_ip: string | null;
         signer_user_agent: string | null;
+        device_id: string | null;
       }>;
       const latestBySigner: Partial<Record<Signer, (typeof rows)[number]>> = {};
       for (const row of rows) {
@@ -78,6 +80,7 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
                   fotoPath: row.foto_path,
                   signerIp: row.signer_ip,
                   signerUserAgent: row.signer_user_agent,
+                  deviceId: row.device_id,
                 }
               : null,
           };
@@ -135,13 +138,15 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
     if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
+  // Se compara por device_id (aleatorio, guardado en localStorage del
+  // navegador que firma), no por IP: docente y monitor firman normalmente
+  // desde la misma IE/WiFi, asi que la IP coincide siempre y no sirve como
+  // señal de fraude. El device_id sí distingue "mismo celular" de "misma red".
   const crossDeviceWarning = useMemo(() => {
     const d = signers.docente.evidence;
     const m = signers.monitor.evidence;
     if (!d || !m) return false;
-    const sameIp = Boolean(d.signerIp) && d.signerIp === m.signerIp;
-    const sameUa = Boolean(d.signerUserAgent) && d.signerUserAgent === m.signerUserAgent;
-    return sameIp && sameUa;
+    return Boolean(d.deviceId) && d.deviceId === m.deviceId;
   }, [signers]);
 
   if (!run) return null;
@@ -171,7 +176,7 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
           <div className="space-y-3 px-5 py-4">
             {crossDeviceWarning && (
               <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                ⚠ Ambas firmas se hicieron desde el mismo dispositivo/IP. Revise las fotos de verificación antes de dar por válido el registro.
+                ⚠ Ambas firmas se hicieron desde el mismo celular. Revise las fotos de verificación antes de dar por válido el registro.
               </div>
             )}
 

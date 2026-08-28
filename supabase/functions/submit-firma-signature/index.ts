@@ -7,6 +7,7 @@ type Body = {
   signature_png_base64?: string;
   foto_base64?: string;
   dni?: string;
+  device_id?: string;
 };
 
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
@@ -176,6 +177,7 @@ serve(async (req) => {
         dni_confirmado: dniInput,
         signer_ip: getClientIp(req),
         signer_user_agent: (req.headers.get("User-Agent") ?? "").slice(0, 300),
+        device_id: (body.device_id ?? "").slice(0, 100) || null,
       })
       .eq("id", solicitud.id);
     if (updSolicitudErr) {
