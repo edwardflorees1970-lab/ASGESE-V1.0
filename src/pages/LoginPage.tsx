@@ -119,13 +119,26 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const email =
-        mode === "usuario"
-          ? correo.trim().toLowerCase()
-          : docToEmail(tipoDoc, numeroDoc);
-
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        throw new Error("Ingresa un correo válido");
+      let email: string;
+      if (mode === "usuario") {
+        email = correo.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw new Error("Ingresa un correo válido");
+        }
+      } else {
+        // Valida el formato del documento (lanza si esta incompleto/invalido).
+        // El correo real ya no se puede armar como "{tipo}-{doc}@ugel06.gob.pe"
+        // porque ahora se permiten correos externos, asi que hay que resolverlo
+        // en el servidor antes de intentar el login.
+        docToEmail(tipoDoc, numeroDoc);
+        const { data: resolved, error: resolveError } = await supabase.functions.invoke("resolve-login-email", {
+          body: { tipo_documento: tipoDoc.toUpperCase(), numero_documento: numeroDoc },
+        });
+        const resolvedCorreo = (resolved as { correo?: string } | null)?.correo;
+        if (resolveError || !resolvedCorreo) {
+          throw new Error("Usuario o contraseña incorrectos");
+        }
+        email = resolvedCorreo;
       }
       if (!password) throw new Error("Ingresa tu contraseña");
 
