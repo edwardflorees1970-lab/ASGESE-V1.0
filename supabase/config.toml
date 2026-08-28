@@ -449,3 +449,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/submit-firma-signature/deno.json"
 entrypoint = "./functions/submit-firma-signature/index.ts"
+
+[functions.resolve-login-email]
+enabled = true
+verify_jwt = false
+import_map = "./functions/resolve-login-email/deno.json"
+entrypoint = "./functions/resolve-login-email/index.ts"
