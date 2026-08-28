@@ -197,7 +197,7 @@ export function validateUserImportRows(
     if (!apellidoPaterno) errors.push("Apellido paterno obligatorio");
     if (!cellText(values.apellido_materno).trim()) errors.push("Apellido materno obligatorio");
     if (!cellText(values.nombres).trim()) errors.push("Nombres obligatorios");
-    if (!correo.endsWith("@ugel06.gob.pe") || correo.startsWith("@")) errors.push("Correo institucional inválido");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) errors.push("Correo inválido");
     if (!activeRoleCodes.has(rol)) errors.push("Rol inexistente o inactivo");
     if (fecha === undefined) errors.push("Fecha inválida; usa AAAA-MM-DD");
     if (rol !== "director_iiee" && monitorFlag === null) errors.push("can_create_monitoreo debe ser SI o NO");

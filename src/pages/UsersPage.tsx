@@ -1015,11 +1015,11 @@ export function UsersPage() {
           </div>
 
           <div className="md:col-span-6">
-            <Field label="Correo (@ugel06.gob.pe)">
+            <Field label="Correo">
               <Input
                 value={createForm.correo}
                 onChange={(e) => setCreateForm((s) => ({ ...s, correo: e.target.value }))}
-                placeholder="acabreara@ugel06.gob.pe"
+                placeholder="nombre@correo.com"
               />
             </Field>
           </div>

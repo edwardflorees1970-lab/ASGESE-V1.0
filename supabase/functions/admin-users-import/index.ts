@@ -189,7 +189,7 @@ serve(async (req) => {
       if (Array.isArray(raw.validation_errors) && raw.validation_errors.length) message = raw.validation_errors.map(clean).filter(Boolean).join("; ");
       else if (!Number.isInteger(row.source_row) || row.source_row < 2 || !row.numero_documento || !row.apellido_paterno || !row.apellido_materno || !row.nombres) message = "Faltan campos obligatorios";
       else if (rawDocumentType !== "DNI" && rawDocumentType !== "CE") message = "Tipo de documento inválido";
-      else if (!row.correo.endsWith("@ugel06.gob.pe") || row.correo.startsWith("@")) message = "Correo institucional inválido";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.correo)) message = "Correo inválido";
       else if (!roles.has(row.rol)) message = "Rol inexistente o inactivo";
       else if (!validIsoDate(row.fecha_nacimiento)) message = "Fecha inválida; usa AAAA-MM-DD";
       else if (row.rol !== "director_iiee" && normalizedRei === null) message = "REI inválida; usa 01 a 19 o SIN REI";
