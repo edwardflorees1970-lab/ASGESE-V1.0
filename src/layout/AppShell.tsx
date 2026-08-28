@@ -66,6 +66,17 @@ export function AppShell() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [paletteMenuOpen, setPaletteMenuOpen] = useState(false);
+  const paletteMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!paletteMenuOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (paletteMenuRef.current && !paletteMenuRef.current.contains(e.target as Node)) setPaletteMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [paletteMenuOpen]);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const bodyOverflowRef = useRef<string | null>(null);
   const bodyPositionRef = useRef<string | null>(null);
@@ -313,16 +324,51 @@ export function AppShell() {
               <span className={cls("agebre-environment-badge hidden items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.06em] sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>{isTestMode ? "TEST" : "PRODUCCIÓN"}</span>
             )}
             <button type="button" onClick={toggleTheme} className="agebre-shell-icon-button" aria-label={theme === "dark" ? "Activar tema claro" : "Activar tema oscuro"} data-tooltip={theme === "dark" ? "Tema claro" : "Tema oscuro"}>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</button>
-            <select
-              value={palette}
-              onChange={(e) => setPalette(e.target.value as "azul" | "dorado")}
-              aria-label="Paleta de colores"
-              title="Paleta de colores"
-              className="agebre-shell-icon-button h-8 rounded-lg border border-[var(--app-border)] bg-transparent px-2 text-xs text-[var(--app-text)]"
-            >
-              <option value="azul">Azul UGEL</option>
-              <option value="dorado">Dorado UGEL</option>
-            </select>
+            <div className="relative" ref={paletteMenuRef}>
+              <button
+                type="button"
+                onClick={() => setPaletteMenuOpen((v) => !v)}
+                className="agebre-shell-icon-button"
+                aria-label="Paleta de colores"
+                aria-haspopup="menu"
+                aria-expanded={paletteMenuOpen}
+                data-tooltip="Paleta de colores"
+              >
+                <PaletteIcon />
+              </button>
+              {paletteMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-50 mt-2 w-40 overflow-hidden rounded-xl border shadow-lg"
+                  style={{ background: "var(--app-surface)", borderColor: "var(--app-border)" }}
+                >
+                  {([
+                    ["azul", "Azul UGEL", "#0077b6"],
+                    ["dorado", "Dorado UGEL", "#d4a017"],
+                  ] as const).map(([value, label, dot]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={palette === value}
+                      onClick={() => {
+                        setPalette(value);
+                        setPaletteMenuOpen(false);
+                      }}
+                      className={cls(
+                        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--app-surface-2)]",
+                        palette === value && "font-semibold"
+                      )}
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: dot }} />
+                      {label}
+                      {palette === value && <span className="ml-auto text-xs" style={{ color: "var(--app-accent)" }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="ml-1 flex items-center gap-2 border-l border-[var(--app-border)] pl-2 sm:gap-3 sm:pl-3">
               <div className="hidden min-w-0 text-right lg:block"><div className="max-w-48 truncate text-xs font-semibold text-[var(--app-text)]">{nombre}</div><button type="button" onClick={() => setLogoutOpen(true)} className="mt-0.5 text-[10px] text-[var(--app-muted)] transition hover:text-[var(--app-accent)]">{roleLabel(role)} · Salir</button></div>
               <button type="button" onClick={() => setLogoutOpen(true)} className="agebre-avatar" aria-label="Cerrar sesión" data-tooltip="Cerrar sesión">{initials}</button>
@@ -368,6 +414,7 @@ function ChevronIcon() { return <svg viewBox="0 0 12 12" className="h-3 w-3" fil
 function MoonIcon() { return <ShellSvg><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z" /></ShellSvg>; }
 function SunIcon() { return <ShellSvg><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></ShellSvg>; }
 function CollapseIcon({ reversed = false }: { reversed?: boolean }) { return <ShellSvg><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 4v16" />{reversed ? <path d="m13 9 3 3-3 3" /> : <path d="m16 9-3 3 3 3" />}</ShellSvg>; }
+function PaletteIcon() { return <ShellSvg><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h1.8A3.7 3.7 0 0 0 21 12.7 9 9 0 0 0 12 3Z" /><circle cx="7.5" cy="11" r="1.1" fill="currentColor" stroke="none" /><circle cx="9.5" cy="7.5" r="1.1" fill="currentColor" stroke="none" /><circle cx="14.5" cy="7.5" r="1.1" fill="currentColor" stroke="none" /><circle cx="16.2" cy="11.5" r="1.1" fill="currentColor" stroke="none" /></ShellSvg>; }
 
 function HomeIcon() {
   return <ShellSvg><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9M9 20v-6h6v6" /></ShellSvg>;
