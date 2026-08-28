@@ -17,6 +17,7 @@ import { IconButton as UiIconButton } from "../components/ui/IconButton";
 import { UserImportDialog } from "../components/UserImportDialog";
 import { DirectorPlazasDialog } from "../components/DirectorPlazasDialog";
 import { isStrongPassword, normalizeRei } from "../lib/userImport";
+import { DOCUMENT_LENGTH, sanitizeDocumentNumber } from "../lib/loginDocument";
 
 
 type Toast = { type: "ok" | "err"; msg: string } | null;
@@ -932,7 +933,13 @@ export function UsersPage() {
             <Field label="N° documento">
               <Input
                 value={createForm.numero_documento}
-                onChange={(e) => setCreateForm((s) => ({ ...s, numero_documento: e.target.value }))}
+                maxLength={DOCUMENT_LENGTH[createForm.tipo_documento === "CE" ? "ce" : "dni"]}
+                onChange={(e) =>
+                  setCreateForm((s) => ({
+                    ...s,
+                    numero_documento: sanitizeDocumentNumber(s.tipo_documento === "CE" ? "ce" : "dni", e.target.value),
+                  }))
+                }
               />
             </Field>
           </div>
@@ -1131,8 +1138,11 @@ export function UsersPage() {
               <Field label="N° documento">
                 <Input
                   value={editUser.numero_documento}
+                  maxLength={DOCUMENT_LENGTH[editUser.tipo_documento === "CE" ? "ce" : "dni"]}
                   onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, numero_documento: e.target.value } : s))
+                    setEditUser((s) =>
+                      s ? { ...s, numero_documento: sanitizeDocumentNumber(s.tipo_documento === "CE" ? "ce" : "dni", e.target.value) } : s
+                    )
                   }
                 />
               </Field>
