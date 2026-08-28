@@ -199,6 +199,13 @@
   --app-focus: var(--app-accent);
 }
 
+html {
+  /* Base mas compacta (14px en vez de los 16px por defecto) para que la
+     app se vea bien en laptops de 14" a 100% de zoom, sin depender de
+     que el usuario baje el zoom del navegador manualmente. */
+  font-size: 14px;
+}
+
 html,
 body {
   background: var(--app-bg);
