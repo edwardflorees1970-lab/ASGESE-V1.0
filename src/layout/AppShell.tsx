@@ -294,7 +294,7 @@ export function AppShell() {
   };
 
   return (
-    <div className="agebre-app-shell flex h-[100dvh] w-full overflow-hidden">
+    <div className="agebre-app-shell flex h-screen w-full overflow-hidden">
       {mobileOpen && <button type="button" aria-label="Cerrar menú" className="fixed inset-0 z-40 bg-slate-950/55 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
       <aside className={cls("agebre-suite-sidebar hidden shrink-0 border-r lg:block", sidebarHidden ? "w-[76px]" : "w-[252px]")}>
