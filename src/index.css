@@ -65,7 +65,7 @@
   --app-warning: #dc8d07;
   --app-info: #2563d4;
   --app-violet: #8557dc;
-  --nav-active: #0084a8;
+  --nav-active: var(--app-accent);
   --nav-on-active: #ffffff;
   --dashboard-panel: #121f2c;
   --dashboard-panel-strong: #162534;
@@ -160,7 +160,7 @@
   --app-warning: #b96d00;
   --app-info: #2563b8;
   --app-violet: #6e3fc0;
-  --nav-active: #007f9f;
+  --nav-active: var(--app-accent);
   --nav-on-active: #ffffff;
   --dashboard-panel: #ffffff;
   --dashboard-panel-strong: #ffffff;
@@ -308,13 +308,13 @@ th { font-weight: 650; letter-spacing: 0.01em; }
 
 .agebre-suite-sidebar .agebre-nav-item:hover {
   color: #f8fafc;
-  background: #102324;
+  background: color-mix(in srgb, var(--app-accent) 16%, transparent);
 }
 
 .agebre-suite-sidebar .agebre-nav-item[aria-current="page"] {
   color: #ffffff;
-  background: #0b918b;
-  box-shadow: 0 7px 18px rgba(11, 145, 139, 0.3);
+  background: var(--app-accent);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--app-accent) 30%, transparent);
 }
 
 .agebre-suite-sidebar .agebre-nav-icon {
