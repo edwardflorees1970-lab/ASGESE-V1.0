@@ -1,7 +1,8 @@
-import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { SignaturePad } from "../components/SignaturePad";
+import { CameraCapture } from "../components/CameraCapture";
 
 type SolicitudInfo = {
   status: "pendiente" | "firmado" | "expirado" | "invalido";
@@ -57,34 +58,6 @@ function getDeviceId() {
   }
 }
 
-// Las fotos de camara suelen pesar varios MB; se reducen en el dispositivo
-// antes de subir para que funcione bien con la conectividad de campo.
-function compressPhoto(file: File, maxDim = 900, quality = 0.7): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("No se pudo procesar la foto."));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", quality));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("No se pudo leer la foto."));
-    };
-    img.src = objectUrl;
-  });
-}
-
 export function FirmaPublicaPage() {
   const { token } = useParams<{ token: string }>();
   const [info, setInfo] = useState<SolicitudInfo | null>(null);
@@ -93,7 +66,6 @@ export function FirmaPublicaPage() {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [dni, setDni] = useState("");
   const [fotoDataUrl, setFotoDataUrl] = useState<string | null>(null);
-  const [fotoError, setFotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -119,19 +91,6 @@ export function FirmaPublicaPage() {
       cancelled = true;
     };
   }, [token]);
-
-  const handleFotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setFotoError(null);
-    try {
-      const compressed = await compressPhoto(file);
-      setFotoDataUrl(compressed);
-    } catch {
-      setFotoError("No se pudo procesar la foto. Intente de nuevo.");
-      setFotoDataUrl(null);
-    }
-  };
 
   const dniValido = /^\d{8}$/.test(dni);
   const canSave = Boolean(dataUrl && fotoDataUrl && dniValido) && !saving;
@@ -234,20 +193,24 @@ export function FirmaPublicaPage() {
         </div>
 
         <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
-          <label htmlFor="firma-foto" className="text-xs font-semibold uppercase tracking-wide text-white/50">Foto de verificación</label>
-          <p className="mt-1 text-[11px] text-white/45">Tómate una foto ahora mismo, como evidencia de que estás presente firmando.</p>
-          <input
-            id="firma-foto"
-            type="file"
-            accept="image/*"
-            capture="user"
-            onChange={handleFotoChange}
-            className="mt-2 block w-full text-xs text-white/70 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-white"
-          />
-          {fotoError && <p className="mt-2 text-xs text-red-300">{fotoError}</p>}
-          {fotoDataUrl && (
-            <img src={fotoDataUrl} alt="Vista previa de la foto de verificación" className="mt-2 h-24 w-24 rounded-lg object-cover" />
-          )}
+          <div className="text-xs font-semibold uppercase tracking-wide text-white/50">Foto de verificación</div>
+          <p className="mt-1 text-[11px] text-white/45">Tómate una foto en vivo ahora mismo, como evidencia de que estás presente firmando.</p>
+          <div className="mt-2">
+            {fotoDataUrl ? (
+              <div className="flex items-center gap-3">
+                <img src={fotoDataUrl} alt="Foto de verificación" className="h-20 w-20 rounded-lg object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setFotoDataUrl(null)}
+                  className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+                >
+                  Repetir foto
+                </button>
+              </div>
+            ) : (
+              <CameraCapture onCapture={setFotoDataUrl} />
+            )}
+          </div>
         </div>
 
         <div className="mt-4">
