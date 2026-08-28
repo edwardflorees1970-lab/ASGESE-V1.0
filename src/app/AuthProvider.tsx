@@ -69,9 +69,15 @@ const legacyModulesByRole: Record<string, string[]> = {
 // dedicada, usando las credenciales de VITE_LOCAL_PREVIEW_EMAIL /
 // VITE_LOCAL_PREVIEW_PASSWORD (solo en .env local, nunca en produccion).
 // Asi las llamadas a Supabase corren autenticadas de verdad en local,
-// respetando RLS igual que un usuario real. Nunca se activa en produccion
-// porque esas env vars no existen ahi.
-const LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === "true";
+// respetando RLS igual que un usuario real.
+//
+// IMPORTANTE: se exige ademas import.meta.env.DEV (true SOLO con
+// `vite dev`, false en cualquier `vite build`) como candado duro. No basta
+// con confiar en que .env no tenga esta variable en produccion: un build
+// de produccion corrido localmente (`vercel --prod` desde una maquina con
+// .env de desarrollo) igual la incluiria en el bundle publico sin este
+// candado -- eso ya paso una vez y expuso una contraseña real.
+const LOCAL_PREVIEW = import.meta.env.DEV && import.meta.env.VITE_LOCAL_PREVIEW === "true";
 const LOCAL_PREVIEW_EMAIL = import.meta.env.VITE_LOCAL_PREVIEW_EMAIL as string | undefined;
 const LOCAL_PREVIEW_PASSWORD = import.meta.env.VITE_LOCAL_PREVIEW_PASSWORD as string | undefined;
 
@@ -250,7 +256,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // scope "global" revoca el refresh token en el servidor (no solo borra
+    // el localStorage de este navegador). Sin esto, una copia del token en
+    // otro dispositivo/perfil (ej. perfil de Windows itinerante, sync del
+    // navegador) puede seguir refrescando la sesion despues de "cerrar sesion".
+    await supabase.auth.signOut({ scope: "global" });
     currentUserId.current = null;
     setSession(null);
     setUser(null);
