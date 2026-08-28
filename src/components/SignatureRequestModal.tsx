@@ -18,6 +18,7 @@ type Evidence = {
 type SignerState = {
   loading: boolean;
   evidence: Evidence | null;
+  fotoUrl: string | null;
   link: string | null;
   qrDataUrl: string | null;
   error: string | null;
@@ -29,7 +30,7 @@ const SIGNER_LABEL: Record<Signer, string> = {
 };
 
 function emptySignerState(): SignerState {
-  return { loading: false, evidence: null, link: null, qrDataUrl: null, error: null };
+  return { loading: false, evidence: null, fotoUrl: null, link: null, qrDataUrl: null, error: null };
 }
 
 export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; onClose: () => void }) {
@@ -88,6 +89,16 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
         return next;
       });
       setChecking(false);
+
+      // Miniaturas de las fotos de verificacion: se piden de una vez para que
+      // se vean directo en el modal, sin un clic extra por firmante.
+      for (const signer of ["docente", "monitor"] as Signer[]) {
+        const fotoPath = latestBySigner[signer]?.foto_path;
+        if (!fotoPath) continue;
+        const { data: signedData } = await supabase.storage.from("monitoreo-firmas").createSignedUrl(fotoPath, 600);
+        if (cancelled || !signedData?.signedUrl) continue;
+        setSigners((prev) => ({ ...prev, [signer]: { ...prev[signer], fotoUrl: signedData.signedUrl } }));
+      }
     })();
     return () => {
       cancelled = true;
@@ -193,13 +204,22 @@ export function SignatureRequestModal({ run, onClose }: { run: RunLike | null; o
                   </div>
 
                   {signed && state.evidence?.fotoPath && (
-                    <button
-                      type="button"
-                      onClick={() => verFoto(state.evidence!.fotoPath!)}
-                      className="mt-2 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-white/70 hover:bg-white/5"
-                    >
-                      Ver foto de verificación
-                    </button>
+                    <div className="mt-2 flex items-center gap-3">
+                      {state.fotoUrl ? (
+                        <button type="button" onClick={() => verFoto(state.evidence!.fotoPath!)} className="shrink-0">
+                          <img
+                            src={state.fotoUrl}
+                            alt={`Foto de verificación de ${SIGNER_LABEL[signer]}`}
+                            className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10 hover:ring-[var(--app-accent)]"
+                          />
+                        </button>
+                      ) : (
+                        <div className="h-16 w-16 animate-pulse rounded-lg bg-white/10" />
+                      )}
+                      <span className="text-[11px] text-white/45">
+                        Firmado {state.evidence.signedAt ? new Date(state.evidence.signedAt).toLocaleString("es-PE") : ""}
+                      </span>
+                    </div>
                   )}
 
                   {!signed && !state.link && (
