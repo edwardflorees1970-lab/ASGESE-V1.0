@@ -185,7 +185,7 @@ serve(async (req) => {
 
     if (body.correo !== undefined && body.correo !== null) {
       const correo = String(body.correo).trim().toLowerCase();
-      if (!correo.endsWith("@ugel06.gob.pe")) return json({ error: "Solo correos @ugel06.gob.pe" }, origin, 400);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return json({ error: "correo invalido" }, origin, 400);
       if (currentProfile.role === "director_iiee" && correo !== String(currentProfile.correo ?? "").toLowerCase()) {
         return json({ error: "El alias del Director IIEE proviene de su plaza" }, origin, 400);
       }

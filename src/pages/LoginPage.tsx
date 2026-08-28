@@ -124,8 +124,8 @@ export function LoginPage() {
           ? correo.trim().toLowerCase()
           : docToEmail(tipoDoc, numeroDoc);
 
-      if (!email.endsWith("@ugel06.gob.pe")) {
-        throw new Error("Solo se permiten correos institucionales @ugel06.gob.pe");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error("Ingresa un correo válido");
       }
       if (!password) throw new Error("Ingresa tu contraseña");
 
@@ -225,10 +225,10 @@ export function LoginPage() {
             <div key={mode} className="login-credential-panel">
               {mode === "usuario" ? (
                 <label className="block">
-                  <span className="login-field-label">Correo institucional</span>
+                  <span className="login-field-label">Correo</span>
                   <div className="relative">
                     <span className="login-field-icon"><LoginFieldIcon name="mail" /></span>
-                    <input type="email" autoComplete="email" value={correo} onChange={(e) => { setCorreo(e.target.value); setErrorMsg(null); }} placeholder="nombre@ugel06.gob.pe" className="login-field pl-10" />
+                    <input type="email" autoComplete="email" value={correo} onChange={(e) => { setCorreo(e.target.value); setErrorMsg(null); }} placeholder="nombre@correo.com" className="login-field pl-10" />
                   </div>
                 </label>
               ) : (

@@ -134,7 +134,7 @@ serve(async (req) => {
     const rei = normalizeRei(body.rei);
 
     if (!correo) return bad(origin, "correo es obligatorio");
-    if (!correo.endsWith("@ugel06.gob.pe")) return bad(origin, "Solo correos @ugel06.gob.pe");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return bad(origin, "correo invalido");
     if (!isStrongPassword(password)) return bad(origin, "password requiere mayuscula, minuscula, numero, caracter especial y minimo 8 caracteres");
     if (rei === null) return bad(origin, "rei debe ser 01 a 19 o SIN REI");
     const { data: validRole, error: roleError } = await supaAdmin.from("app_role").select("code").eq("code", role).eq("is_active", true).maybeSingle();
