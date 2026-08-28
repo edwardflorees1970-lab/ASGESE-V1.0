@@ -49,10 +49,10 @@
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-  --app-bg: #0c1520;
-  --app-surface: #121f2c;
-  --app-surface-2: #192938;
-  --app-surface-3: #08111b;
+  --app-bg: #0a1526;
+  --app-surface: #0f2035;
+  --app-surface-2: #16304d;
+  --app-surface-3: #071120;
   --app-border: rgba(148, 174, 193, 0.18);
   --app-text: #e7edf2;
   --app-muted: rgba(210, 222, 231, 0.7);
@@ -76,7 +76,7 @@
   --dashboard-shadow: 0 10px 28px rgba(5, 12, 18, 0.18);
   --app-text-muted: var(--app-muted);
   --app-overlay: rgba(3, 9, 15, 0.72);
-  --app-focus: #51c7e3;
+  --app-focus: var(--app-accent);
   --app-shadow-xs: 0 1px 2px rgba(2, 8, 14, 0.18);
   --app-shadow-sm: 0 4px 14px rgba(2, 8, 14, 0.18);
   --app-shadow-md: 0 14px 34px rgba(2, 8, 14, 0.24);
@@ -171,10 +171,32 @@
   --dashboard-shadow: 0 8px 24px rgba(28, 52, 68, 0.055);
   --app-text-muted: var(--app-muted);
   --app-overlay: rgba(15, 23, 42, 0.48);
-  --app-focus: #007fa8;
+  --app-focus: var(--app-accent);
   --app-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
   --app-shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.08);
   --app-shadow-md: 0 14px 34px rgba(15, 23, 42, 0.12);
+}
+
+/* Tema "Dorado UGEL": segunda paleta institucional, tomada del color
+   dominante (#EAB830) del sitio oficial ugel06.gob.pe. Se combina con
+   texto oscuro en vez de blanco por contraste (WCAG) sobre el dorado. */
+:root[data-palette="dorado"],
+[data-theme="dark"][data-palette="dorado"] {
+  --app-accent: #d4a017;
+  --app-accent-strong: #a67c00;
+  --app-on-accent: #1a1408;
+  --nav-active: var(--app-accent);
+  --nav-on-active: #1a1408;
+  --app-focus: var(--app-accent);
+}
+
+[data-theme="light"][data-palette="dorado"] {
+  --app-accent: #b8860b;
+  --app-accent-strong: #8a6508;
+  --app-on-accent: #1a1408;
+  --nav-active: var(--app-accent);
+  --nav-on-active: #1a1408;
+  --app-focus: var(--app-accent);
 }
 
 html,

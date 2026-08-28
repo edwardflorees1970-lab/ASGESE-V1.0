@@ -60,7 +60,7 @@ const Item = ({
 
 export function AppShell() {
   const { profile, signOut, canViewModule } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, palette, setPalette } = useTheme();
   const { isTestMode, setMode } = useAppConfig();
   const nav = useNavigate();
   const location = useLocation();
@@ -313,6 +313,16 @@ export function AppShell() {
               <span className={cls("agebre-environment-badge hidden items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.06em] sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>{isTestMode ? "TEST" : "PRODUCCIÓN"}</span>
             )}
             <button type="button" onClick={toggleTheme} className="agebre-shell-icon-button" aria-label={theme === "dark" ? "Activar tema claro" : "Activar tema oscuro"} data-tooltip={theme === "dark" ? "Tema claro" : "Tema oscuro"}>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</button>
+            <select
+              value={palette}
+              onChange={(e) => setPalette(e.target.value as "azul" | "dorado")}
+              aria-label="Paleta de colores"
+              title="Paleta de colores"
+              className="agebre-shell-icon-button h-8 rounded-lg border border-[var(--app-border)] bg-transparent px-2 text-xs text-[var(--app-text)]"
+            >
+              <option value="azul">Azul UGEL</option>
+              <option value="dorado">Dorado UGEL</option>
+            </select>
             <div className="ml-1 flex items-center gap-2 border-l border-[var(--app-border)] pl-2 sm:gap-3 sm:pl-3">
               <div className="hidden min-w-0 text-right lg:block"><div className="max-w-48 truncate text-xs font-semibold text-[var(--app-text)]">{nombre}</div><button type="button" onClick={() => setLogoutOpen(true)} className="mt-0.5 text-[10px] text-[var(--app-muted)] transition hover:text-[var(--app-accent)]">{roleLabel(role)} · Salir</button></div>
               <button type="button" onClick={() => setLogoutOpen(true)} className="agebre-avatar" aria-label="Cerrar sesión" data-tooltip="Cerrar sesión">{initials}</button>
