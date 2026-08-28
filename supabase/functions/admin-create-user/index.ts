@@ -22,6 +22,8 @@ type CreateBody = {
   password: string;
 };
 
+const DOCUMENT_LENGTH: Record<string, number> = { DNI: 8, CE: 9 };
+
 function isStrongPassword(password: string) {
   return password.length >= 8 && /\p{Lu}/u.test(password) && /\p{Ll}/u.test(password)
     && /\p{N}/u.test(password) && /[^\p{L}\p{N}]/u.test(password);
@@ -132,11 +134,18 @@ serve(async (req) => {
     const password = (body.password || "").trim();
     const role = body.rol ?? "user";
     const rei = normalizeRei(body.rei);
+    const tipoDocumento = (body.tipo_documento || "DNI").trim().toUpperCase();
+    const numeroDocumento = (body.numero_documento || "").trim();
 
     if (!correo) return bad(origin, "correo es obligatorio");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return bad(origin, "correo invalido");
     if (!isStrongPassword(password)) return bad(origin, "password requiere mayuscula, minuscula, numero, caracter especial y minimo 8 caracteres");
     if (rei === null) return bad(origin, "rei debe ser 01 a 19 o SIN REI");
+    if (tipoDocumento !== "DNI" && tipoDocumento !== "CE") return bad(origin, "tipo_documento debe ser DNI o CE");
+    if (!numeroDocumento) return bad(origin, "numero_documento es obligatorio");
+    if (!/^\d+$/.test(numeroDocumento) || numeroDocumento.length !== DOCUMENT_LENGTH[tipoDocumento]) {
+      return bad(origin, `El numero de ${tipoDocumento} debe tener exactamente ${DOCUMENT_LENGTH[tipoDocumento]} digitos numericos`);
+    }
     const { data: validRole, error: roleError } = await supaAdmin.from("app_role").select("code").eq("code", role).eq("is_active", true).maybeSingle();
     if (roleError || !validRole) return bad(origin, "Rol no permitido");
     if (role === "director_iiee") return bad(origin, "Los Directores IIEE deben crearse ocupando una plaza mediante la carga Excel");
@@ -161,8 +170,8 @@ serve(async (req) => {
       correo,
       email: correo,
       email_login: correo,
-      tipo_documento: (body.tipo_documento || "DNI").trim(),
-      numero_documento: (body.numero_documento || "").trim() || null,
+      tipo_documento: tipoDocumento,
+      numero_documento: numeroDocumento,
       apellido_paterno: (body.apellido_paterno || "").trim() || null,
       apellido_materno: (body.apellido_materno || "").trim() || null,
       nombres: (body.nombres || "").trim() || null,
