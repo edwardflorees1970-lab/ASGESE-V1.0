@@ -405,6 +405,7 @@ export function ReportesPage() {
   const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
 
   const [runs, setRuns] = useState<RunRow[]>([]);
+  const [crossDeviceFlags, setCrossDeviceFlags] = useState<Set<string>>(new Set());
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
   const [fichasByTemplate, setFichasByTemplate] = useState<Record<string, FichaRow>>({});
   const [templates, setTemplates] = useState<Record<string, TemplateRow>>({});
@@ -682,6 +683,24 @@ export function ReportesPage() {
       alive = false;
     };
   }, [year, selectedFicha, selectedMonitoreo, status, roleFilter, monitoreos, user?.id, canSeeAll, isTestMode]);
+
+  const runIdsKey = runs.map((r) => r.id).join(",");
+  useEffect(() => {
+    if (!runs.length) {
+      setCrossDeviceFlags(new Set());
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.rpc("firma_cross_device_flags", { p_run_ids: runs.map((r) => r.id) });
+      if (!alive) return;
+      setCrossDeviceFlags(new Set((data ?? []) as string[]));
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runIdsKey]);
 
   useEffect(() => {
     if (!toast) return;
@@ -2159,9 +2178,21 @@ export function ReportesPage() {
 
             const monitoreado = r.docente?.trim() || "-";
             const institucion = r.institucion_educativa?.trim() || "-";
+            const firmaSospechosa = crossDeviceFlags.has(r.id);
 
             return (
-              <div key={r.id} className="reports-panel reports-run-card rounded-2xl border p-4">
+              <div
+                key={r.id}
+                className={cls(
+                  "reports-panel reports-run-card rounded-2xl border p-4",
+                  firmaSospechosa && "border-red-500/50 bg-red-500/[0.06]"
+                )}
+              >
+                {firmaSospechosa && (
+                  <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] font-semibold text-red-200" title="Docente y monitor firmaron desde el mismo celular. Revise las fotos de verificación en Firmas.">
+                    ⚠ Posible suplantación: mismas firmas desde un solo celular
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">{mon?.nombre || "Monitoreo"}</div>
@@ -2358,12 +2389,18 @@ export function ReportesPage() {
                   const creatorName = getCreatorName(creator);
                   const monitoreado = r.docente?.trim() || "-";
                   const institucion = r.institucion_educativa?.trim() || "-";
+                  const firmaSospechosa = crossDeviceFlags.has(r.id);
 
                   return (
-                    <tr key={r.id} className="border-t border-white/10 text-sm">
+                    <tr key={r.id} className={cls("border-t border-white/10 text-sm", firmaSospechosa && "bg-red-500/[0.06]")}>
                       <td className="px-4 py-3">
                         <div className="font-medium text-white/90">{mon?.nombre || "-"}</div>
                         <div className="text-xs text-white/60">Ficha: {fichaCodigo}</div>
+                        {firmaSospechosa && (
+                          <div className="mt-1 inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-200" title="Docente y monitor firmaron desde el mismo celular. Revise las fotos de verificación en Firmas.">
+                            ⚠ Posible suplantación
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-white/70">{fmtDateShort(r.created_at)}</td>
                       <td className="px-4 py-3 align-top">
