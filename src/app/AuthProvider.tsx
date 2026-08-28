@@ -226,10 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // ✅ 3) Cambios de sesión
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      // DIAGNOSTICO TEMPORAL: identificar que evento reestablece la sesion
-      // despues de un logout. Quitar una vez resuelto.
-      // eslint-disable-next-line no-console
-      console.warn("[AUTH-DEBUG]", _event, "sesion:", newSession ? newSession.user?.email : null, "en", new Date().toISOString());
       if (!alive.current) return;
 
       const nextUserId = newSession?.user?.id ?? null;
@@ -260,8 +256,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   const signOut = useCallback(async () => {
-    // eslint-disable-next-line no-console
-    console.warn("[AUTH-DEBUG] signOut() llamado en", new Date().toISOString());
     // scope "global" revoca el refresh token en el servidor (no solo borra
     // el localStorage de este navegador). Sin esto, una copia del token en
     // otro dispositivo/perfil (ej. perfil de Windows itinerante, sync del
