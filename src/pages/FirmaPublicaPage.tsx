@@ -39,6 +39,24 @@ const SIGNER_LABEL: Record<string, string> = {
   monitor: "Monitor",
 };
 
+const DEVICE_ID_KEY = "asgese_firma_device_id";
+
+// Id aleatorio por navegador (no por red): docente y monitor suelen firmar
+// desde la misma IE/WiFi, asi que la IP no sirve para detectar "firmo por
+// los dos". Si el MISMO celular abre ambos enlaces, este id sí coincide.
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 // Las fotos de camara suelen pesar varios MB; se reducen en el dispositivo
 // antes de subir para que funcione bien con la conectividad de campo.
 function compressPhoto(file: File, maxDim = 900, quality = 0.7): Promise<string> {
@@ -124,7 +142,7 @@ export function FirmaPublicaPage() {
     setSubmitError(null);
     try {
       const { data, error: fnError } = await supabase.functions.invoke("submit-firma-signature", {
-        body: { token, signature_png_base64: dataUrl, foto_base64: fotoDataUrl, dni },
+        body: { token, signature_png_base64: dataUrl, foto_base64: fotoDataUrl, dni, device_id: getDeviceId() },
       });
       if (fnError) {
         // FunctionsHttpError no trae el JSON del body en `data`; hay que leerlo
