@@ -963,12 +963,16 @@ export function ReportesPage() {
 
       const drawSectionHeader = (title: string) => {
         ensureSpace(10);
-        doc.setFillColor(230, 236, 243);
-        doc.setDrawColor(160, 170, 185);
+        doc.setFillColor(224, 240, 249);
+        doc.setDrawColor(0, 119, 182);
         doc.rect(M, y - 2.5, contentW, 8, "FD");
+        doc.setFillColor(0, 119, 182);
+        doc.rect(M, y - 2.5, 1.4, 8, "F");
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
-        doc.text(title, M + 2, y + 2.5);
+        doc.setTextColor(4, 61, 95);
+        doc.text(title, M + 4, y + 2.5);
+        doc.setTextColor(20);
         y += 10;
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
@@ -1077,12 +1081,15 @@ export function ReportesPage() {
         // ignore
       }
       y = bannerY + bannerH + 10;
-      doc.setFillColor(242, 246, 252);
-      doc.setDrawColor(192, 203, 220);
+      doc.setFillColor(232, 244, 250);
+      doc.setDrawColor(0, 119, 182);
       doc.rect(M, y - 10, contentW, 22, "FD");
+      doc.setFillColor(0, 119, 182);
+      doc.rect(M, y - 10, contentW, 1.6, "F");
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
+      doc.setTextColor(4, 61, 95);
       const titleMaxW = contentW - 6;
       const titleLines = splitSafe(tpl.titulo || "", titleMaxW);
       doc.text(titleLines, M + 3, y);
