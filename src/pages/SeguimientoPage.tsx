@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
+import { useAppConfig } from "../app/AppConfigProvider";
 import { canSeeAllRole } from "../lib/roles";
 import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
 
@@ -80,6 +81,7 @@ function displayName(p?: ProfileRow | null) {
 
 export function SeguimientoPage() {
   const { profile } = useAuth();
+  const { isTestMode } = useAppConfig();
   const role = profile?.role;
   const canManage = canSeeAllRole(role);
 
@@ -131,6 +133,7 @@ export function SeguimientoPage() {
           .from("monitoreo_catalog")
           .select("id, codigo, nombre, solicitud_id, fecha_fin")
           .eq("is_active", true)
+          .eq("is_test", isTestMode)
           .order("nombre", { ascending: true });
         if (!alive) return;
         const list = (data ?? []) as MonitoreoRow[];
@@ -155,6 +158,7 @@ export function SeguimientoPage() {
         .select("id, codigo, nombre, solicitud_id, fecha_fin")
         .in("id", ids)
         .eq("is_active", true)
+        .eq("is_test", isTestMode)
         .order("nombre", { ascending: true });
       if (!alive) return;
       const list = (data ?? []) as MonitoreoRow[];
@@ -164,7 +168,7 @@ export function SeguimientoPage() {
     return () => {
       alive = false;
     };
-  }, [canManage, profile?.id]);
+  }, [canManage, profile?.id, isTestMode]);
 
   useEffect(() => {
     if (!toast) return;
