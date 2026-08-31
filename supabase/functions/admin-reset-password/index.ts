@@ -111,7 +111,9 @@ serve(async (req) => {
     if (profErr) {
       return json({ error: "No se pudo verificar role", details: profErr.message }, origin, 403);
     }
-    if (!prof || prof.role !== "admin") {
+    const isAdmin = prof?.role === "admin";
+    const isCoordinador = prof?.role === "coordinador";
+    if (!prof || (!isAdmin && !isCoordinador)) {
       return json({ error: "Solo admin puede resetear contraseñas" }, origin, 403);
     }
 
@@ -125,6 +127,18 @@ serve(async (req) => {
     if (!newPassword) return json({ error: "password es requerido" }, origin, 400);
     if (!isStrongPassword(newPassword)) {
       return json({ error: "password requiere mayuscula, minuscula, numero, caracter especial y minimo 8 caracteres" }, origin, 400);
+    }
+
+    // Coordinador solo puede resetear contraseñas de usuarios con rol Monitor ("user").
+    if (isCoordinador) {
+      const { data: targetProf, error: targetErr } = await supaAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .single();
+      if (targetErr || !targetProf || targetProf.role !== "user") {
+        return json({ error: "Coordinador solo puede resetear contraseñas de usuarios con rol Monitor" }, origin, 403);
+      }
     }
 
     const { error: upErr } = await supaAdmin.auth.admin.updateUserById(userId, {
