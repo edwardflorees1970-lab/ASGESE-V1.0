@@ -438,6 +438,7 @@ export function ReportesPage() {
         .select("id, codigo, nombre, anio, is_active, solicitud_id, descripcion, fecha_fin")
         .eq("anio", Number(year))
         .eq("is_active", true)
+        .eq("is_test", isTestMode)
         .order("nombre", { ascending: true });
 
       if (isResponsableCdd && user?.id) {
