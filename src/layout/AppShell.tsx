@@ -78,6 +78,8 @@ export function AppShell() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [paletteMenuOpen]);
   const [logoutBusy, setLogoutBusy] = useState(false);
+  const [modeConfirmOpen, setModeConfirmOpen] = useState(false);
+  const [modeConfirmBusy, setModeConfirmBusy] = useState(false);
   const bodyOverflowRef = useRef<string | null>(null);
   const bodyPositionRef = useRef<string | null>(null);
   const bodyTopRef = useRef<string | null>(null);
@@ -317,7 +319,7 @@ export function AppShell() {
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
             {role === "admin" ? (
-              <button type="button" onClick={async () => { await setMode(isTestMode ? "prod" : "test"); }} className={cls("badge-interactive agebre-environment-badge hidden items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.06em] sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>
+              <button type="button" onClick={() => setModeConfirmOpen(true)} className={cls("badge-interactive agebre-environment-badge hidden items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.06em] sm:inline-flex", isTestMode ? "badge-amber" : "badge-green")}>
                 <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current" />{isTestMode ? "TEST" : "PRODUCCIÓN"}
               </button>
             ) : (
@@ -397,6 +399,22 @@ export function AppShell() {
           setLogoutBusy(false);
           setLogoutOpen(false);
           nav("/login");
+        }}
+      />
+      <ConfirmDialog
+        open={modeConfirmOpen}
+        title={isTestMode ? "Pasar a Producción" : "Pasar a modo TEST"}
+        description={`Esto afecta a TODOS los usuarios conectados ahora mismo, no solo a ti. ${isTestMode ? "Los monitoreos y fichas que registren desde ahora quedarán como datos reales." : "Los monitoreos y fichas que registren desde ahora quedarán marcados como prueba, separados de los datos reales."}`}
+        confirmText={isTestMode ? "Pasar a Producción" : "Pasar a TEST"}
+        cancelText="Cancelar"
+        variant={isTestMode ? "default" : "danger"}
+        busy={modeConfirmBusy}
+        onClose={() => !modeConfirmBusy && setModeConfirmOpen(false)}
+        onConfirm={async () => {
+          setModeConfirmBusy(true);
+          await setMode(isTestMode ? "prod" : "test");
+          setModeConfirmBusy(false);
+          setModeConfirmOpen(false);
         }}
       />
       <SessionExpiryNotice />
