@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
+import { useAppConfig } from "../app/AppConfigProvider";
 import { roleLabel } from "../lib/roles";
 import { DashboardSelect, SearchableFilter } from "../components/dashboard/DashboardWidgets";
 
@@ -43,6 +44,7 @@ function AssignmentIcon({ type = "assign" }: { type?: "assign" | "users" | "cale
 
 export function AsignacionesPage() {
   const { canManageModule } = useAuth();
+  const { isTestMode } = useAppConfig();
   const canManageAssignments = canManageModule("asignaciones");
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
@@ -86,6 +88,7 @@ export function AsignacionesPage() {
         .from("monitoreo_catalog")
         .select("id, codigo, nombre, anio, fecha_inicio, fecha_fin")
         .eq("anio", Number(year))
+        .eq("is_test", isTestMode)
         .order("nombre", { ascending: true });
       if (!alive) return;
       if (error) {
@@ -99,7 +102,7 @@ export function AsignacionesPage() {
     return () => {
       alive = false;
     };
-  }, [year]);
+  }, [year, isTestMode]);
 
   // Usuarios
   useEffect(() => {
