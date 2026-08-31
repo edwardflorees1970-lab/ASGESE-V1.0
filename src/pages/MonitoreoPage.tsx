@@ -193,6 +193,7 @@ export function MonitoreoPage() {
           .from("monitoreo_catalog")
           .select("id, anio, codigo, nombre, descripcion, is_active, fecha_fin")
           .eq("is_active", true)
+          .eq("is_test", isTestMode)
           .order("anio", { ascending: false })
           .order("nombre", { ascending: true });
 
