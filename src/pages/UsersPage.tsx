@@ -1136,6 +1136,37 @@ export function UsersPage() {
             <div className="text-sm text-white/60">Sin usuario seleccionado.</div>
           ) : (
             <div className="grid gap-4 md:grid-cols-12">
+            <div className="md:col-span-4">
+              <Field label="Nombres">
+                <Input
+                  value={editUser.nombres}
+                  onChange={(e) =>
+                    setEditUser((s) => (s ? { ...s, nombres: e.target.value.toUpperCase() } : s))
+                  }
+                />
+              </Field>
+            </div>
+            <div className="md:col-span-4">
+              <Field label="Apellido paterno">
+                <Input
+                  value={editUser.apellido_paterno}
+                  onChange={(e) =>
+                    setEditUser((s) => (s ? { ...s, apellido_paterno: e.target.value.toUpperCase() } : s))
+                  }
+                />
+              </Field>
+            </div>
+            <div className="md:col-span-4">
+              <Field label="Apellido materno">
+                <Input
+                  value={editUser.apellido_materno}
+                  onChange={(e) =>
+                    setEditUser((s) => (s ? { ...s, apellido_materno: e.target.value.toUpperCase() } : s))
+                  }
+                />
+              </Field>
+            </div>
+
             <div className="md:col-span-3">
               <Field label="Tipo doc">
                 <Select
@@ -1162,96 +1193,6 @@ export function UsersPage() {
                 />
               </Field>
             </div>
-            <div className="md:col-span-3">
-              <Field label="Rol">
-                <Select
-                  value={editUser.rol}
-                  disabled={editUser.rol === "director_iiee"}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, rol: e.target.value as any } : s))
-                  }
-                >
-                  {availableRoles.filter((item) => item.code !== "director_iiee" || editUser.rol === "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-                </Select>
-              </Field>
-            </div>
-            {editUser.rol === "user" && (
-              <div className="md:col-span-3">
-                <Field label="Crear monitoreos">
-                  <label className="flex items-center gap-2 text-xs text-white/70">
-                    <input
-                      type="checkbox"
-                      checked={!!editUser.can_create_monitoreo}
-                      onChange={(e) =>
-                        setEditUser((s) =>
-                          s ? { ...s, can_create_monitoreo: e.target.checked } : s
-                        )
-                      }
-                    />
-                    Habilitar creación de monitoreos
-                  </label>
-                </Field>
-              </div>
-            )}
-            <div className="md:col-span-3">
-              <Field label="UGEL">
-                <Input
-                  value={editUser.ugel ?? ""}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, ugel: e.target.value } : s))
-                  }
-                />
-              </Field>
-            </div>
-            <div className="md:col-span-3">
-              <Field label="REI">
-                <Select
-                  value={editUser.rei ?? "SIN REI"}
-                  disabled={editUser.rol === "director_iiee"}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, rei: e.target.value } : s))
-                  }
-                >
-                  {REI_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-
-            <div className="md:col-span-4">
-              <Field label="Apellido paterno">
-                <Input
-                  value={editUser.apellido_paterno}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, apellido_paterno: e.target.value.toUpperCase() } : s))
-                  }
-                />
-              </Field>
-            </div>
-            <div className="md:col-span-4">
-              <Field label="Apellido materno">
-                <Input
-                  value={editUser.apellido_materno}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, apellido_materno: e.target.value.toUpperCase() } : s))
-                  }
-                />
-              </Field>
-            </div>
-            <div className="md:col-span-4">
-              <Field label="Nombres">
-                <Input
-                  value={editUser.nombres}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, nombres: e.target.value.toUpperCase() } : s))
-                  }
-                />
-              </Field>
-            </div>
-
             <div className="md:col-span-6">
               <Field label={editUser.rol === "director_iiee" ? "Alias de acceso (definido por la plaza)" : "Correo"}>
                 <Input
@@ -1263,8 +1204,9 @@ export function UsersPage() {
                 />
               </Field>
             </div>
-            <div className="md:col-span-3">
-              <Field label="Teléfono">
+
+            <div className="md:col-span-4">
+              <Field label="Teléfono / Celular">
                 <Input
                   value={editUser.telefono ?? ""}
                   onChange={(e) =>
@@ -1273,8 +1215,8 @@ export function UsersPage() {
                 />
               </Field>
             </div>
-            <div className="md:col-span-3">
-              <Field label="Fecha nacimiento">
+            <div className="md:col-span-4">
+              <Field label="Fecha nacimiento (opcional)">
                 <Input
                   type="date"
                   value={editUser.fecha_nacimiento ?? ""}
@@ -1284,9 +1226,8 @@ export function UsersPage() {
                 />
               </Field>
             </div>
-
             <div className="md:col-span-4">
-              <Field label="Cargo">
+              <Field label="Perfil / Cargo">
                 <Input
                   value={editUser.cargo ?? ""}
                   onChange={(e) =>
@@ -1295,6 +1236,7 @@ export function UsersPage() {
                 />
               </Field>
             </div>
+
             <div className="md:col-span-4">
               <Field label="Área">
                 <Select
@@ -1311,6 +1253,47 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-4">
+              <Field label="Rol">
+                <Select
+                  value={editUser.rol}
+                  disabled={editUser.rol === "director_iiee"}
+                  onChange={(e) =>
+                    setEditUser((s) => (s ? { ...s, rol: e.target.value as any } : s))
+                  }
+                >
+                  {availableRoles.filter((item) => item.code !== "director_iiee" || editUser.rol === "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <div className="md:col-span-4">
+              <Field label="UGEL">
+                <Input
+                  value={editUser.ugel ?? ""}
+                  onChange={(e) =>
+                    setEditUser((s) => (s ? { ...s, ugel: e.target.value } : s))
+                  }
+                />
+              </Field>
+            </div>
+
+            <div className="md:col-span-4">
+              <Field label="REI">
+                <Select
+                  value={editUser.rei ?? "SIN REI"}
+                  disabled={editUser.rol === "director_iiee"}
+                  onChange={(e) =>
+                    setEditUser((s) => (s ? { ...s, rei: e.target.value } : s))
+                  }
+                >
+                  {REI_OPTIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="md:col-span-4">
               <Field label="Comisión">
                 <Input
                   value={editUser.comision ?? ""}
@@ -1320,6 +1303,24 @@ export function UsersPage() {
                 />
               </Field>
             </div>
+            {editUser.rol === "user" && (
+              <div className="md:col-span-4">
+                <Field label="Crear monitoreos">
+                  <label className="flex items-center gap-2 text-xs text-white/70">
+                    <input
+                      type="checkbox"
+                      checked={!!editUser.can_create_monitoreo}
+                      onChange={(e) =>
+                        setEditUser((s) =>
+                          s ? { ...s, can_create_monitoreo: e.target.checked } : s
+                        )
+                      }
+                    />
+                    Habilitar creación de monitoreos
+                  </label>
+                </Field>
+              </div>
+            )}
 
             <div className="md:col-span-12 flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setOpenEdit(false)} disabled={editBusy}>
