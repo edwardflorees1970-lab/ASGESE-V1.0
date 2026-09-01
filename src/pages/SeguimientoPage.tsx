@@ -139,6 +139,7 @@ export function SeguimientoPage() {
         const list = (data ?? []) as MonitoreoRow[];
         setMonitoreos(list);
         setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
+        if (!list.length) setLoading(false);
         return;
       }
 
@@ -151,6 +152,7 @@ export function SeguimientoPage() {
       if (!ids.length) {
         setMonitoreos([]);
         setMonitoreoId("");
+        setLoading(false);
         return;
       }
       const { data } = await supabase
@@ -164,6 +166,7 @@ export function SeguimientoPage() {
       const list = (data ?? []) as MonitoreoRow[];
       setMonitoreos(list);
       setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
+      if (!list.length) setLoading(false);
     })();
     return () => {
       alive = false;
@@ -731,6 +734,12 @@ export function SeguimientoPage() {
           )}
         </div>
       </div>
+
+      {!monitoreos.length && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+          No hay monitoreos activos en modo {isTestMode ? "Prueba" : "Producción"} por ahora.
+        </div>
+      )}
 
       {canManage && (
         <div className="tracking-panel tracking-assignment-panel rounded-2xl border border-white/10 bg-white/5 p-4">
