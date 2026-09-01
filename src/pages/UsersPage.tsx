@@ -249,7 +249,6 @@ export function UsersPage() {
   const [qInput, setQInput] = useState("");
   const [areaInput, setAreaInput] = useState("");
   const [ugelInput, setUgelInput] = useState("");
-  const [reiInput, setReiInput] = useState("");
 
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -392,14 +391,18 @@ export function UsersPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const onSearch = () => {
-    setPage(1);
-    setQ(qInput.trim());
-    setArea(areaInput.trim());
-    setUgel(ugelInput.trim());
-    setRei(reiInput.trim());
-    setSearchTick((s) => s + 1);
-  };
+  // Busqueda reactiva: se sincroniza mientras escribe, con un pequeño
+  // debounce para no disparar una consulta por cada tecla. Ya no requiere
+  // Enter ni un boton "Buscar".
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPage(1);
+      setQ(qInput.trim());
+      setArea(areaInput.trim());
+      setUgel(ugelInput.trim());
+    }, 300);
+    return () => clearTimeout(t);
+  }, [qInput, areaInput, ugelInput]);
 
   const openEditModal = (u: ProfileRow) => {
     setEditUser(u);
@@ -627,86 +630,84 @@ export function UsersPage() {
             </div>
             <span>{total} {total === 1 ? "registro" : "registros"}</span>
           </div>
-          <div className="users-filter-grid grid gap-3 md:grid-cols-12">
-            <div className="md:col-span-5">
+          <div className="grid gap-3 md:grid-cols-12">
+            <div className="md:col-span-12">
               <Field label="Buscar (nombre, correo, documento)">
                 <Input
                   value={qInput}
                   onChange={(e) => setQInput(e.target.value)}
                   placeholder="Ej: acabreara / 75310856 / apellidos..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") onSearch();
-                  }}
                 />
               </Field>
-            </div>
-
-            <div className="md:col-span-2">
-              <Field label="Rol">
-                <Select value={rol} onChange={(e) => setRol(e.target.value as any)}>
-                  <option value="">Todos</option>
-                  {availableRoles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-                </Select>
-              </Field>
-            </div>
-
-            <div className="md:col-span-3">
-              <Field label="Área">
-                <Input
-                  value={areaInput}
-                  onChange={(e) => setAreaInput(e.target.value)}
-                  placeholder="ASGESE..."
-                />
-              </Field>
-            </div>
-
-            <div className="md:col-span-2">
-              <Field label="UGEL">
-                <Input
-                  value={ugelInput}
-                  onChange={(e) => setUgelInput(e.target.value)}
-                  placeholder="UGEL 06"
-                />
-              </Field>
-            </div>
-
-            <div className="md:col-span-2">
-              <Field label="REI">
-                <Select value={reiInput} onChange={(e) => setReiInput(e.target.value)}>
-                  <option value="">Todas</option>
-                  {REI_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-
-            <div className="users-filter-actions md:col-span-12 flex gap-2 pt-2">
-              <Button variant="ghost" onClick={onSearch}>
-                Buscar
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setQ("");
-                  setRol("");
-                  setArea("");
-                  setUgel("");
-                  setRei("");
-                  setQInput("");
-                  setAreaInput("");
-                  setUgelInput("");
-                  setReiInput("");
-                  setPage(1);
-                  setSearchTick((s) => s + 1);
-                }}
-              >
-                Limpiar
-              </Button>
             </div>
           </div>
+
+          <details className="users-filter-more mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <summary className="cursor-pointer text-xs font-semibold text-white/65">Filtros avanzados (Rol, Área, UGEL, REI)</summary>
+            <div className="users-filter-grid mt-3 grid gap-3 md:grid-cols-12">
+              <div className="md:col-span-3">
+                <Field label="Rol">
+                  <Select value={rol} onChange={(e) => setRol(e.target.value as any)}>
+                    <option value="">Todos</option>
+                    {availableRoles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                  </Select>
+                </Field>
+              </div>
+
+              <div className="md:col-span-3">
+                <Field label="Área">
+                  <Input
+                    value={areaInput}
+                    onChange={(e) => setAreaInput(e.target.value)}
+                    placeholder="ASGESE..."
+                  />
+                </Field>
+              </div>
+
+              <div className="md:col-span-3">
+                <Field label="UGEL">
+                  <Input
+                    value={ugelInput}
+                    onChange={(e) => setUgelInput(e.target.value)}
+                    placeholder="UGEL 06"
+                  />
+                </Field>
+              </div>
+
+              <div className="md:col-span-3">
+                <Field label="REI">
+                  <Select value={rei} onChange={(e) => { setRei(e.target.value); setPage(1); }}>
+                    <option value="">Todas</option>
+                    {REI_OPTIONS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+
+              <div className="users-filter-actions md:col-span-12 flex gap-2 pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setQ("");
+                    setRol("");
+                    setArea("");
+                    setUgel("");
+                    setRei("");
+                    setQInput("");
+                    setAreaInput("");
+                    setUgelInput("");
+                    setPage(1);
+                    setSearchTick((s) => s + 1);
+                  }}
+                >
+                  Limpiar
+                </Button>
+              </div>
+            </div>
+          </details>
         </section>
 
         {/* Lista mobile */}
