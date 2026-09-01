@@ -47,7 +47,7 @@ const emptyCreateForm: AdminCreateUserInput = {
   ugel: "UGEL 06",
   rei: "SIN REI",
   can_create_monitoreo: false,
-  rol: "user",
+  rol: "" as any,
   password: "",
 };
 
@@ -424,14 +424,15 @@ export function UsersPage() {
       setToast({ type: "err", msg: "La contraseña debe tener mayúscula, minúscula, número, carácter especial y mínimo 8 caracteres." });
       return;
     }
-    if (
-      !createForm.correo.trim() ||
-      !createForm.numero_documento.trim() ||
-      !createForm.apellido_paterno.trim() ||
-      !createForm.apellido_materno.trim() ||
-      !createForm.nombres.trim()
-    ) {
-      setToast({ type: "err", msg: "Completa los campos obligatorios antes de crear." });
+    const faltantes: string[] = [];
+    if (!createForm.nombres.trim()) faltantes.push("Nombres");
+    if (!createForm.apellido_paterno.trim()) faltantes.push("Apellido paterno");
+    if (!createForm.apellido_materno.trim()) faltantes.push("Apellido materno");
+    if (!createForm.numero_documento.trim()) faltantes.push("N° documento");
+    if (!createForm.correo.trim()) faltantes.push("Correo");
+    if (!createForm.rol) faltantes.push("Rol");
+    if (faltantes.length) {
+      setToast({ type: "err", msg: `Falta completar: ${faltantes.join(", ")}.` });
       return;
     }
 
@@ -1014,15 +1015,6 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-4">
-            <Field label="Perfil / Cargo">
-              <Input
-                value={createForm.cargo ?? ""}
-                onChange={(e) => setCreateForm((s) => ({ ...s, cargo: e.target.value.toUpperCase() }))}
-              />
-            </Field>
-          </div>
-
-          <div className="md:col-span-4">
             <Field label="Área">
               <Select
                 value={createForm.area ?? ""}
@@ -1038,44 +1030,14 @@ export function UsersPage() {
           <div className="md:col-span-4">
             <Field label="Rol">
                 <Select
-                  value={createForm.rol ?? "user"}
+                  value={createForm.rol ?? ""}
                   onChange={(e) => setCreateForm((s) => ({ ...s, rol: e.target.value as any }))}
                 >
+                  <option value="">Sin asignar</option>
                   {availableRoles.filter((item) => item.code !== "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </Select>
               </Field>
             </div>
-          <div className="md:col-span-4">
-            <Field label="UGEL">
-              <Input
-                value={createForm.ugel ?? ""}
-                onChange={(e) => setCreateForm((s) => ({ ...s, ugel: e.target.value }))}
-              />
-            </Field>
-          </div>
-
-          <div className="md:col-span-4">
-            <Field label="REI">
-              <Select
-                value={createForm.rei ?? "SIN REI"}
-                onChange={(e) => setCreateForm((s) => ({ ...s, rei: e.target.value }))}
-              >
-                {REI_OPTIONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <div className="md:col-span-4">
-            <Field label="Comisión">
-              <Input
-                value={createForm.comision ?? ""}
-                onChange={(e) => setCreateForm((s) => ({ ...s, comision: e.target.value }))}
-              />
-            </Field>
-          </div>
           {createForm.rol === "user" && (
             <div className="md:col-span-4">
               <Field label="Crear monitoreos">
@@ -1092,6 +1054,52 @@ export function UsersPage() {
               </Field>
             </div>
           )}
+
+          <div className="md:col-span-12">
+            <details className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <summary className="cursor-pointer text-xs font-semibold text-white/65">Datos adicionales (opcional): Perfil/Cargo, UGEL, REI, Comisión</summary>
+              <div className="mt-3 grid gap-4 md:grid-cols-12">
+                <div className="md:col-span-3">
+                  <Field label="Perfil / Cargo">
+                    <Input
+                      value={createForm.cargo ?? ""}
+                      onChange={(e) => setCreateForm((s) => ({ ...s, cargo: e.target.value.toUpperCase() }))}
+                    />
+                  </Field>
+                </div>
+                <div className="md:col-span-3">
+                  <Field label="UGEL">
+                    <Input
+                      value={createForm.ugel ?? ""}
+                      onChange={(e) => setCreateForm((s) => ({ ...s, ugel: e.target.value }))}
+                    />
+                  </Field>
+                </div>
+                <div className="md:col-span-3">
+                  <Field label="REI">
+                    <Select
+                      value={createForm.rei ?? "SIN REI"}
+                      onChange={(e) => setCreateForm((s) => ({ ...s, rei: e.target.value }))}
+                    >
+                      {REI_OPTIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <div className="md:col-span-3">
+                  <Field label="Comisión">
+                    <Input
+                      value={createForm.comision ?? ""}
+                      onChange={(e) => setCreateForm((s) => ({ ...s, comision: e.target.value }))}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </details>
+          </div>
 
           <div className="md:col-span-6">
             <Field label="Contraseña inicial (mayúscula, minúscula, número y carácter especial)">
@@ -1110,16 +1118,7 @@ export function UsersPage() {
             </Button>
             <Button
               onClick={submitCreate}
-              disabled={
-                createBusy ||
-                !createForm.password ||
-                !isStrongPassword(createForm.password.trim()) ||
-                !createForm.correo.trim() ||
-                !createForm.numero_documento.trim() ||
-                !createForm.apellido_paterno.trim() ||
-                !createForm.apellido_materno.trim() ||
-                !createForm.nombres.trim()
-              }
+              disabled={createBusy}
             >
               {createBusy ? "Creando..." : "Crear"}
             </Button>
