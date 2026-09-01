@@ -23,6 +23,15 @@ import { DOCUMENT_LENGTH, sanitizeDocumentNumber } from "../lib/loginDocument";
 type Toast = { type: "ok" | "err"; msg: string } | null;
 
 const REI_OPTIONS = ["SIN REI", ...Array.from({ length: 19 }, (_, i) => String(i + 1).padStart(2, "0"))];
+const AREA_OPTIONS = [
+  "ASGESE",
+  "AGEBRE",
+  "AGEBATP",
+  "AREA DE ADMINISTRACION",
+  "AREA DE ASESORIA JURIDICA",
+  "AREA DE RECURSOS HUMANOS",
+  "OFICINA DE CONTROL INSTITUCIONAL",
+];
 
 const emptyCreateForm: AdminCreateUserInput = {
   tipo_documento: "DNI",
@@ -997,7 +1006,7 @@ export function UsersPage() {
               <Input
                 value={createForm.apellido_paterno}
                 onChange={(e) =>
-                  setCreateForm((s) => ({ ...s, apellido_paterno: e.target.value }))
+                  setCreateForm((s) => ({ ...s, apellido_paterno: e.target.value.toUpperCase() }))
                 }
               />
             </Field>
@@ -1007,7 +1016,7 @@ export function UsersPage() {
               <Input
                 value={createForm.apellido_materno}
                 onChange={(e) =>
-                  setCreateForm((s) => ({ ...s, apellido_materno: e.target.value }))
+                  setCreateForm((s) => ({ ...s, apellido_materno: e.target.value.toUpperCase() }))
                 }
               />
             </Field>
@@ -1016,7 +1025,7 @@ export function UsersPage() {
             <Field label="Nombres">
               <Input
                 value={createForm.nombres}
-                onChange={(e) => setCreateForm((s) => ({ ...s, nombres: e.target.value }))}
+                onChange={(e) => setCreateForm((s) => ({ ...s, nombres: e.target.value.toUpperCase() }))}
               />
             </Field>
           </div>
@@ -1054,16 +1063,21 @@ export function UsersPage() {
             <Field label="Cargo">
               <Input
                 value={createForm.cargo ?? ""}
-                onChange={(e) => setCreateForm((s) => ({ ...s, cargo: e.target.value }))}
+                onChange={(e) => setCreateForm((s) => ({ ...s, cargo: e.target.value.toUpperCase() }))}
               />
             </Field>
           </div>
           <div className="md:col-span-4">
             <Field label="Área">
-              <Input
+              <Select
                 value={createForm.area ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, area: e.target.value }))}
-              />
+              >
+                <option value="">Seleccionar...</option>
+                {AREA_OPTIONS.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </Select>
             </Field>
           </div>
           <div className="md:col-span-4">
@@ -1211,7 +1225,7 @@ export function UsersPage() {
                 <Input
                   value={editUser.apellido_paterno}
                   onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, apellido_paterno: e.target.value } : s))
+                    setEditUser((s) => (s ? { ...s, apellido_paterno: e.target.value.toUpperCase() } : s))
                   }
                 />
               </Field>
@@ -1221,7 +1235,7 @@ export function UsersPage() {
                 <Input
                   value={editUser.apellido_materno}
                   onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, apellido_materno: e.target.value } : s))
+                    setEditUser((s) => (s ? { ...s, apellido_materno: e.target.value.toUpperCase() } : s))
                   }
                 />
               </Field>
@@ -1231,7 +1245,7 @@ export function UsersPage() {
                 <Input
                   value={editUser.nombres}
                   onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, nombres: e.target.value } : s))
+                    setEditUser((s) => (s ? { ...s, nombres: e.target.value.toUpperCase() } : s))
                   }
                 />
               </Field>
@@ -1275,19 +1289,24 @@ export function UsersPage() {
                 <Input
                   value={editUser.cargo ?? ""}
                   onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, cargo: e.target.value } : s))
+                    setEditUser((s) => (s ? { ...s, cargo: e.target.value.toUpperCase() } : s))
                   }
                 />
               </Field>
             </div>
             <div className="md:col-span-4">
               <Field label="Área">
-                <Input
+                <Select
                   value={editUser.area ?? ""}
                   onChange={(e) =>
                     setEditUser((s) => (s ? { ...s, area: e.target.value } : s))
                   }
-                />
+                >
+                  <option value="">Seleccionar...</option>
+                  {AREA_OPTIONS.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </Select>
               </Field>
             </div>
             <div className="md:col-span-4">
