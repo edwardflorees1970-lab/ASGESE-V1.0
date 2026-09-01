@@ -1015,17 +1015,6 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-4">
-            <Field label="Fecha nacimiento (opcional)">
-              <Input
-                type="date"
-                value={createForm.fecha_nacimiento ?? ""}
-                onChange={(e) =>
-                  setCreateForm((s) => ({ ...s, fecha_nacimiento: e.target.value }))
-                }
-              />
-            </Field>
-          </div>
-          <div className="md:col-span-4">
             <Field label="Área">
               <Select
                 value={createForm.area ?? ""}
@@ -1068,8 +1057,19 @@ export function UsersPage() {
 
           <div className="md:col-span-12">
             <details className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <summary className="cursor-pointer text-xs font-semibold text-white/65">Datos adicionales (opcional): Perfil/Cargo, UGEL, REI, Comisión</summary>
+              <summary className="cursor-pointer text-xs font-semibold text-white/65">Datos adicionales (opcional): Fecha nacimiento, Perfil/Cargo, UGEL, REI, Comisión</summary>
               <div className="mt-3 grid gap-4 md:grid-cols-12">
+                <div className="md:col-span-3">
+                  <Field label="Fecha nacimiento">
+                    <Input
+                      type="date"
+                      value={createForm.fecha_nacimiento ?? ""}
+                      onChange={(e) =>
+                        setCreateForm((s) => ({ ...s, fecha_nacimiento: e.target.value }))
+                      }
+                    />
+                  </Field>
+                </div>
                 <div className="md:col-span-3">
                   <Field label="Perfil / Cargo">
                     <Input
@@ -1229,17 +1229,6 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-4">
-              <Field label="Fecha nacimiento (opcional)">
-                <Input
-                  type="date"
-                  value={editUser.fecha_nacimiento ?? ""}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, fecha_nacimiento: e.target.value } : s))
-                  }
-                />
-              </Field>
-            </div>
-            <div className="md:col-span-4">
               <Field label="Área">
                 <Select
                   value={editUser.area ?? ""}
@@ -1289,8 +1278,19 @@ export function UsersPage() {
 
             <div className="md:col-span-12">
               <details className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                <summary className="cursor-pointer text-xs font-semibold text-white/65">Datos adicionales (opcional): Perfil/Cargo, UGEL, REI, Comisión</summary>
+                <summary className="cursor-pointer text-xs font-semibold text-white/65">Datos adicionales (opcional): Fecha nacimiento, Perfil/Cargo, UGEL, REI, Comisión</summary>
                 <div className="mt-3 grid gap-4 md:grid-cols-12">
+                  <div className="md:col-span-3">
+                    <Field label="Fecha nacimiento">
+                      <Input
+                        type="date"
+                        value={editUser.fecha_nacimiento ?? ""}
+                        onChange={(e) =>
+                          setEditUser((s) => (s ? { ...s, fecha_nacimiento: e.target.value } : s))
+                        }
+                      />
+                    </Field>
+                  </div>
                   <div className="md:col-span-3">
                     <Field label="Perfil / Cargo">
                       <Input
