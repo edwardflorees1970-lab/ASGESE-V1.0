@@ -482,6 +482,17 @@ export function UsersPage() {
   const submitEdit = async () => {
     if (!canManageUsers) return;
     if (!editUser) return;
+    const faltantesEdit: string[] = [];
+    if (!editUser.nombres.trim()) faltantesEdit.push("Nombres");
+    if (!editUser.apellido_paterno.trim()) faltantesEdit.push("Apellido paterno");
+    if (!editUser.apellido_materno.trim()) faltantesEdit.push("Apellido materno");
+    if (!editUser.numero_documento.trim()) faltantesEdit.push("N° documento");
+    if (!editUser.correo.trim()) faltantesEdit.push("Correo");
+    if (!editUser.rol) faltantesEdit.push("Rol");
+    if (faltantesEdit.length) {
+      setToast({ type: "err", msg: `Falta completar: ${faltantesEdit.join(", ")}.` });
+      return;
+    }
     setEditBusy(true);
     try {
       const res = await adminUsersUpdate({
@@ -1229,17 +1240,6 @@ export function UsersPage() {
               </Field>
             </div>
             <div className="md:col-span-4">
-              <Field label="Perfil / Cargo">
-                <Input
-                  value={editUser.cargo ?? ""}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, cargo: e.target.value.toUpperCase() } : s))
-                  }
-                />
-              </Field>
-            </div>
-
-            <div className="md:col-span-4">
               <Field label="Área">
                 <Select
                   value={editUser.area ?? ""}
@@ -1263,46 +1263,9 @@ export function UsersPage() {
                     setEditUser((s) => (s ? { ...s, rol: e.target.value as any } : s))
                   }
                 >
+                  <option value="">Sin asignar</option>
                   {availableRoles.filter((item) => item.code !== "director_iiee" || editUser.rol === "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
                 </Select>
-              </Field>
-            </div>
-            <div className="md:col-span-4">
-              <Field label="UGEL">
-                <Input
-                  value={editUser.ugel ?? ""}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, ugel: e.target.value } : s))
-                  }
-                />
-              </Field>
-            </div>
-
-            <div className="md:col-span-4">
-              <Field label="REI">
-                <Select
-                  value={editUser.rei ?? "SIN REI"}
-                  disabled={editUser.rol === "director_iiee"}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, rei: e.target.value } : s))
-                  }
-                >
-                  {REI_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            <div className="md:col-span-4">
-              <Field label="Comisión">
-                <Input
-                  value={editUser.comision ?? ""}
-                  onChange={(e) =>
-                    setEditUser((s) => (s ? { ...s, comision: e.target.value } : s))
-                  }
-                />
               </Field>
             </div>
             {editUser.rol === "user" && (
@@ -1323,6 +1286,61 @@ export function UsersPage() {
                 </Field>
               </div>
             )}
+
+            <div className="md:col-span-12">
+              <details className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-white/65">Datos adicionales (opcional): Perfil/Cargo, UGEL, REI, Comisión</summary>
+                <div className="mt-3 grid gap-4 md:grid-cols-12">
+                  <div className="md:col-span-3">
+                    <Field label="Perfil / Cargo">
+                      <Input
+                        value={editUser.cargo ?? ""}
+                        onChange={(e) =>
+                          setEditUser((s) => (s ? { ...s, cargo: e.target.value.toUpperCase() } : s))
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <div className="md:col-span-3">
+                    <Field label="UGEL">
+                      <Input
+                        value={editUser.ugel ?? ""}
+                        onChange={(e) =>
+                          setEditUser((s) => (s ? { ...s, ugel: e.target.value } : s))
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <div className="md:col-span-3">
+                    <Field label="REI">
+                      <Select
+                        value={editUser.rei ?? "SIN REI"}
+                        disabled={editUser.rol === "director_iiee"}
+                        onChange={(e) =>
+                          setEditUser((s) => (s ? { ...s, rei: e.target.value } : s))
+                        }
+                      >
+                        {REI_OPTIONS.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className="md:col-span-3">
+                    <Field label="Comisión">
+                      <Input
+                        value={editUser.comision ?? ""}
+                        onChange={(e) =>
+                          setEditUser((s) => (s ? { ...s, comision: e.target.value } : s))
+                        }
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </details>
+            </div>
 
             <div className="md:col-span-12 flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setOpenEdit(false)} disabled={editBusy}>
