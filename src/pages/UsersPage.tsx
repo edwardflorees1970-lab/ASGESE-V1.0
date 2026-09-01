@@ -925,6 +925,35 @@ export function UsersPage() {
           onClose={() => !createBusy && setOpenCreate(false)}
         >
           <div className="grid gap-4 md:grid-cols-12">
+          <div className="md:col-span-4">
+            <Field label="Nombres">
+              <Input
+                value={createForm.nombres}
+                onChange={(e) => setCreateForm((s) => ({ ...s, nombres: e.target.value.toUpperCase() }))}
+              />
+            </Field>
+          </div>
+          <div className="md:col-span-4">
+            <Field label="Apellido paterno">
+              <Input
+                value={createForm.apellido_paterno}
+                onChange={(e) =>
+                  setCreateForm((s) => ({ ...s, apellido_paterno: e.target.value.toUpperCase() }))
+                }
+              />
+            </Field>
+          </div>
+          <div className="md:col-span-4">
+            <Field label="Apellido materno">
+              <Input
+                value={createForm.apellido_materno}
+                onChange={(e) =>
+                  setCreateForm((s) => ({ ...s, apellido_materno: e.target.value.toUpperCase() }))
+                }
+              />
+            </Field>
+          </div>
+
           <div className="md:col-span-3">
             <Field label="Tipo doc">
               <Select
@@ -952,84 +981,6 @@ export function UsersPage() {
               />
             </Field>
           </div>
-          <div className="md:col-span-3">
-            <Field label="Rol">
-                <Select
-                  value={createForm.rol ?? "user"}
-                  onChange={(e) => setCreateForm((s) => ({ ...s, rol: e.target.value as any }))}
-                >
-                  {availableRoles.filter((item) => item.code !== "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-                </Select>
-              </Field>
-            </div>
-          {createForm.rol === "user" && (
-            <div className="md:col-span-3">
-              <Field label="Crear monitoreos">
-                <label className="flex items-center gap-2 text-xs text-white/70">
-                  <input
-                    type="checkbox"
-                    checked={!!createForm.can_create_monitoreo}
-                    onChange={(e) =>
-                      setCreateForm((s) => ({ ...s, can_create_monitoreo: e.target.checked }))
-                    }
-                  />
-                  Habilitar creación de monitoreos
-                </label>
-              </Field>
-            </div>
-          )}
-          <div className="md:col-span-3">
-            <Field label="UGEL">
-              <Input
-                value={createForm.ugel ?? ""}
-                onChange={(e) => setCreateForm((s) => ({ ...s, ugel: e.target.value }))}
-              />
-            </Field>
-          </div>
-          <div className="md:col-span-3">
-            <Field label="REI">
-              <Select
-                value={createForm.rei ?? "SIN REI"}
-                onChange={(e) => setCreateForm((s) => ({ ...s, rei: e.target.value }))}
-              >
-                {REI_OPTIONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-
-          <div className="md:col-span-4">
-            <Field label="Apellido paterno">
-              <Input
-                value={createForm.apellido_paterno}
-                onChange={(e) =>
-                  setCreateForm((s) => ({ ...s, apellido_paterno: e.target.value.toUpperCase() }))
-                }
-              />
-            </Field>
-          </div>
-          <div className="md:col-span-4">
-            <Field label="Apellido materno">
-              <Input
-                value={createForm.apellido_materno}
-                onChange={(e) =>
-                  setCreateForm((s) => ({ ...s, apellido_materno: e.target.value.toUpperCase() }))
-                }
-              />
-            </Field>
-          </div>
-          <div className="md:col-span-4">
-            <Field label="Nombres">
-              <Input
-                value={createForm.nombres}
-                onChange={(e) => setCreateForm((s) => ({ ...s, nombres: e.target.value.toUpperCase() }))}
-              />
-            </Field>
-          </div>
-
           <div className="md:col-span-6">
             <Field label="Correo">
               <Input
@@ -1039,16 +990,17 @@ export function UsersPage() {
               />
             </Field>
           </div>
-          <div className="md:col-span-3">
-            <Field label="Teléfono">
+
+          <div className="md:col-span-4">
+            <Field label="Teléfono / Celular">
               <Input
                 value={createForm.telefono ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, telefono: e.target.value }))}
               />
             </Field>
           </div>
-          <div className="md:col-span-3">
-            <Field label="Fecha nacimiento">
+          <div className="md:col-span-4">
+            <Field label="Fecha nacimiento (opcional)">
               <Input
                 type="date"
                 value={createForm.fecha_nacimiento ?? ""}
@@ -1058,15 +1010,15 @@ export function UsersPage() {
               />
             </Field>
           </div>
-
           <div className="md:col-span-4">
-            <Field label="Cargo">
+            <Field label="Perfil / Cargo">
               <Input
                 value={createForm.cargo ?? ""}
                 onChange={(e) => setCreateForm((s) => ({ ...s, cargo: e.target.value.toUpperCase() }))}
               />
             </Field>
           </div>
+
           <div className="md:col-span-4">
             <Field label="Área">
               <Select
@@ -1081,6 +1033,39 @@ export function UsersPage() {
             </Field>
           </div>
           <div className="md:col-span-4">
+            <Field label="Rol">
+                <Select
+                  value={createForm.rol ?? "user"}
+                  onChange={(e) => setCreateForm((s) => ({ ...s, rol: e.target.value as any }))}
+                >
+                  {availableRoles.filter((item) => item.code !== "director_iiee").map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                </Select>
+              </Field>
+            </div>
+          <div className="md:col-span-4">
+            <Field label="UGEL">
+              <Input
+                value={createForm.ugel ?? ""}
+                onChange={(e) => setCreateForm((s) => ({ ...s, ugel: e.target.value }))}
+              />
+            </Field>
+          </div>
+
+          <div className="md:col-span-4">
+            <Field label="REI">
+              <Select
+                value={createForm.rei ?? "SIN REI"}
+                onChange={(e) => setCreateForm((s) => ({ ...s, rei: e.target.value }))}
+              >
+                {REI_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div className="md:col-span-4">
             <Field label="Comisión">
               <Input
                 value={createForm.comision ?? ""}
@@ -1088,6 +1073,22 @@ export function UsersPage() {
               />
             </Field>
           </div>
+          {createForm.rol === "user" && (
+            <div className="md:col-span-4">
+              <Field label="Crear monitoreos">
+                <label className="flex items-center gap-2 text-xs text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={!!createForm.can_create_monitoreo}
+                    onChange={(e) =>
+                      setCreateForm((s) => ({ ...s, can_create_monitoreo: e.target.checked }))
+                    }
+                  />
+                  Habilitar creación de monitoreos
+                </label>
+              </Field>
+            </div>
+          )}
 
           <div className="md:col-span-6">
             <Field label="Contraseña inicial (mayúscula, minúscula, número y carácter especial)">
