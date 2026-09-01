@@ -150,6 +150,19 @@ serve(async (req) => {
     if (roleError || !validRole) return bad(origin, "Rol no permitido");
     if (role === "director_iiee") return bad(origin, "Los Directores IIEE deben crearse ocupando una plaza mediante la carga Excel");
 
+    // Chequeo previo por numero_documento: profiles ya tiene un UNIQUE que
+    // lo impediria de todas formas, pero sin este chequeo el error que
+    // llega al usuario es el texto crudo de Postgres (23505), y encima ya
+    // se habria creado y borrado una cuenta de Auth de mas.
+    const { data: existingDoc } = await supaAdmin
+      .from("profiles")
+      .select("id")
+      .eq("numero_documento", numeroDocumento)
+      .maybeSingle();
+    if (existingDoc) {
+      return bad(origin, `Ya existe un usuario registrado con ${tipoDocumento} ${numeroDocumento}`, undefined, "DOCUMENT_EXISTS");
+    }
+
     const { data: created, error: createErr } = await supaAdmin.auth.admin.createUser({
       email: correo,
       password,
