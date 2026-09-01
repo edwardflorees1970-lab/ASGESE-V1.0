@@ -6,7 +6,6 @@ import {
   adminCreateUser,
   adminResetPassword,
   adminUsersDelete,
-  adminUsersList,
   adminUsersUpdate,
 } from "../lib/adminApi";
 import { useAuth } from "../app/AuthProvider";
@@ -306,12 +305,15 @@ export function UsersPage() {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
-      if (canManageUsers) {
-        const res = await adminUsersList(query);
-        if (requestId !== requestIdRef.current) return;
-        setItems(res.items);
-        setTotal(res.total);
-      } else if (canSeeAll) {
+      if (canManageUsers || canSeeAll) {
+        // Consulta directa (RLS admin_all ya da lectura total a admin; los
+        // demas roles con canSeeAll ya usaban este mismo camino). Antes
+        // admin pasaba por la Edge Function admin-users-list, que sumaba
+        // varios viajes de ida y vuelta (rate-limit, auth, rol, y recien la
+        // consulta) mas el arranque en frio -- tardaba varios segundos por
+        // cada busqueda. La funcion sigue existiendo para crear/editar
+        // usuarios (que si necesitan permisos elevados de Auth), solo se
+        // deja de usar para LISTAR.
         let qx = supabase
           .from("profiles")
           .select(
