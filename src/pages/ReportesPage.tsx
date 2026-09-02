@@ -1032,18 +1032,31 @@ export function ReportesPage() {
           let gx = x + labelW;
           groups.forEach((g) => {
             const gw = colW * g.cols.length;
-            doc.rect(gx, y, gw, rowH, "FD");
-            doc.text(splitSafeForMatrix(g.group, gw - 2), gx + gw / 2, y + rowH / 2 + 1, { align: "center" });
+            if (g.group === null) {
+              doc.rect(gx, y, gw, rowH * 2, "FD");
+              const lines = splitSafeForMatrix(g.cols[0], gw - 2);
+              doc.text(lines, gx + gw / 2, y + rowH - (lines.length - 1) * 1, { align: "center" });
+            } else {
+              doc.rect(gx, y, gw, rowH, "FD");
+              doc.text(splitSafeForMatrix(g.group, gw - 2), gx + gw / 2, y + rowH / 2 + 1, { align: "center" });
+            }
             gx += gw;
           });
           y += rowH;
-          const flatLabels = groups.flatMap((g) => g.cols);
-          flatLabels.forEach((label, j) => {
-            doc.rect(x + labelW + j * colW, y, colW, rowH, "FD");
-            const lines = splitSafeForMatrix(label, colW - 2);
-            doc.text(lines, x + labelW + j * colW + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, {
-              align: "center",
+          gx = x + labelW;
+          groups.forEach((g) => {
+            const gw = colW * g.cols.length;
+            if (g.group === null) {
+              gx += gw;
+              return;
+            }
+            g.cols.forEach((label, li) => {
+              const cx = gx + li * colW;
+              doc.rect(cx, y, colW, rowH, "FD");
+              const lines = splitSafeForMatrix(label, colW - 2);
+              doc.text(lines, cx + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, { align: "center" });
             });
+            gx += gw;
           });
           y += rowH;
         } else {

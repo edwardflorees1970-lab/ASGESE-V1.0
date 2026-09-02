@@ -35,21 +35,88 @@ export function normalizeExtraFields(input: any): ExtraFieldCfg[] {
     .filter(Boolean) as ExtraFieldCfg[];
 }
 
-export function groupMatrixCols(cols: string[]): { group: string; cols: string[] }[] | null {
+// Detecta columnas nombradas "Grupo - Metrica" (ej. "Inicial - Total") y las
+// agrupa para un encabezado de 2 filas. Columnas sueltas (sin " - ") se
+// devuelven como su propio grupo con `group: null`, para poder mezclarse
+// con columnas agrupadas sin romper todo el encabezado (ej. una columna
+// "TOTAL" al inicio, seguida de columnas agrupadas por nivel). Si NINGUNA
+// columna usa el formato, devuelve null (encabezado plano de una fila).
+export function groupMatrixCols(cols: string[]): { group: string | null; cols: string[] }[] | null {
   if (!cols.length) return null;
   const parsed = cols.map((c) => {
     const idx = c.indexOf(" - ");
-    if (idx < 0) return null;
-    return { group: c.slice(0, idx).trim(), label: c.slice(idx + 3).trim() };
+    if (idx < 0) return { group: null as string | null, label: c };
+    const group = c.slice(0, idx).trim();
+    const label = c.slice(idx + 3).trim();
+    return group && label ? { group, label } : { group: null as string | null, label: c };
   });
-  if (parsed.some((p) => !p || !p.group || !p.label)) return null;
-  const groups: { group: string; cols: string[] }[] = [];
-  for (const p of parsed as { group: string; label: string }[]) {
+  if (parsed.every((p) => p.group === null)) return null;
+  const groups: { group: string | null; cols: string[] }[] = [];
+  for (const p of parsed) {
     const last = groups[groups.length - 1];
-    if (last && last.group === p.group) last.cols.push(p.label);
+    if (last && last.group !== null && last.group === p.group) last.cols.push(p.label);
     else groups.push({ group: p.group, cols: [p.label] });
   }
   return groups;
+}
+
+function isTotalLabel(label: string) {
+  return /^(sub)?total$/i.test(label.trim());
+}
+
+// Recalcula las celdas "Total"/"Subtotal" de una fila de tabla_matriz como
+// la suma de sus columnas hermanas (dentro del mismo grupo, o -si es una
+// columna suelta llamada Total- la suma de los subtotales de cada grupo).
+// Devuelve la fila recalculada y el set de indices (posicion plana en
+// `cols`) que son de solo lectura porque se auto-calculan.
+export function computeMatrixAutoTotals(
+  groups: { group: string | null; cols: string[] }[] | null,
+  values: any[]
+): { next: any[]; totalFlatIndices: Set<number> } {
+  const totalFlatIndices = new Set<number>();
+  if (!groups) return { next: values, totalFlatIndices };
+  const next = [...values];
+  const groupStart: number[] = [];
+  let idx = 0;
+  groups.forEach((g) => {
+    groupStart.push(idx);
+    idx += g.cols.length;
+  });
+  const sumFilled = (indices: number[], source: any[]) => {
+    let sum = 0;
+    let any = false;
+    indices.forEach((i) => {
+      const raw = source[i];
+      if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+        sum += Number(raw) || 0;
+        any = true;
+      }
+    });
+    return { sum, any };
+  };
+  const groupTotalFlat: number[] = [];
+  groups.forEach((g, gi) => {
+    if (g.group === null) return;
+    const totalLocal = g.cols.findIndex(isTotalLabel);
+    if (totalLocal < 0) return;
+    const totalFlat = groupStart[gi] + totalLocal;
+    const siblingIndices = g.cols.map((_l, li) => groupStart[gi] + li).filter((i) => i !== totalFlat);
+    const { sum, any } = sumFilled(siblingIndices, values);
+    if (any) next[totalFlat] = String(sum);
+    totalFlatIndices.add(totalFlat);
+    groupTotalFlat.push(totalFlat);
+  });
+  groups.forEach((g, gi) => {
+    if (g.group !== null || g.cols.length !== 1 || !isTotalLabel(g.cols[0])) return;
+    const flat = groupStart[gi];
+    const addends = groupTotalFlat.length
+      ? groupTotalFlat
+      : values.map((_v, i) => i).filter((i) => i !== flat);
+    const { sum, any } = sumFilled(addends, next);
+    if (any) next[flat] = String(sum);
+    totalFlatIndices.add(flat);
+  });
+  return { next, totalFlatIndices };
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
