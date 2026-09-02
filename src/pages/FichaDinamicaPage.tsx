@@ -1298,6 +1298,17 @@ export function FichaDinamicaPage() {
       if (q.tipo === "numero" && (!v.number || !String(v.number).trim())) return `Falta número en: ${q.texto}`;
       if (q.tipo === "archivo_pdf" && (!v.fileName || !String(v.fileName).trim()))
         return `Falta adjunto en: ${q.texto}`;
+      if (q.tipo === "tabla_matriz") {
+        const rows = q.config_json?.rows ?? [];
+        const cols = q.config_json?.cols ?? [];
+        const incomplete = rows.some((_: string, i: number) =>
+          cols.some((_: string, j: number) => {
+            const cell = v.matrix?.[i]?.[j];
+            return cell === undefined || cell === null || String(cell).trim() === "";
+          })
+        );
+        if (incomplete) return `Falta completar la tabla en: ${q.texto}`;
+      }
     }
 
     if (effectiveFooterCfg.lugar && !footer.lugar.trim()) return "Falta Lugar.";
@@ -2066,6 +2077,49 @@ export function FichaDinamicaPage() {
                           {value.fileName ? (
                             <div className="mt-1 text-xs text-white/60">Archivo: {value.fileName}</div>
                           ) : null}
+                        </div>
+                      )}
+
+                      {q.tipo === "tabla_matriz" && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[480px] border-collapse text-xs">
+                            <thead>
+                              <tr>
+                                <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
+                                {(q.config_json?.cols ?? []).map((col: string) => (
+                                  <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
+                                    {col}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(q.config_json?.rows ?? []).map((row: string, i: number) => (
+                                <tr key={row}>
+                                  <td className="border border-white/10 px-2 py-1 text-white/80">{row}</td>
+                                  {(q.config_json?.cols ?? []).map((col: string, j: number) => (
+                                    <td key={col} className="border border-white/10 p-1">
+                                      <input
+                                        type="number"
+                                        step={q.config_json?.decimals ? 1 / 10 ** q.config_json.decimals : 1}
+                                        className="w-full rounded-md border border-white/10 bg-black/20 px-2 py-1 text-center text-sm text-white"
+                                        value={value.matrix?.[i]?.[j] ?? ""}
+                                        onChange={(e) => {
+                                          const rowsCount = (q.config_json?.rows ?? []).length;
+                                          const colsCount = (q.config_json?.cols ?? []).length;
+                                          const next: string[][] = Array.from({ length: rowsCount }, (_, ri) =>
+                                            Array.from({ length: colsCount }, (_, ci) => value.matrix?.[ri]?.[ci] ?? "")
+                                          );
+                                          next[i][j] = e.target.value;
+                                          setAnswers((s) => ({ ...s, [q.id]: { ...value, matrix: next } }));
+                                        }}
+                                      />
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
 

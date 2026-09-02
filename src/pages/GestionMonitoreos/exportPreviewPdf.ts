@@ -75,6 +75,55 @@ export async function exportPreviewPdf(params: {
     doc.setFontSize(10);
   };
 
+  const splitSafeForMatrix = (text: string, maxW: number): string[] => {
+    const words = String(text ?? "").split(/\s+/).filter(Boolean);
+    const out: string[] = [];
+    let line = "";
+    for (const w of words) {
+      const trial = line ? `${line} ${w}` : w;
+      if (doc.getTextWidth(trial) <= maxW || !line) {
+        line = trial;
+      } else {
+        out.push(line);
+        line = w;
+      }
+    }
+    if (line) out.push(line);
+    return out.length ? out.slice(0, 2) : ["-"];
+  };
+
+  const drawMatrixTable = (x: number, rows: string[], cols: string[], matrix: any[][]) => {
+    if (!rows.length || !cols.length) return;
+    const labelW = 32;
+    const availW = pageW - x - M;
+    const colW = Math.max(12, (availW - labelW) / cols.length);
+    const rowH = 6;
+    doc.setFontSize(7);
+    ensureSpace(rowH * (rows.length + 1) + 2);
+    doc.setDrawColor(200);
+    doc.setFillColor(240, 246, 250);
+    doc.rect(x, y, labelW, rowH, "FD");
+    cols.forEach((col, j) => {
+      doc.rect(x + labelW + j * colW, y, colW, rowH, "FD");
+      const lines = splitSafeForMatrix(col, colW - 2);
+      doc.text(lines, x + labelW + j * colW + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, { align: "center" });
+    });
+    y += rowH;
+    rows.forEach((row, i) => {
+      ensureSpace(rowH + 2);
+      doc.rect(x, y, labelW, rowH);
+      doc.text(splitSafeForMatrix(row, labelW - 2), x + 1.5, y + rowH / 2 + 1);
+      cols.forEach((_col, j) => {
+        doc.rect(x + labelW + j * colW, y, colW, rowH);
+        const cell = matrix?.[i]?.[j];
+        doc.text(cell === undefined || cell === null || cell === "" ? "-" : String(cell), x + labelW + j * colW + colW / 2, y + rowH / 2 + 1, { align: "center" });
+      });
+      y += rowH;
+    });
+    y += 3;
+    doc.setFontSize(10);
+  };
+
   // Logo
   try {
     const img = await loadImage(logoUrl);
@@ -186,6 +235,16 @@ export async function exportPreviewPdf(params: {
       if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
       if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
       if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
+      if (q.tipo === "tabla_matriz") {
+        if (parts.length) {
+          const detail = parts.join(" | ");
+          const detailLines = doc.splitTextToSize(detail, contentW);
+          doc.text(detailLines, M, y);
+          y += detailLines.length * smallLineH;
+          parts.length = 0;
+        }
+        drawMatrixTable(M, q.config_json?.rows ?? [], q.config_json?.cols ?? [], p.matrix ?? []);
+      }
       if (q.config_json?.include_obs !== false) parts.push(`Observación: ${p.obs ?? "-"}`);
       const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
       extraFields.forEach((f) => {

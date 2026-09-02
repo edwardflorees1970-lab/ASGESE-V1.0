@@ -147,6 +147,9 @@ export function GestionMonitoreosPage() {
   const [qNiveles, setQNiveles] = useState(3);
   const [qOpciones, setQOpciones] = useState("");
   const [qMulti, setQMulti] = useState(false);
+  const [qMatrixRows, setQMatrixRows] = useState("");
+  const [qMatrixCols, setQMatrixCols] = useState("");
+  const [qMatrixDecimals, setQMatrixDecimals] = useState(0);
   const [qIncludeObs, setQIncludeObs] = useState(true);
   const [qNivelLabels, setQNivelLabels] = useState<string[]>(["Bajo", "Medio", "Alto"]);
   const [qExtraFields, setQExtraFields] = useState<ExtraFieldCfg[]>([]);
@@ -1769,6 +1772,9 @@ export function GestionMonitoreosPage() {
     setQExtraFieldMode("registro");
     setQExtraFieldDefault("");
     setQMulti(false);
+    setQMatrixRows("");
+    setQMatrixCols("");
+    setQMatrixDecimals(0);
     setQIncludeObs(true);
     setEditingQuestionId(null);
   };
@@ -1799,6 +1805,17 @@ export function GestionMonitoreosPage() {
       config.multi = qMulti;
     }
     if (qTipo === "archivo_pdf") config.maxSizeMB = 5;
+    if (qTipo === "tabla_matriz") {
+      config.rows = qMatrixRows
+        .split("\n")
+        .map((v) => v.trim())
+        .filter(Boolean);
+      config.cols = qMatrixCols
+        .split("\n")
+        .map((v) => v.trim())
+        .filter(Boolean);
+      config.decimals = qMatrixDecimals || 0;
+    }
     config.include_obs = qIncludeObs;
     if (qExtraFields.length) config.extra_fields = qExtraFields;
 
@@ -1863,6 +1880,15 @@ export function GestionMonitoreosPage() {
     } else {
       setQOpciones("");
       setQMulti(false);
+    }
+    if (q.tipo === "tabla_matriz") {
+      setQMatrixRows((q.config_json?.rows ?? []).join("\n"));
+      setQMatrixCols((q.config_json?.cols ?? []).join("\n"));
+      setQMatrixDecimals(q.config_json?.decimals ?? 0);
+    } else {
+      setQMatrixRows("");
+      setQMatrixCols("");
+      setQMatrixDecimals(0);
     }
     setQIncludeObs(q.config_json?.include_obs !== false);
     setQExtraFields(normalizeExtraFields(q.config_json?.extra_fields));
@@ -3366,6 +3392,11 @@ export function GestionMonitoreosPage() {
                                 Niveles: {q.config_json.levelLabels.join(" · ")}
                               </div>
                             ) : null}
+                            {q.tipo === "tabla_matriz" && q.config_json?.rows?.length ? (
+                              <div className="mt-1 text-[11px] text-white/60">
+                                Tabla {q.config_json.rows.length}x{q.config_json.cols?.length ?? 0}
+                              </div>
+                            ) : null}
                           </div>
                           {canEditTemplates && (
                             <div className="flex flex-wrap items-center gap-2">
@@ -3556,6 +3587,33 @@ export function GestionMonitoreosPage() {
                             <label className="flex items-center gap-2 text-xs">
                               <input type="checkbox" checked={qMulti} onChange={(e) => setQMulti(e.target.checked)} />
                               Selección múltiple
+                            </label>
+                          </div>
+                        )}
+                        {qTipo === "tabla_matriz" && (
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <textarea
+                              className="min-h-[90px] w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                              placeholder="Filas (una por línea, ej. Director(a))"
+                              value={qMatrixRows}
+                              onChange={(e) => setQMatrixRows(e.target.value)}
+                            />
+                            <textarea
+                              className="min-h-[90px] w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                              placeholder="Columnas (una por línea, ej. Inicial - Total)"
+                              value={qMatrixCols}
+                              onChange={(e) => setQMatrixCols(e.target.value)}
+                            />
+                            <label className="flex items-center gap-2 text-xs md:col-span-2">
+                              Decimales permitidos por celda:
+                              <input
+                                type="number"
+                                min={0}
+                                max={4}
+                                className="w-16 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-sm"
+                                value={qMatrixDecimals}
+                                onChange={(e) => setQMatrixDecimals(Number(e.target.value) || 0)}
+                              />
                             </label>
                           </div>
                         )}
