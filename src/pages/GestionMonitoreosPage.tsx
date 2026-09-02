@@ -3592,6 +3592,26 @@ export function GestionMonitoreosPage() {
                         )}
                         {qTipo === "tabla_matriz" && (
                           <div className="grid gap-2 md:grid-cols-2">
+                            <div className="rounded-lg border border-[var(--app-accent)]/30 bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] p-2.5 text-[11px] leading-relaxed text-white/80 md:col-span-2">
+                              <div className="font-semibold text-white">¿Cómo agrupar columnas por nivel/métrica?</div>
+                              <p className="mt-1">
+                                Escribe cada columna como <span className="font-mono text-[var(--app-accent)]">"Grupo - Métrica"</span> (con
+                                guion y espacios a los lados) para que el encabezado se dibuje en dos filas, igual que
+                                una ficha de papel. Ejemplo:
+                              </p>
+                              <pre className="mt-1.5 whitespace-pre-wrap rounded-md bg-black/30 p-2 font-mono text-[10px] text-white/70">
+{`Inicial - Total
+Inicial - Asistió
+Inicial - Faltó
+Primaria - Total
+Primaria - Asistió
+Primaria - Faltó`}
+                              </pre>
+                              <p className="mt-1.5">
+                                Si no usas ese formato en todas las columnas, se muestra un encabezado simple de una
+                                sola fila (también válido).
+                              </p>
+                            </div>
                             <textarea
                               className="min-h-[90px] w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                               placeholder="Filas (una por línea, ej. Director(a))"
