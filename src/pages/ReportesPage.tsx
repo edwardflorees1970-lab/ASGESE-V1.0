@@ -11,6 +11,7 @@ import { DataExportConsentDialog } from "../components/DataExportConsentDialog";
 import { SignatureRequestModal } from "../components/SignatureRequestModal";
 import { IconButton } from "../components/ui/IconButton";
 import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
+import { groupMatrixCols } from "./GestionMonitoreos/helpers";
 import {
   exportAnalyticsCsv,
   exportAnalyticsExcel,
@@ -1021,19 +1022,41 @@ export function ReportesPage() {
         const availW = pageW - x - M;
         const colW = Math.max(12, (availW - labelW) / cols.length);
         const rowH = 6;
+        const groups = groupMatrixCols(cols);
         doc.setFontSize(7);
-        ensureSpace(rowH * (rows.length + 1) + 2);
+        ensureSpace(rowH * (rows.length + (groups ? 2 : 1)) + 2);
         doc.setDrawColor(200);
         doc.setFillColor(240, 246, 250);
-        doc.rect(x, y, labelW, rowH, "FD");
-        cols.forEach((col, j) => {
-          doc.rect(x + labelW + j * colW, y, colW, rowH, "FD");
-          const lines = splitSafeForMatrix(col, colW - 2);
-          doc.text(lines, x + labelW + j * colW + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, {
-            align: "center",
+        if (groups) {
+          doc.rect(x, y, labelW, rowH * 2, "FD");
+          let gx = x + labelW;
+          groups.forEach((g) => {
+            const gw = colW * g.cols.length;
+            doc.rect(gx, y, gw, rowH, "FD");
+            doc.text(splitSafeForMatrix(g.group, gw - 2), gx + gw / 2, y + rowH / 2 + 1, { align: "center" });
+            gx += gw;
           });
-        });
-        y += rowH;
+          y += rowH;
+          const flatLabels = groups.flatMap((g) => g.cols);
+          flatLabels.forEach((label, j) => {
+            doc.rect(x + labelW + j * colW, y, colW, rowH, "FD");
+            const lines = splitSafeForMatrix(label, colW - 2);
+            doc.text(lines, x + labelW + j * colW + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, {
+              align: "center",
+            });
+          });
+          y += rowH;
+        } else {
+          doc.rect(x, y, labelW, rowH, "FD");
+          cols.forEach((col, j) => {
+            doc.rect(x + labelW + j * colW, y, colW, rowH, "FD");
+            const lines = splitSafeForMatrix(col, colW - 2);
+            doc.text(lines, x + labelW + j * colW + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, {
+              align: "center",
+            });
+          });
+          y += rowH;
+        }
         rows.forEach((row, i) => {
           ensureSpace(rowH + 2);
           doc.rect(x, y, labelW, rowH);

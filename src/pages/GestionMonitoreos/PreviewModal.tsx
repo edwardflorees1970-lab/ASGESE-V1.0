@@ -1,6 +1,6 @@
 import type { HeaderFieldDef } from "../../lib/dynamicHeader";
 import { DEFAULT_NIVEL_INFO } from "./constants";
-import { normalizeExtraFields } from "./helpers";
+import { normalizeExtraFields, groupMatrixCols } from "./helpers";
 import { TimeField } from "./TimeField";
 import type { Question, Section, Template } from "./types";
 
@@ -651,14 +651,50 @@ export function PreviewModal({
                             <div className="mt-2 overflow-x-auto">
                               <table className="w-full min-w-[420px] border-collapse text-[11px]">
                                 <thead>
-                                  <tr>
-                                    <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
-                                    {(q.config_json?.cols ?? []).map((col: string) => (
-                                      <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
-                                        {col}
-                                      </th>
-                                    ))}
-                                  </tr>
+                                  {(() => {
+                                    const cols: string[] = q.config_json?.cols ?? [];
+                                    const groups = groupMatrixCols(cols);
+                                    if (!groups) {
+                                      return (
+                                        <tr>
+                                          <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
+                                          {cols.map((col) => (
+                                            <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
+                                              {col}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      );
+                                    }
+                                    return (
+                                      <>
+                                        <tr>
+                                          <th className="border border-white/10 bg-white/5 px-2 py-1 text-left" rowSpan={2}></th>
+                                          {groups.map((g) => (
+                                            <th
+                                              key={g.group}
+                                              colSpan={g.cols.length}
+                                              className="border border-white/10 bg-white/5 px-2 py-1 text-center"
+                                            >
+                                              {g.group}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                        <tr>
+                                          {groups.flatMap((g) =>
+                                            g.cols.map((label) => (
+                                              <th
+                                                key={`${g.group}-${label}`}
+                                                className="border border-white/10 bg-white/5 px-2 py-1 text-center"
+                                              >
+                                                {label}
+                                              </th>
+                                            ))
+                                          )}
+                                        </tr>
+                                      </>
+                                    );
+                                  })()}
                                 </thead>
                                 <tbody>
                                   {(q.config_json?.rows ?? []).map((row: string, i: number) => (

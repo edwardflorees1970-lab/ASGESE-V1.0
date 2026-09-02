@@ -35,6 +35,23 @@ export function normalizeExtraFields(input: any): ExtraFieldCfg[] {
     .filter(Boolean) as ExtraFieldCfg[];
 }
 
+export function groupMatrixCols(cols: string[]): { group: string; cols: string[] }[] | null {
+  if (!cols.length) return null;
+  const parsed = cols.map((c) => {
+    const idx = c.indexOf(" - ");
+    if (idx < 0) return null;
+    return { group: c.slice(0, idx).trim(), label: c.slice(idx + 3).trim() };
+  });
+  if (parsed.some((p) => !p || !p.group || !p.label)) return null;
+  const groups: { group: string; cols: string[] }[] = [];
+  for (const p of parsed as { group: string; label: string }[]) {
+    const last = groups[groups.length - 1];
+    if (last && last.group === p.group) last.cols.push(p.label);
+    else groups.push({ group: p.group, cols: [p.label] });
+  }
+  return groups;
+}
+
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
