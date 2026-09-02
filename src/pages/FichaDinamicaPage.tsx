@@ -1303,12 +1303,35 @@ export function FichaDinamicaPage() {
         const rows: string[] = q.config_json?.rows ?? [];
         const cols: string[] = q.config_json?.cols ?? [];
         const isEmptyCell = (cell: any) => cell === undefined || cell === null || String(cell).trim() === "";
-        const partialRow = rows.find((_rowLabel, i) => {
-          const cells = cols.map((_c, j) => v.matrix?.[i]?.[j]);
-          const filled = cells.filter((c) => !isEmptyCell(c)).length;
-          return filled > 0 && filled < cells.length;
-        });
-        if (partialRow) return `Completa toda la fila "${partialRow}" en: ${q.texto} (o déjala vacía si no aplica)`;
+        const groups = groupMatrixCols(cols);
+        let partialMsg: string | null = null;
+        for (let i = 0; i < rows.length; i += 1) {
+          const rowLabel = rows[i];
+          const rowValues = cols.map((_c, j) => v.matrix?.[i]?.[j] ?? "");
+          const { totalFlatIndices } = computeMatrixAutoTotals(groups, rowValues);
+          if (!groups) {
+            const cells = cols.map((_c, j) => rowValues[j]);
+            const filled = cells.filter((c) => !isEmptyCell(c)).length;
+            if (filled > 0 && filled < cells.length) {
+              partialMsg = `Completa toda la fila "${rowLabel}" en: ${q.texto} (o déjala vacía si no aplica)`;
+              break;
+            }
+            continue;
+          }
+          let flat = 0;
+          for (const g of groups) {
+            const groupIndices = g.cols.map((_c, li) => flat + li).filter((idx) => !totalFlatIndices.has(idx));
+            flat += g.cols.length;
+            if (g.group === null || !groupIndices.length) continue;
+            const filled = groupIndices.filter((idx) => !isEmptyCell(rowValues[idx])).length;
+            if (filled > 0 && filled < groupIndices.length) {
+              partialMsg = `Completa "${g.group}" en la fila "${rowLabel}" (${q.texto}) o déjalo vacío si no aplica`;
+              break;
+            }
+          }
+          if (partialMsg) break;
+        }
+        if (partialMsg) return partialMsg;
       }
     }
 
