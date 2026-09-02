@@ -1080,17 +1080,21 @@ export function ReportesPage() {
           y += rowH;
         }
         rows.forEach((row, i) => {
-          ensureSpace(rowH + 2);
-          doc.rect(x, y, labelW, rowH);
-          doc.text(splitSafeForMatrix(row, labelW - 2), x + 1.5, y + rowH / 2 + 1);
+          const labelLines = splitSafeForMatrix(row, labelW - 2);
+          const thisRowH = labelLines.length > 1 ? rowH + 3.2 * (labelLines.length - 1) : rowH;
+          ensureSpace(thisRowH + 2);
+          doc.rect(x, y, labelW, thisRowH);
+          labelLines.forEach((line, li) => {
+            doc.text(line, x + 1.5, y + 3.5 + li * 3.4);
+          });
           cols.forEach((_col, j) => {
-            doc.rect(x + labelW + j * colW, y, colW, rowH);
+            doc.rect(x + labelW + j * colW, y, colW, thisRowH);
             const cell = matrix?.[i]?.[j];
-            doc.text(cell === undefined || cell === null || cell === "" ? "-" : String(cell), x + labelW + j * colW + colW / 2, y + rowH / 2 + 1, {
+            doc.text(cell === undefined || cell === null || cell === "" ? "-" : String(cell), x + labelW + j * colW + colW / 2, y + thisRowH / 2 + 1, {
               align: "center",
             });
           });
-          y += rowH;
+          y += thisRowH;
         });
         y += 3;
         doc.setFontSize(9);
