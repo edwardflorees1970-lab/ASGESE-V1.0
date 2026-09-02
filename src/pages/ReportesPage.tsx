@@ -1018,25 +1018,31 @@ export function ReportesPage() {
       };
       const drawMatrixTable = (x: number, rows: string[], cols: string[], matrix: any[][]) => {
         if (!rows.length || !cols.length) return;
-        const labelW = 32;
+        const labelW = 30;
         const availW = pageW - x - M;
-        const colW = Math.max(12, (availW - labelW) / cols.length);
+        const colW = Math.max(8, (availW - labelW) / cols.length);
         const rowH = 6;
         const groups = groupMatrixCols(cols);
-        doc.setFontSize(7);
+        // jsPDF: doc.text() intercalado con doc.rect(..,"FD") a veces
+        // corrompe el color de relleno del siguiente rect -> hay que
+        // reafirmar setFillColor antes de CADA rect, no solo una vez.
+        const fill = () => doc.setFillColor(240, 246, 250);
+        doc.setFontSize(6.5);
         ensureSpace(rowH * (rows.length + (groups ? 2 : 1)) + 2);
         doc.setDrawColor(200);
-        doc.setFillColor(240, 246, 250);
         if (groups) {
+          fill();
           doc.rect(x, y, labelW, rowH * 2, "FD");
           let gx = x + labelW;
           groups.forEach((g) => {
             const gw = colW * g.cols.length;
             if (g.group === null) {
+              fill();
               doc.rect(gx, y, gw, rowH * 2, "FD");
               const lines = splitSafeForMatrix(g.cols[0], gw - 2);
               doc.text(lines, gx + gw / 2, y + rowH - (lines.length - 1) * 1, { align: "center" });
             } else {
+              fill();
               doc.rect(gx, y, gw, rowH, "FD");
               doc.text(splitSafeForMatrix(g.group, gw - 2), gx + gw / 2, y + rowH / 2 + 1, { align: "center" });
             }
@@ -1052,6 +1058,7 @@ export function ReportesPage() {
             }
             g.cols.forEach((label, li) => {
               const cx = gx + li * colW;
+              fill();
               doc.rect(cx, y, colW, rowH, "FD");
               const lines = splitSafeForMatrix(label, colW - 2);
               doc.text(lines, cx + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, { align: "center" });
@@ -1060,8 +1067,10 @@ export function ReportesPage() {
           });
           y += rowH;
         } else {
+          fill();
           doc.rect(x, y, labelW, rowH, "FD");
           cols.forEach((col, j) => {
+            fill();
             doc.rect(x + labelW + j * colW, y, colW, rowH, "FD");
             const lines = splitSafeForMatrix(col, colW - 2);
             doc.text(lines, x + labelW + j * colW + colW / 2, y + rowH / 2 - (lines.length - 1) * 1, {
