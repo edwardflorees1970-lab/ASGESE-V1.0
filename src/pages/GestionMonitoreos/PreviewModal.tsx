@@ -649,7 +649,10 @@ export function PreviewModal({
                           )}
                           {q.tipo === "tabla_matriz" && (
                             <div className="mt-2 overflow-x-auto">
-                              <table className="w-full min-w-[420px] border-collapse text-[11px]">
+                              <table
+                                className="border-collapse text-[11px]"
+                                style={{ minWidth: 120 + (q.config_json?.cols ?? []).length * 70 }}
+                              >
                                 <thead>
                                   {(() => {
                                     const cols: string[] = q.config_json?.cols ?? [];
@@ -657,9 +660,9 @@ export function PreviewModal({
                                     if (!groups) {
                                       return (
                                         <tr>
-                                          <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
+                                          <th className="min-w-[120px] border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
                                           {cols.map((col) => (
-                                            <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
+                                            <th key={col} className="min-w-[70px] border border-white/10 bg-white/5 px-2 py-1 text-center">
                                               {col}
                                             </th>
                                           ))}
@@ -669,7 +672,7 @@ export function PreviewModal({
                                     return (
                                       <>
                                         <tr>
-                                          <th className="border border-white/10 bg-white/5 px-2 py-1 text-left" rowSpan={2}></th>
+                                          <th className="min-w-[120px] border border-white/10 bg-white/5 px-2 py-1 text-left" rowSpan={2}></th>
                                           {groups.map((g) => (
                                             <th
                                               key={g.group}
@@ -685,7 +688,7 @@ export function PreviewModal({
                                             g.cols.map((label) => (
                                               <th
                                                 key={`${g.group}-${label}`}
-                                                className="border border-white/10 bg-white/5 px-2 py-1 text-center"
+                                                className="min-w-[70px] border border-white/10 bg-white/5 px-2 py-1 text-center"
                                               >
                                                 {label}
                                               </th>
@@ -699,12 +702,12 @@ export function PreviewModal({
                                 <tbody>
                                   {(q.config_json?.rows ?? []).map((row: string, i: number) => (
                                     <tr key={row}>
-                                      <td className="border border-white/10 px-2 py-1 text-white/70">{row}</td>
+                                      <td className="min-w-[120px] border border-white/10 px-2 py-1 text-white/70">{row}</td>
                                       {(q.config_json?.cols ?? []).map((col: string, j: number) => (
-                                        <td key={col} className="border border-white/10 p-1">
+                                        <td key={col} className="min-w-[70px] border border-white/10 p-1">
                                           <input
                                             type="number"
-                                            className="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1 text-center text-xs"
+                                            className="w-full min-w-[58px] rounded-md border border-white/10 bg-black/30 px-2 py-1 text-center text-xs"
                                             value={previewData[q.id]?.matrix?.[i]?.[j] ?? ""}
                                             onChange={(e) => {
                                               const rowsCount = (q.config_json?.rows ?? []).length;
