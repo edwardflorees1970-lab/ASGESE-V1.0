@@ -1300,15 +1300,15 @@ export function FichaDinamicaPage() {
       if (q.tipo === "archivo_pdf" && (!v.fileName || !String(v.fileName).trim()))
         return `Falta adjunto en: ${q.texto}`;
       if (q.tipo === "tabla_matriz") {
-        const rows = q.config_json?.rows ?? [];
-        const cols = q.config_json?.cols ?? [];
-        const incomplete = rows.some((_: string, i: number) =>
-          cols.some((_: string, j: number) => {
-            const cell = v.matrix?.[i]?.[j];
-            return cell === undefined || cell === null || String(cell).trim() === "";
-          })
-        );
-        if (incomplete) return `Falta completar la tabla en: ${q.texto}`;
+        const rows: string[] = q.config_json?.rows ?? [];
+        const cols: string[] = q.config_json?.cols ?? [];
+        const isEmptyCell = (cell: any) => cell === undefined || cell === null || String(cell).trim() === "";
+        const partialRow = rows.find((_rowLabel, i) => {
+          const cells = cols.map((_c, j) => v.matrix?.[i]?.[j]);
+          const filled = cells.filter((c) => !isEmptyCell(c)).length;
+          return filled > 0 && filled < cells.length;
+        });
+        if (partialRow) return `Completa toda la fila "${partialRow}" en: ${q.texto} (o déjala vacía si no aplica)`;
       }
     }
 
@@ -2083,7 +2083,10 @@ export function FichaDinamicaPage() {
 
                       {q.tipo === "tabla_matriz" && (
                         <div className="overflow-x-auto">
-                          <table className="w-full min-w-[480px] border-collapse text-xs">
+                          <table
+                            className="border-collapse text-xs"
+                            style={{ minWidth: 140 + (q.config_json?.cols ?? []).length * 76 }}
+                          >
                             <thead>
                               {(() => {
                                 const cols: string[] = q.config_json?.cols ?? [];
@@ -2091,9 +2094,9 @@ export function FichaDinamicaPage() {
                                 if (!groups) {
                                   return (
                                     <tr>
-                                      <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
+                                      <th className="min-w-[140px] border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
                                       {cols.map((col) => (
-                                        <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
+                                        <th key={col} className="min-w-[76px] border border-white/10 bg-white/5 px-2 py-1 text-center">
                                           {col}
                                         </th>
                                       ))}
@@ -2103,7 +2106,7 @@ export function FichaDinamicaPage() {
                                 return (
                                   <>
                                     <tr>
-                                      <th className="border border-white/10 bg-white/5 px-2 py-1 text-left" rowSpan={2}></th>
+                                      <th className="min-w-[140px] border border-white/10 bg-white/5 px-2 py-1 text-left" rowSpan={2}></th>
                                       {groups.map((g) => (
                                         <th
                                           key={g.group}
@@ -2119,7 +2122,7 @@ export function FichaDinamicaPage() {
                                         g.cols.map((label) => (
                                           <th
                                             key={`${g.group}-${label}`}
-                                            className="border border-white/10 bg-white/5 px-2 py-1 text-center"
+                                            className="min-w-[76px] border border-white/10 bg-white/5 px-2 py-1 text-center"
                                           >
                                             {label}
                                           </th>
@@ -2133,13 +2136,13 @@ export function FichaDinamicaPage() {
                             <tbody>
                               {(q.config_json?.rows ?? []).map((row: string, i: number) => (
                                 <tr key={row}>
-                                  <td className="border border-white/10 px-2 py-1 text-white/80">{row}</td>
+                                  <td className="min-w-[140px] border border-white/10 px-2 py-1 text-white/80">{row}</td>
                                   {(q.config_json?.cols ?? []).map((col: string, j: number) => (
-                                    <td key={col} className="border border-white/10 p-1">
+                                    <td key={col} className="min-w-[76px] border border-white/10 p-1">
                                       <input
                                         type="number"
                                         step={q.config_json?.decimals ? 1 / 10 ** q.config_json.decimals : 1}
-                                        className="w-full rounded-md border border-white/10 bg-black/20 px-2 py-1 text-center text-sm text-white"
+                                        className="w-full min-w-[64px] rounded-md border border-white/10 bg-black/20 px-2 py-1 text-center text-sm text-white"
                                         value={value.matrix?.[i]?.[j] ?? ""}
                                         onChange={(e) => {
                                           const rowsCount = (q.config_json?.rows ?? []).length;
