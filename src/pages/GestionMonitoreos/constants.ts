@@ -24,6 +24,7 @@ export const QUESTION_TYPES = [
   { value: "texto", label: "Respuesta abierta" },
   { value: "numero", label: "Número" },
   { value: "archivo_pdf", label: "Archivo PDF" },
+  { value: "tabla_matriz", label: "Tabla / Matriz numérica" },
 ];
 
 export const DEFAULT_NIVEL_INFO = [

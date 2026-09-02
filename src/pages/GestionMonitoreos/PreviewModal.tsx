@@ -647,6 +647,48 @@ export function PreviewModal({
                               ) : null}
                             </div>
                           )}
+                          {q.tipo === "tabla_matriz" && (
+                            <div className="mt-2 overflow-x-auto">
+                              <table className="w-full min-w-[420px] border-collapse text-[11px]">
+                                <thead>
+                                  <tr>
+                                    <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
+                                    {(q.config_json?.cols ?? []).map((col: string) => (
+                                      <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
+                                        {col}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(q.config_json?.rows ?? []).map((row: string, i: number) => (
+                                    <tr key={row}>
+                                      <td className="border border-white/10 px-2 py-1 text-white/70">{row}</td>
+                                      {(q.config_json?.cols ?? []).map((col: string, j: number) => (
+                                        <td key={col} className="border border-white/10 p-1">
+                                          <input
+                                            type="number"
+                                            className="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1 text-center text-xs"
+                                            value={previewData[q.id]?.matrix?.[i]?.[j] ?? ""}
+                                            onChange={(e) => {
+                                              const rowsCount = (q.config_json?.rows ?? []).length;
+                                              const colsCount = (q.config_json?.cols ?? []).length;
+                                              const current = previewData[q.id]?.matrix ?? [];
+                                              const next: string[][] = Array.from({ length: rowsCount }, (_, ri) =>
+                                                Array.from({ length: colsCount }, (_, ci) => current[ri]?.[ci] ?? "")
+                                              );
+                                              next[i][j] = e.target.value;
+                                              savePreview({ ...previewData, [q.id]: { ...previewData[q.id], matrix: next } });
+                                            }}
+                                          />
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                           {q.config_json?.include_obs !== false && (
                             <div className="mt-3">
                               <div className="text-[11px] text-white/60">Observaciones</div>
