@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { isMonitoreoExpired } from "../lib/monitoreoVigencia";
-import { groupMatrixCols } from "./GestionMonitoreos/helpers";
+import { groupMatrixCols, computeMatrixAutoTotals } from "./GestionMonitoreos/helpers";
 import {
   DEFAULT_HEADER_CONFIG,
   normalizeCustomHeaderValues,
@@ -2134,30 +2134,51 @@ export function FichaDinamicaPage() {
                               })()}
                             </thead>
                             <tbody>
-                              {(q.config_json?.rows ?? []).map((row: string, i: number) => (
-                                <tr key={row}>
-                                  <td className="min-w-[140px] border border-white/10 px-2 py-1 text-white/80">{row}</td>
-                                  {(q.config_json?.cols ?? []).map((col: string, j: number) => (
-                                    <td key={col} className="min-w-[76px] border border-white/10 p-1">
-                                      <input
-                                        type="number"
-                                        step={q.config_json?.decimals ? 1 / 10 ** q.config_json.decimals : 1}
-                                        className="w-full min-w-[64px] rounded-md border border-white/10 bg-black/20 px-2 py-1 text-center text-sm text-white"
-                                        value={value.matrix?.[i]?.[j] ?? ""}
-                                        onChange={(e) => {
-                                          const rowsCount = (q.config_json?.rows ?? []).length;
-                                          const colsCount = (q.config_json?.cols ?? []).length;
-                                          const next: string[][] = Array.from({ length: rowsCount }, (_, ri) =>
-                                            Array.from({ length: colsCount }, (_, ci) => value.matrix?.[ri]?.[ci] ?? "")
-                                          );
-                                          next[i][j] = e.target.value;
-                                          setAnswers((s) => ({ ...s, [q.id]: { ...value, matrix: next } }));
-                                        }}
-                                      />
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
+                              {(() => {
+                                const rows: string[] = q.config_json?.rows ?? [];
+                                const cols: string[] = q.config_json?.cols ?? [];
+                                const groups = groupMatrixCols(cols);
+                                return rows.map((row, i) => {
+                                  const rowValues = cols.map((_c, j) => value.matrix?.[i]?.[j] ?? "");
+                                  const { next: rowComputed, totalFlatIndices } = computeMatrixAutoTotals(groups, rowValues);
+                                  return (
+                                    <tr key={row}>
+                                      <td className="min-w-[140px] border border-white/10 px-2 py-1 text-white/80">{row}</td>
+                                      {cols.map((col, j) => {
+                                        const isTotal = totalFlatIndices.has(j);
+                                        return (
+                                          <td key={col} className="min-w-[76px] border border-white/10 p-1">
+                                            <input
+                                              type="number"
+                                              step={q.config_json?.decimals ? 1 / 10 ** q.config_json.decimals : 1}
+                                              readOnly={isTotal}
+                                              tabIndex={isTotal ? -1 : undefined}
+                                              title={isTotal ? "Se calcula automáticamente" : undefined}
+                                              className={`w-full min-w-[64px] rounded-md border px-2 py-1 text-center text-sm ${
+                                                isTotal
+                                                  ? "border-white/5 bg-white/10 text-white/70"
+                                                  : "border-white/10 bg-black/20 text-white"
+                                              }`}
+                                              value={isTotal ? rowComputed[j] ?? "" : value.matrix?.[i]?.[j] ?? ""}
+                                              onChange={(e) => {
+                                                if (isTotal) return;
+                                                const rowsCount = rows.length;
+                                                const colsCount = cols.length;
+                                                const next: string[][] = Array.from({ length: rowsCount }, (_, ri) =>
+                                                  Array.from({ length: colsCount }, (_, ci) => value.matrix?.[ri]?.[ci] ?? "")
+                                                );
+                                                next[i][j] = e.target.value;
+                                                next[i] = computeMatrixAutoTotals(groups, next[i]).next;
+                                                setAnswers((s) => ({ ...s, [q.id]: { ...value, matrix: next } }));
+                                              }}
+                                            />
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                });
+                              })()}
                             </tbody>
                           </table>
                         </div>

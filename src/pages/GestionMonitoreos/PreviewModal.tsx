@@ -1,6 +1,6 @@
 import type { HeaderFieldDef } from "../../lib/dynamicHeader";
 import { DEFAULT_NIVEL_INFO } from "./constants";
-import { normalizeExtraFields, groupMatrixCols } from "./helpers";
+import { normalizeExtraFields, groupMatrixCols, computeMatrixAutoTotals } from "./helpers";
 import { TimeField } from "./TimeField";
 import type { Question, Section, Template } from "./types";
 
@@ -700,30 +700,49 @@ export function PreviewModal({
                                   })()}
                                 </thead>
                                 <tbody>
-                                  {(q.config_json?.rows ?? []).map((row: string, i: number) => (
-                                    <tr key={row}>
-                                      <td className="min-w-[120px] border border-white/10 px-2 py-1 text-white/70">{row}</td>
-                                      {(q.config_json?.cols ?? []).map((col: string, j: number) => (
-                                        <td key={col} className="min-w-[70px] border border-white/10 p-1">
-                                          <input
-                                            type="number"
-                                            className="w-full min-w-[58px] rounded-md border border-white/10 bg-black/30 px-2 py-1 text-center text-xs"
-                                            value={previewData[q.id]?.matrix?.[i]?.[j] ?? ""}
-                                            onChange={(e) => {
-                                              const rowsCount = (q.config_json?.rows ?? []).length;
-                                              const colsCount = (q.config_json?.cols ?? []).length;
-                                              const current = previewData[q.id]?.matrix ?? [];
-                                              const next: string[][] = Array.from({ length: rowsCount }, (_, ri) =>
-                                                Array.from({ length: colsCount }, (_, ci) => current[ri]?.[ci] ?? "")
-                                              );
-                                              next[i][j] = e.target.value;
-                                              savePreview({ ...previewData, [q.id]: { ...previewData[q.id], matrix: next } });
-                                            }}
-                                          />
-                                        </td>
-                                      ))}
-                                    </tr>
-                                  ))}
+                                  {(() => {
+                                    const rows: string[] = q.config_json?.rows ?? [];
+                                    const cols: string[] = q.config_json?.cols ?? [];
+                                    const groups = groupMatrixCols(cols);
+                                    return rows.map((row, i) => {
+                                      const rowValues = cols.map((_c, j) => previewData[q.id]?.matrix?.[i]?.[j] ?? "");
+                                      const { next: rowComputed, totalFlatIndices } = computeMatrixAutoTotals(groups, rowValues);
+                                      return (
+                                        <tr key={row}>
+                                          <td className="min-w-[120px] border border-white/10 px-2 py-1 text-white/70">{row}</td>
+                                          {cols.map((col, j) => {
+                                            const isTotal = totalFlatIndices.has(j);
+                                            return (
+                                              <td key={col} className="min-w-[70px] border border-white/10 p-1">
+                                                <input
+                                                  type="number"
+                                                  readOnly={isTotal}
+                                                  tabIndex={isTotal ? -1 : undefined}
+                                                  title={isTotal ? "Se calcula automáticamente" : undefined}
+                                                  className={`w-full min-w-[58px] rounded-md border px-2 py-1 text-center text-xs ${
+                                                    isTotal ? "border-white/5 bg-white/20 text-white/70" : "border-white/10 bg-black/30"
+                                                  }`}
+                                                  value={isTotal ? rowComputed[j] ?? "" : previewData[q.id]?.matrix?.[i]?.[j] ?? ""}
+                                                  onChange={(e) => {
+                                                    if (isTotal) return;
+                                                    const rowsCount = rows.length;
+                                                    const colsCount = cols.length;
+                                                    const current = previewData[q.id]?.matrix ?? [];
+                                                    const next: string[][] = Array.from({ length: rowsCount }, (_, ri) =>
+                                                      Array.from({ length: colsCount }, (_, ci) => current[ri]?.[ci] ?? "")
+                                                    );
+                                                    next[i][j] = e.target.value;
+                                                    next[i] = computeMatrixAutoTotals(groups, next[i]).next;
+                                                    savePreview({ ...previewData, [q.id]: { ...previewData[q.id], matrix: next } });
+                                                  }}
+                                                />
+                                              </td>
+                                            );
+                                          })}
+                                        </tr>
+                                      );
+                                    });
+                                  })()}
                                 </tbody>
                               </table>
                             </div>
