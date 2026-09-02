@@ -1344,14 +1344,16 @@ export function FichaDinamicaPage() {
     ) {
       return "La fecha del cierre debe estar dentro del rango del monitoreo.";
     }
-    if (effectiveFooterCfg.docente_dni && footer.docente_dni) {
+    if (effectiveFooterCfg.docente_dni) {
+      if (!footer.docente_dni) return "Falta el DNI del monitoreado (necesario para la firma digital).";
       const req = footer.docente_doc_tipo === "CE" ? 9 : 8;
       if (!/^\d+$/.test(footer.docente_dni)) return "Documento del monitoreado: solo numeros.";
       if (footer.docente_dni.length !== req) {
         return `Documento del monitoreado incompleto: ${footer.docente_doc_tipo} requiere ${req} digitos.`;
       }
     }
-    if (effectiveFooterCfg.monitor_dni && footer.monitor_dni) {
+    if (effectiveFooterCfg.monitor_dni) {
+      if (!footer.monitor_dni) return "Falta el DNI del monitor (necesario para la firma digital).";
       const req = footer.monitor_doc_tipo === "CE" ? 9 : 8;
       if (!/^\d+$/.test(footer.monitor_dni)) return "Documento del monitor: solo numeros.";
       if (footer.monitor_dni.length !== req) {
