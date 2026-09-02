@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { isMonitoreoExpired } from "../lib/monitoreoVigencia";
+import { groupMatrixCols } from "./GestionMonitoreos/helpers";
 import {
   DEFAULT_HEADER_CONFIG,
   normalizeCustomHeaderValues,
@@ -2084,14 +2085,50 @@ export function FichaDinamicaPage() {
                         <div className="overflow-x-auto">
                           <table className="w-full min-w-[480px] border-collapse text-xs">
                             <thead>
-                              <tr>
-                                <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
-                                {(q.config_json?.cols ?? []).map((col: string) => (
-                                  <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
-                                    {col}
-                                  </th>
-                                ))}
-                              </tr>
+                              {(() => {
+                                const cols: string[] = q.config_json?.cols ?? [];
+                                const groups = groupMatrixCols(cols);
+                                if (!groups) {
+                                  return (
+                                    <tr>
+                                      <th className="border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
+                                      {cols.map((col) => (
+                                        <th key={col} className="border border-white/10 bg-white/5 px-2 py-1 text-center">
+                                          {col}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  );
+                                }
+                                return (
+                                  <>
+                                    <tr>
+                                      <th className="border border-white/10 bg-white/5 px-2 py-1 text-left" rowSpan={2}></th>
+                                      {groups.map((g) => (
+                                        <th
+                                          key={g.group}
+                                          colSpan={g.cols.length}
+                                          className="border border-white/10 bg-white/5 px-2 py-1 text-center"
+                                        >
+                                          {g.group}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                    <tr>
+                                      {groups.flatMap((g) =>
+                                        g.cols.map((label) => (
+                                          <th
+                                            key={`${g.group}-${label}`}
+                                            className="border border-white/10 bg-white/5 px-2 py-1 text-center"
+                                          >
+                                            {label}
+                                          </th>
+                                        ))
+                                      )}
+                                    </tr>
+                                  </>
+                                );
+                              })()}
                             </thead>
                             <tbody>
                               {(q.config_json?.rows ?? []).map((row: string, i: number) => (
