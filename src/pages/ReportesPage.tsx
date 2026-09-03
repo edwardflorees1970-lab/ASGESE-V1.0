@@ -11,7 +11,7 @@ import { DataExportConsentDialog } from "../components/DataExportConsentDialog";
 import { SignatureRequestModal } from "../components/SignatureRequestModal";
 import { IconButton } from "../components/ui/IconButton";
 import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
-import { groupMatrixCols } from "./GestionMonitoreos/helpers";
+import { groupMatrixCols, sectionRomanNumeral } from "./GestionMonitoreos/helpers";
 import {
   exportAnalyticsCsv,
   exportAnalyticsExcel,
@@ -1257,8 +1257,8 @@ export function ReportesPage() {
         drawKeyValueGrid(nivelPairs);
       }
 
-      (secRows ?? []).forEach((s: any) => {
-        drawSectionHeader(s.titulo);
+      (secRows ?? []).forEach((s: any, sIndex: number) => {
+        drawSectionHeader(`${sectionRomanNumeral(sIndex)}. ${s.titulo}`);
         const sectionQuestions = (qRows ?? []).filter((q: any) => q.section_id === s.id);
         const seenSubtitulos = new Set<string>();
         let runCounter = 0;

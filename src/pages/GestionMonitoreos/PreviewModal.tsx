@@ -1,6 +1,6 @@
 import type { HeaderFieldDef } from "../../lib/dynamicHeader";
 import { DEFAULT_NIVEL_INFO } from "./constants";
-import { normalizeExtraFields, groupMatrixCols, computeMatrixAutoTotals } from "./helpers";
+import { normalizeExtraFields, groupMatrixCols, computeMatrixAutoTotals, sectionRomanNumeral } from "./helpers";
 import { TimeField } from "./TimeField";
 import type { Question, Section, Template } from "./types";
 
@@ -487,9 +487,9 @@ export function PreviewModal({
                   </div>
                 </div>
               ) : null}
-              {sections.map((s) => (
+              {sections.map((s, sIndex) => (
                 <div key={s.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div className="text-sm font-semibold">{s.titulo}</div>
+                  <div className="text-sm font-semibold">{sectionRomanNumeral(sIndex)}. {s.titulo}</div>
                   <div className="mt-3 space-y-3">
                     {(() => {
                       const sectionQuestions = questions.filter((q) => q.section_id === s.id);
