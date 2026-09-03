@@ -3678,7 +3678,7 @@ Primaria - Faltó`}
                                 setQExtraFields((v) =>
                                   v.some((f) => f.label === "Evidencia")
                                     ? v
-                                    : [...v, { label: "Evidencia", mode: "registro", default_value: "" }]
+                                    : [...v, { label: "Evidencia", mode: "elaboracion", default_value: "" }]
                                 )
                               }
                               className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
