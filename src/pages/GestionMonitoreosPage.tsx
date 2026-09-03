@@ -1863,18 +1863,38 @@ export function GestionMonitoreosPage() {
     config.include_obs = qIncludeObs;
     if (qExtraFields.length) config.extra_fields = qExtraFields;
 
+    const subValue = qSubtitulo.trim() || null;
+    // Inserta la pregunta justo despues de la ultima con el mismo subtitulo
+    // (en vez de siempre al final) para que el grupo quede continuo.
+    const computeInsertAt = (excludeId?: string) => {
+      const sectionQs = questions
+        .filter((x) => x.section_id === selectedSectionId && x.id !== excludeId)
+        .sort((a, b) => (a.orden_in_section ?? 0) - (b.orden_in_section ?? 0));
+      let insertAt = sectionQs.length;
+      if (subValue) {
+        const lastIdx = sectionQs.map((q) => q.subtitulo ?? null).lastIndexOf(subValue);
+        if (lastIdx >= 0) insertAt = lastIdx + 1;
+      }
+      return { sectionQs, insertAt };
+    };
+    const applyOrder = async (ids: string[]) => {
+      await Promise.all(
+        ids.map((id, idx) => supabase.from("form_question").update({ orden_in_section: idx + 1 }).eq("id", id))
+      );
+    };
+
     if (editingQuestionId) {
-      const countInTargetSection = questions.filter(
-        (x) => x.section_id === selectedSectionId && x.id !== editingQuestionId
-      ).length;
+      const { sectionQs, insertAt } = computeInsertAt(editingQuestionId);
+      const orderedIds = [...sectionQs.map((q) => q.id)];
+      orderedIds.splice(insertAt, 0, editingQuestionId);
       const { error } = await supabase
         .from("form_question")
         .update({
           section_id: selectedSectionId,
-          orden_in_section: countInTargetSection + 1,
+          orden_in_section: insertAt + 1,
           tipo: qTipo,
           texto: qTexto.trim(),
-          subtitulo: qSubtitulo.trim() || null,
+          subtitulo: subValue,
           required: qRequired,
           config_json: Object.keys(config).length ? config : null,
         })
@@ -1883,19 +1903,29 @@ export function GestionMonitoreosPage() {
         setToast({ type: "err", msg: error.message });
         return;
       }
+      await applyOrder(orderedIds);
     } else {
-      const countInSection = questions.filter((x) => x.section_id === selectedSectionId).length;
-      const { error } = await supabase.from("form_question").insert({
-        template_id: selectedTemplateId,
-        section_id: selectedSectionId,
-        tipo: qTipo,
-        texto: qTexto.trim(),
-        subtitulo: qSubtitulo.trim() || null,
-        orden: questions.length + 1,
-        orden_in_section: countInSection + 1,
-        required: qRequired,
-        config_json: Object.keys(config).length ? config : null,
-      });
+      const { sectionQs, insertAt } = computeInsertAt();
+      const { data: inserted, error } = await supabase
+        .from("form_question")
+        .insert({
+          template_id: selectedTemplateId,
+          section_id: selectedSectionId,
+          tipo: qTipo,
+          texto: qTexto.trim(),
+          subtitulo: subValue,
+          orden: questions.length + 1,
+          orden_in_section: insertAt + 1,
+          required: qRequired,
+          config_json: Object.keys(config).length ? config : null,
+        })
+        .select("id")
+        .single();
+      if (!error && inserted) {
+        const orderedIds = [...sectionQs.map((q) => q.id)];
+        orderedIds.splice(insertAt, 0, inserted.id);
+        await applyOrder(orderedIds);
+      }
       if (error) {
         setToast({ type: "err", msg: error.message });
         return;
