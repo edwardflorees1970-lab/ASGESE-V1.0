@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { isMonitoreoExpired } from "../lib/monitoreoVigencia";
-import { groupMatrixCols, computeMatrixAutoTotals } from "./GestionMonitoreos/helpers";
+import { groupMatrixCols, computeMatrixAutoTotals, sectionRomanNumeral } from "./GestionMonitoreos/helpers";
 import {
   DEFAULT_HEADER_CONFIG,
   normalizeCustomHeaderValues,
@@ -1935,9 +1935,9 @@ export function FichaDinamicaPage() {
         </div>
       ) : null}
 
-      {sections.map((s) => (
+      {sections.map((s, sIndex) => (
         <div key={s.id} id={`section-${s.id}`} className="dynamic-form-panel dynamic-section-panel scroll-mt-36 rounded-2xl border p-4 sm:p-5">
-          <div className="text-sm font-semibold">{s.titulo}</div>
+          <div className="text-sm font-semibold">{sectionRomanNumeral(sIndex)}. {s.titulo}</div>
           <div className="mt-4 space-y-5">
             {(() => {
               const seenSubtitulos = new Set<string>();

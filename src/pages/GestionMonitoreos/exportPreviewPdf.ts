@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import logoUrl from "../../assets/logoagebresf.png";
 import type { HeaderFieldDef } from "../../lib/dynamicHeader";
 import { DEFAULT_NIVEL_INFO } from "./constants";
-import { loadImage, normalizeExtraFields, toDataUrl, groupMatrixCols } from "./helpers";
+import { loadImage, normalizeExtraFields, toDataUrl, groupMatrixCols, sectionRomanNumeral } from "./helpers";
 import type { Question, Section, Template } from "./types";
 
 export async function exportPreviewPdf(params: {
@@ -250,8 +250,8 @@ export async function exportPreviewPdf(params: {
     drawKeyValueGrid(nivelPairs);
   }
 
-  sections.forEach((s) => {
-    drawSectionHeader(s.titulo);
+  sections.forEach((s, sIndex) => {
+    drawSectionHeader(`${sectionRomanNumeral(sIndex)}. ${s.titulo}`);
 
     const sectionQuestions = questions.filter((q) => q.section_id === s.id);
     const seenSubtitulos = new Set<string>();

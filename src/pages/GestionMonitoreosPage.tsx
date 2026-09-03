@@ -33,6 +33,7 @@ import {
   toGestionesUi,
   toggleGestion,
   toggleValue,
+  sectionRomanNumeral,
 } from "./GestionMonitoreos/helpers";
 import { ManagementIcon } from "./GestionMonitoreos/ManagementIcon";
 import { ReorderButtons } from "./GestionMonitoreos/ReorderButtons";
@@ -3411,7 +3412,7 @@ export function GestionMonitoreosPage() {
                                 onClick={() => setSelectedSectionId(s.id)}
                                 className="text-left text-xs font-medium"
                               >
-                                {sIndex + 1}. {s.titulo}
+                                {sectionRomanNumeral(sIndex)}. {s.titulo}
                               </button>
                               {canEditTemplates && (
                                 <div className="flex flex-shrink-0 items-center gap-2">
