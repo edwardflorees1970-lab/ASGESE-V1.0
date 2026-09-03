@@ -145,6 +145,7 @@ export function GestionMonitoreosPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [qTexto, setQTexto] = useState("");
   const [qSubtitulo, setQSubtitulo] = useState("");
+  const [newSubtituloBySection, setNewSubtituloBySection] = useState<Record<string, string>>({});
   const [qTipo, setQTipo] = useState("yes_no");
   const [qRequired, setQRequired] = useState(true);
   const [qNiveles, setQNiveles] = useState(3);
@@ -419,7 +420,7 @@ export function GestionMonitoreosPage() {
   const loadSections = async (templateId: string) => {
     const { data } = await supabase
       .from("form_section")
-      .select("id, template_id, titulo, orden")
+      .select("id, template_id, titulo, orden, subtitulos")
       .eq("template_id", templateId)
       .order("orden", { ascending: true });
     const rows = (data as Section[]) ?? [];
@@ -1702,6 +1703,34 @@ export function GestionMonitoreosPage() {
     const next = window.prompt("Nuevo título de sección:", current?.titulo ?? "")?.trim();
     if (!next) return;
     await supabase.from("form_section").update({ titulo: next }).eq("id", sectionId);
+    loadSections(selectedTemplateId ?? "");
+  };
+
+  const addSectionSubtitulo = async (sectionId: string, nuevo: string) => {
+    const value = nuevo.trim();
+    if (!value) return;
+    const current = sections.find((s) => s.id === sectionId);
+    const existing = current?.subtitulos ?? [];
+    if (existing.includes(value)) return;
+    await supabase
+      .from("form_section")
+      .update({ subtitulos: [...existing, value] })
+      .eq("id", sectionId);
+    loadSections(selectedTemplateId ?? "");
+  };
+
+  const removeSectionSubtitulo = async (sectionId: string, valor: string) => {
+    const current = sections.find((s) => s.id === sectionId);
+    const existing = current?.subtitulos ?? [];
+    const inUse = questions.some((q) => q.section_id === sectionId && q.subtitulo === valor);
+    if (inUse) {
+      setToast({ type: "err", msg: "Hay preguntas usando ese subtítulo. Cámbialas de subtítulo antes de quitarlo." });
+      return;
+    }
+    await supabase
+      .from("form_section")
+      .update({ subtitulos: existing.filter((x) => x !== valor) })
+      .eq("id", sectionId);
     loadSections(selectedTemplateId ?? "");
   };
 
@@ -3340,35 +3369,83 @@ export function GestionMonitoreosPage() {
                         {sections.map((s, sIndex) => (
                           <div
                             key={s.id}
-                            className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 ${
+                            className={`rounded-lg border px-3 py-2 ${
                               selectedSectionId === s.id
                                 ? "border-[var(--app-accent)] bg-white/10"
                                 : "border-white/10 bg-white/5"
                             }`}
                           >
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSectionId(s.id)}
-                              className="text-left text-xs font-medium"
-                            >
-                              {sIndex + 1}. {s.titulo}
-                            </button>
-                            {canEditTemplates && (
-                              <div className="flex flex-shrink-0 items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => renameSection(s.id)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
-                                >
-                                  Editar sección
-                                </button>
-                                <ReorderButtons
-                                  label="sección"
-                                  onUp={() => moveSection(s.id, -1)}
-                                  onDown={() => moveSection(s.id, 1)}
-                                  disabledUp={sIndex === 0}
-                                  disabledDown={sIndex === sections.length - 1}
-                                />
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSectionId(s.id)}
+                                className="text-left text-xs font-medium"
+                              >
+                                {sIndex + 1}. {s.titulo}
+                              </button>
+                              {canEditTemplates && (
+                                <div className="flex flex-shrink-0 items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => renameSection(s.id)}
+                                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
+                                  >
+                                    Editar sección
+                                  </button>
+                                  <ReorderButtons
+                                    label="sección"
+                                    onUp={() => moveSection(s.id, -1)}
+                                    onDown={() => moveSection(s.id, 1)}
+                                    disabledUp={sIndex === 0}
+                                    disabledDown={sIndex === sections.length - 1}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            {selectedSectionId === s.id && canEditTemplates && (
+                              <div className="mt-2 border-t border-white/10 pt-2">
+                                <div className="text-[11px] font-semibold text-white/60">
+                                  Subtítulos de esta sección
+                                </div>
+                                {(s.subtitulos ?? []).length > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {(s.subtitulos ?? []).map((sub) => (
+                                      <span
+                                        key={sub}
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px]"
+                                      >
+                                        {sub}
+                                        <button
+                                          type="button"
+                                          onClick={() => removeSectionSubtitulo(s.id, sub)}
+                                          className="text-white/60"
+                                        >
+                                          ✕
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="mt-1.5 flex gap-1.5">
+                                  <input
+                                    className="flex-1 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs"
+                                    placeholder="Nuevo subtítulo — ej. 1. MONITOREO DE RECEPCIÓN Y ALMACENAMIENTO"
+                                    value={newSubtituloBySection[s.id] ?? ""}
+                                    onChange={(e) =>
+                                      setNewSubtituloBySection((v) => ({ ...v, [s.id]: e.target.value }))
+                                    }
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      addSectionSubtitulo(s.id, newSubtituloBySection[s.id] ?? "");
+                                      setNewSubtituloBySection((v) => ({ ...v, [s.id]: "" }));
+                                    }}
+                                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80"
+                                  >
+                                    Agregar
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -3563,26 +3640,20 @@ export function GestionMonitoreosPage() {
                             La pregunta se guardará en esa sección.
                           </div>
                         </div>
-                        <input
+                        <select
                           className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                          placeholder="Subtítulo (opcional) — ej. 1. MONITOREO DE RECEPCIÓN Y ALMACENAMIENTO"
                           value={qSubtitulo}
                           onChange={(e) => setQSubtitulo(e.target.value)}
-                          list="subtitulos-existentes"
-                        />
-                        <datalist id="subtitulos-existentes">
-                          {Array.from(
-                            new Set(
-                              questions
-                                .filter((q) => q.section_id === selectedSectionId && q.subtitulo)
-                                .map((q) => q.subtitulo as string)
-                            )
-                          ).map((s) => (
-                            <option key={s} value={s} />
+                        >
+                          <option value="">Sin subtítulo</option>
+                          {(sections.find((s) => s.id === selectedSectionId)?.subtitulos ?? []).map((sub) => (
+                            <option key={sub} value={sub}>
+                              {sub}
+                            </option>
                           ))}
-                        </datalist>
+                        </select>
                         <p className="text-[11px] text-white/40">
-                          Elige uno ya usado en esta sección (empieza a escribir para ver sugerencias) o crea uno nuevo. Preguntas seguidas con el mismo subtítulo se agrupan bajo ese encabezado.
+                          Los subtítulos se crean en el panel "Secciones" de arriba (dentro de la sección elegida). Preguntas con el mismo subtítulo se agrupan bajo ese encabezado.
                         </p>
                         <textarea
                           className="min-h-[60px] w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
