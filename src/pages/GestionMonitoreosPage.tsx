@@ -1831,9 +1831,14 @@ export function GestionMonitoreosPage() {
     if (qExtraFields.length) config.extra_fields = qExtraFields;
 
     if (editingQuestionId) {
+      const countInTargetSection = questions.filter(
+        (x) => x.section_id === selectedSectionId && x.id !== editingQuestionId
+      ).length;
       const { error } = await supabase
         .from("form_question")
         .update({
+          section_id: selectedSectionId,
+          orden_in_section: countInTargetSection + 1,
           tipo: qTipo,
           texto: qTexto.trim(),
           required: qRequired,
