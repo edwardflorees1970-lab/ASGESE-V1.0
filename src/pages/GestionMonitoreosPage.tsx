@@ -3521,9 +3521,13 @@ export function GestionMonitoreosPage() {
                           <div className="mt-2 space-y-2">
                             {(() => {
                               const sectionQuestions = questions.filter((q) => q.section_id === s.id);
-                              return sectionQuestions.map((q, qIndex) => (
+                              const seenSubtitulos = new Set<string>();
+                              return sectionQuestions.map((q) => {
+                                const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
+                                if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+                                return (
                         <div key={q.id}>
-                        {q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo && (
+                        {showSubtitulo && (
                           <div className="mb-1 mt-2 text-[11px] font-bold uppercase tracking-wide text-white/50">
                             {q.subtitulo}
                           </div>
@@ -3557,8 +3561,8 @@ export function GestionMonitoreosPage() {
                                 label="pregunta"
                                 onUp={() => moveQuestion(q, -1)}
                                 onDown={() => moveQuestion(q, 1)}
-                                disabledUp={qIndex === 0}
-                                disabledDown={qIndex === sectionQuestions.length - 1}
+                                disabledUp={sectionQuestions.findIndex((x) => x.id === q.id) === 0}
+                                disabledDown={sectionQuestions.findIndex((x) => x.id === q.id) === sectionQuestions.length - 1}
                               />
                               <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-1">
                                 <button
@@ -3573,7 +3577,8 @@ export function GestionMonitoreosPage() {
                           )}
                         </div>
                         </div>
-                              ));
+                                );
+                              });
                             })()}
                             {questions.filter((q) => q.section_id === s.id).length === 0 && (
                               <div className="text-xs text-white/50">Sin preguntas</div>

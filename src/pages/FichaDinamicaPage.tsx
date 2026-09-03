@@ -1939,14 +1939,18 @@ export function FichaDinamicaPage() {
         <div key={s.id} id={`section-${s.id}`} className="dynamic-form-panel dynamic-section-panel scroll-mt-36 rounded-2xl border p-4 sm:p-5">
           <div className="text-sm font-semibold">{s.titulo}</div>
           <div className="mt-4 space-y-5">
-            {questions
+            {(() => {
+              const seenSubtitulos = new Set<string>();
+              return questions
               .filter((q) => q.section_id === s.id)
-              .map((q, qIndex, arr) => {
+              .map((q) => {
+                const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
+                if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
                 const value = answers[q.id] ?? {};
                 const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
                 return (
                   <div key={q.id}>
-                  {q.subtitulo && q.subtitulo !== arr[qIndex - 1]?.subtitulo && (
+                  {showSubtitulo && (
                     <div className="mb-2 mt-1 text-xs font-bold uppercase tracking-wide text-white/60">
                       {q.subtitulo}
                     </div>
@@ -2269,7 +2273,8 @@ export function FichaDinamicaPage() {
                   </div>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
         </div>
       ))}

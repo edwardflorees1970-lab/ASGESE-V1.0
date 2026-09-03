@@ -1260,13 +1260,16 @@ export function ReportesPage() {
       (secRows ?? []).forEach((s: any) => {
         drawSectionHeader(s.titulo);
         const sectionQuestions = (qRows ?? []).filter((q: any) => q.section_id === s.id);
-        sectionQuestions.forEach((q: any, qIndex: number) => {
+        const seenSubtitulos = new Set<string>();
+        sectionQuestions.forEach((q: any) => {
           // Use stricter inner bounds for question text to avoid any right-edge clipping in long lines.
           const qInnerLeft = 8;
           const qInnerRight = 10;
           const qX = M + qInnerLeft;
           const qContentW = pageW - qX - (M + qInnerRight);
-          if (q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo) {
+          const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
+          if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+          if (showSubtitulo) {
             ensureSpace(lineH + 3);
             doc.setFont("helvetica", "bold");
             doc.setFontSize(9);
