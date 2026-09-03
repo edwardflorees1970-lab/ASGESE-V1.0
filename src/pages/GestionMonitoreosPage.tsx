@@ -13,6 +13,7 @@ import {
 import { publishMonitoreoSolicitud, publishTemplateVersion } from "../lib/monitoreoWorkflowApi";
 import {
   DEFAULT_NIVEL_INFO,
+  EVIDENCIA_PRESETS,
   DUP_RULE_LOCAL,
   DUP_RULE_MARKER,
   DUP_RULE_MODULAR,
@@ -3776,7 +3777,54 @@ Primaria - Faltó`}
                                     <option value="registro">Registro</option>
                                     <option value="elaboracion">Elaboración</option>
                                   </select>
-                                  {x.mode === "elaboracion" && (
+                                  {x.mode === "elaboracion" && x.label === "Evidencia" && (
+                                    <>
+                                      <select
+                                        value={
+                                          EVIDENCIA_PRESETS.includes(x.default_value ?? "")
+                                            ? (x.default_value ?? "")
+                                            : x.default_value
+                                              ? "__otro__"
+                                              : ""
+                                        }
+                                        onChange={(e) =>
+                                          setQExtraFields((prev) =>
+                                            prev.map((it) =>
+                                              it.label === x.label
+                                                ? { ...it, default_value: e.target.value === "__otro__" ? "" : e.target.value }
+                                                : it
+                                            )
+                                          )
+                                        }
+                                        className="rounded border border-white/10 bg-black/30 px-1 py-0.5 text-[10px]"
+                                      >
+                                        <option value="">Elegir...</option>
+                                        {EVIDENCIA_PRESETS.map((p) => (
+                                          <option key={p} value={p}>
+                                            {p}
+                                          </option>
+                                        ))}
+                                        <option value="__otro__">Otro...</option>
+                                      </select>
+                                      {(!EVIDENCIA_PRESETS.includes(x.default_value ?? "")) && (
+                                        <input
+                                          className="w-24 rounded border border-white/10 bg-black/30 px-1 py-0.5 text-[10px]"
+                                          value={x.default_value ?? ""}
+                                          placeholder="Escribir..."
+                                          onChange={(e) =>
+                                            setQExtraFields((prev) =>
+                                              prev.map((it) =>
+                                                it.label === x.label
+                                                  ? { ...it, default_value: e.target.value }
+                                                  : it
+                                              )
+                                            )
+                                          }
+                                        />
+                                      )}
+                                    </>
+                                  )}
+                                  {x.mode === "elaboracion" && x.label !== "Evidencia" && (
                                     <input
                                       className="w-28 rounded border border-white/10 bg-black/30 px-1 py-0.5 text-[10px]"
                                       value={x.default_value ?? ""}
