@@ -27,6 +27,23 @@ export const QUESTION_TYPES = [
   { value: "tabla_matriz", label: "Tabla / Matriz numérica" },
 ];
 
+export const EVIDENCIA_PRESETS = [
+  "Verificación",
+  "Memorándum",
+  "Archivador",
+  "Expediente",
+  "Cronograma",
+  "Constancia",
+  "Declarativo",
+  "Oficio",
+  "Acta",
+  "Actas",
+  "Informe",
+  "Reporte",
+  "Foto",
+  "RD aprobación",
+];
+
 export const DEFAULT_NIVEL_INFO = [
   { nivel: 1, descripcion: "Bajo" },
   { nivel: 2, descripcion: "Medio" },
