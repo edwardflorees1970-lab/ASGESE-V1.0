@@ -3305,22 +3305,25 @@ export function GestionMonitoreosPage() {
                   <div>
                     <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
                       <div className="text-sm font-semibold">Secciones</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <div className="mt-2 space-y-1.5">
                         {sections.map((s, sIndex) => (
-                          <div key={s.id} className="flex items-center gap-2">
+                          <div
+                            key={s.id}
+                            className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 ${
+                              selectedSectionId === s.id
+                                ? "border-[var(--app-accent)] bg-white/10"
+                                : "border-white/10 bg-white/5"
+                            }`}
+                          >
                             <button
                               type="button"
                               onClick={() => setSelectedSectionId(s.id)}
-                              className={`rounded-full border px-3 py-1 text-xs ${
-                                selectedSectionId === s.id
-                                  ? "border-[var(--app-accent)] bg-white/10"
-                                  : "border-white/10 bg-white/5"
-                              }`}
+                              className="text-left text-xs font-medium"
                             >
-                              {s.titulo}
+                              {sIndex + 1}. {s.titulo}
                             </button>
                             {canEditTemplates && (
-                              <>
+                              <div className="flex flex-shrink-0 items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => renameSection(s.id)}
@@ -3335,7 +3338,7 @@ export function GestionMonitoreosPage() {
                                   disabledUp={sIndex === 0}
                                   disabledDown={sIndex === sections.length - 1}
                                 />
-                              </>
+                              </div>
                             )}
                           </div>
                         ))}
