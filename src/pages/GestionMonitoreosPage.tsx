@@ -3522,9 +3522,15 @@ export function GestionMonitoreosPage() {
                             {(() => {
                               const sectionQuestions = questions.filter((q) => q.section_id === s.id);
                               const seenSubtitulos = new Set<string>();
+                              let runCounter = 0;
+                              let prevSub: string | null = null;
                               return sectionQuestions.map((q) => {
                                 const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
                                 if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+                                const curSub = q.subtitulo ?? null;
+                                runCounter = curSub === prevSub ? runCounter + 1 : 1;
+                                prevSub = curSub;
+                                const displayNum = runCounter;
                                 return (
                         <div key={q.id}>
                         {showSubtitulo && (
@@ -3536,7 +3542,7 @@ export function GestionMonitoreosPage() {
                           className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                         >
                           <div>
-                            {(q.orden_in_section ?? q.orden)}. {q.texto} ({q.tipo})
+                            {displayNum}. {q.texto} ({q.tipo})
                             {q.tipo === "yes_no_nivel" && q.config_json?.levelLabels?.length ? (
                               <div className="mt-1 text-[11px] text-white/60">
                                 Niveles: {q.config_json.levelLabels.join(" · ")}

@@ -1941,11 +1941,17 @@ export function FichaDinamicaPage() {
           <div className="mt-4 space-y-5">
             {(() => {
               const seenSubtitulos = new Set<string>();
+              let runCounter = 0;
+              let prevSub: string | null = null;
               return questions
               .filter((q) => q.section_id === s.id)
               .map((q) => {
                 const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
                 if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+                const curSub = q.subtitulo ?? null;
+                runCounter = curSub === prevSub ? runCounter + 1 : 1;
+                prevSub = curSub;
+                const displayNum = runCounter;
                 const value = answers[q.id] ?? {};
                 const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
                 return (
@@ -1957,7 +1963,7 @@ export function FichaDinamicaPage() {
                   )}
                   <div className="dynamic-question-card rounded-xl border p-4">
                     <div className="text-sm font-semibold">
-                      {q.orden_in_section ?? q.orden}. {q.texto}
+                      {displayNum}. {q.texto}
                     </div>
                     <div className="mt-3 space-y-3 text-sm text-white/80">
                       {q.tipo === "yes_no" && (

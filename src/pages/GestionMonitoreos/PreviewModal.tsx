@@ -494,9 +494,15 @@ export function PreviewModal({
                     {(() => {
                       const sectionQuestions = questions.filter((q) => q.section_id === s.id);
                       const seenSubtitulos = new Set<string>();
+                      let runCounter = 0;
+                      let prevSub: string | null = null;
                       return sectionQuestions.map((q) => {
                       const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
                       if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+                      const curSub = q.subtitulo ?? null;
+                      runCounter = curSub === prevSub ? runCounter + 1 : 1;
+                      prevSub = curSub;
+                      const displayNum = runCounter;
                       return (
                       <div key={q.id}>
                       {showSubtitulo && (
@@ -505,7 +511,7 @@ export function PreviewModal({
                         </div>
                       )}
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <div className="text-sm font-semibold">{q.orden_in_section ?? q.orden}. {q.texto}</div>
+                        <div className="text-sm font-semibold">{displayNum}. {q.texto}</div>
                         <div className="mt-2">
                           {q.tipo === "yes_no" && (
                             <div className="flex gap-3 text-xs text-white/70">

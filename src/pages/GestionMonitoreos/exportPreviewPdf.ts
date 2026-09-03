@@ -255,9 +255,15 @@ export async function exportPreviewPdf(params: {
 
     const sectionQuestions = questions.filter((q) => q.section_id === s.id);
     const seenSubtitulos = new Set<string>();
+    let runCounter = 0;
+    let prevSub: string | null = null;
     sectionQuestions.forEach((q) => {
       const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
       if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+      const curSub = q.subtitulo ?? null;
+      runCounter = curSub === prevSub ? runCounter + 1 : 1;
+      prevSub = curSub;
+      const displayNum = runCounter;
       if (showSubtitulo) {
         ensureSpace(lineH + 3);
         doc.setFont("helvetica", "bold");
@@ -268,7 +274,7 @@ export async function exportPreviewPdf(params: {
         y += subLines.length * lineH;
         doc.setTextColor(20);
       }
-      const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
+      const title = `${displayNum}. ${q.texto}`;
       const lines = doc.splitTextToSize(title, contentW);
       ensureSpace(lines.length * lineH + 6);
       doc.setFont("helvetica", "bold");
