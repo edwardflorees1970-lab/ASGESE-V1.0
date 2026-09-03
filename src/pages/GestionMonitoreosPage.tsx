@@ -3757,26 +3757,28 @@ Primaria - Faltó`}
                                   className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px]"
                                 >
                                   {x.label}
-                                  <select
-                                    value={x.mode}
-                                    onChange={(e) =>
-                                      setQExtraFields((prev) =>
-                                        prev.map((it) =>
-                                          it.label === x.label
-                                            ? {
-                                                ...it,
-                                                mode:
-                                                  (e.target.value as "registro" | "elaboracion") || "registro",
-                                              }
-                                            : it
+                                  {x.label !== "Evidencia" && (
+                                    <select
+                                      value={x.mode}
+                                      onChange={(e) =>
+                                        setQExtraFields((prev) =>
+                                          prev.map((it) =>
+                                            it.label === x.label
+                                              ? {
+                                                  ...it,
+                                                  mode:
+                                                    (e.target.value as "registro" | "elaboracion") || "registro",
+                                                }
+                                              : it
+                                          )
                                         )
-                                      )
-                                    }
-                                    className="rounded border border-white/10 bg-black/30 px-1 py-0.5 text-[10px]"
-                                  >
-                                    <option value="registro">Registro</option>
-                                    <option value="elaboracion">Elaboración</option>
-                                  </select>
+                                      }
+                                      className="rounded border border-white/10 bg-black/30 px-1 py-0.5 text-[10px]"
+                                    >
+                                      <option value="registro">Registro</option>
+                                      <option value="elaboracion">Elaboración</option>
+                                    </select>
+                                  )}
                                   {x.mode === "elaboracion" && x.label === "Evidencia" && (
                                     <>
                                       <select
