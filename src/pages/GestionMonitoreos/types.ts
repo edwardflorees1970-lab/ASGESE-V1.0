@@ -38,6 +38,7 @@ export type Question = {
   section_id?: string | null;
   tipo: string;
   texto: string;
+  subtitulo?: string | null;
   orden: number;
   orden_in_section?: number | null;
   required: boolean;

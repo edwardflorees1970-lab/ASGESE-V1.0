@@ -253,7 +253,18 @@ export async function exportPreviewPdf(params: {
   sections.forEach((s) => {
     drawSectionHeader(s.titulo);
 
-    questions.filter((q) => q.section_id === s.id).forEach((q) => {
+    const sectionQuestions = questions.filter((q) => q.section_id === s.id);
+    sectionQuestions.forEach((q, qIndex) => {
+      if (q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo) {
+        ensureSpace(lineH + 3);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(90);
+        const subLines = doc.splitTextToSize(q.subtitulo, contentW);
+        doc.text(subLines, M, y);
+        y += subLines.length * lineH;
+        doc.setTextColor(20);
+      }
       const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
       const lines = doc.splitTextToSize(title, contentW);
       ensureSpace(lines.length * lineH + 6);
