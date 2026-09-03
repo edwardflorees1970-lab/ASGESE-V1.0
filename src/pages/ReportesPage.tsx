@@ -1261,7 +1261,13 @@ export function ReportesPage() {
         drawSectionHeader(s.titulo);
         const sectionQuestions = (qRows ?? []).filter((q: any) => q.section_id === s.id);
         const seenSubtitulos = new Set<string>();
+        let runCounter = 0;
+        let prevSub: string | null = null;
         sectionQuestions.forEach((q: any) => {
+          const curSub = q.subtitulo ?? null;
+          runCounter = curSub === prevSub ? runCounter + 1 : 1;
+          prevSub = curSub;
+          const displayNum = runCounter;
           // Use stricter inner bounds for question text to avoid any right-edge clipping in long lines.
           const qInnerLeft = 8;
           const qInnerRight = 10;
@@ -1279,7 +1285,7 @@ export function ReportesPage() {
           }
           doc.setFont("helvetica", "bold");
           doc.setFontSize(10);
-          const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
+          const title = `${displayNum}. ${q.texto}`;
           // Measure with the same font/size used for rendering; otherwise long bold lines can overflow.
           const lines = splitSafe(title, qContentW - 1);
           drawWrappedLines(lines, qX, lineH);
