@@ -3542,7 +3542,7 @@ export function GestionMonitoreosPage() {
                           className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                         >
                           <div>
-                            {displayNum}. {q.texto} ({q.tipo})
+                            {displayNum}. {q.texto}
                             {q.tipo === "yes_no_nivel" && q.config_json?.levelLabels?.length ? (
                               <div className="mt-1 text-[11px] text-white/60">
                                 Niveles: {q.config_json.levelLabels.join(" · ")}
