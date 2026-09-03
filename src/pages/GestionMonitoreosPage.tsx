@@ -144,6 +144,7 @@ export function GestionMonitoreosPage() {
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [qTexto, setQTexto] = useState("");
+  const [qSubtitulo, setQSubtitulo] = useState("");
   const [qTipo, setQTipo] = useState("yes_no");
   const [qRequired, setQRequired] = useState(true);
   const [qNiveles, setQNiveles] = useState(3);
@@ -429,7 +430,7 @@ export function GestionMonitoreosPage() {
   const loadQuestions = async (templateId: string) => {
     const { data } = await supabase
       .from("form_question")
-      .select("id, template_id, section_id, tipo, texto, orden, orden_in_section, required, config_json")
+      .select("id, template_id, section_id, tipo, texto, subtitulo, orden, orden_in_section, required, config_json")
       .eq("template_id", templateId)
       .order("section_id", { ascending: true })
       .order("orden_in_section", { ascending: true });
@@ -1457,7 +1458,7 @@ export function GestionMonitoreosPage() {
 
       const { data: qData, error: qErr } = await supabase
         .from("form_question")
-        .select("id, section_id, tipo, texto, orden, orden_in_section, required, config_json")
+        .select("id, section_id, tipo, texto, subtitulo, orden, orden_in_section, required, config_json")
         .eq("template_id", source.id)
         .order("orden", { ascending: true });
       if (qErr) throw new Error(qErr.message);
@@ -1498,6 +1499,7 @@ export function GestionMonitoreosPage() {
         section_id: string | null;
         tipo: string;
         texto: string;
+        subtitulo: string | null;
         orden: number;
         orden_in_section: number | null;
         required: boolean;
@@ -1509,6 +1511,7 @@ export function GestionMonitoreosPage() {
           section_id: q.section_id ? sectionIdMap.get(q.section_id) ?? null : null,
           tipo: q.tipo,
           texto: q.texto,
+          subtitulo: q.subtitulo,
           orden: q.orden,
           orden_in_section: q.orden_in_section,
           required: q.required,
@@ -1773,6 +1776,7 @@ export function GestionMonitoreosPage() {
 
   const resetQuestionForm = () => {
     setQTexto("");
+    setQSubtitulo("");
     setQOpciones("");
     setQTipo("yes_no");
     setQRequired(true);
@@ -1841,6 +1845,7 @@ export function GestionMonitoreosPage() {
           orden_in_section: countInTargetSection + 1,
           tipo: qTipo,
           texto: qTexto.trim(),
+          subtitulo: qSubtitulo.trim() || null,
           required: qRequired,
           config_json: Object.keys(config).length ? config : null,
         })
@@ -1856,6 +1861,7 @@ export function GestionMonitoreosPage() {
         section_id: selectedSectionId,
         tipo: qTipo,
         texto: qTexto.trim(),
+        subtitulo: qSubtitulo.trim() || null,
         orden: questions.length + 1,
         orden_in_section: countInSection + 1,
         required: qRequired,
@@ -1880,6 +1886,7 @@ export function GestionMonitoreosPage() {
   const startEditQuestion = (q: Question) => {
     setEditingQuestionId(q.id);
     setQTexto(q.texto);
+    setQSubtitulo(q.subtitulo ?? "");
     setQTipo(q.tipo);
     setQRequired(!!q.required);
     setSelectedSectionId(q.section_id ?? selectedSectionId);
@@ -3408,8 +3415,13 @@ export function GestionMonitoreosPage() {
                             {(() => {
                               const sectionQuestions = questions.filter((q) => q.section_id === s.id);
                               return sectionQuestions.map((q, qIndex) => (
+                        <div key={q.id}>
+                        {q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo && (
+                          <div className="mb-1 mt-2 text-[11px] font-bold uppercase tracking-wide text-white/50">
+                            {q.subtitulo}
+                          </div>
+                        )}
                         <div
-                          key={q.id}
                           className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
                         >
                           <div>
@@ -3452,6 +3464,7 @@ export function GestionMonitoreosPage() {
                               </div>
                             </div>
                           )}
+                        </div>
                         </div>
                               ));
                             })()}
@@ -3550,6 +3563,15 @@ export function GestionMonitoreosPage() {
                             La pregunta se guardará en esa sección.
                           </div>
                         </div>
+                        <input
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                          placeholder="Subtítulo (opcional) — ej. 1. MONITOREO DE RECEPCIÓN Y ALMACENAMIENTO"
+                          value={qSubtitulo}
+                          onChange={(e) => setQSubtitulo(e.target.value)}
+                        />
+                        <p className="text-[11px] text-white/40">
+                          Preguntas seguidas con el mismo subtítulo se agrupan bajo ese encabezado dentro de la sección.
+                        </p>
                         <textarea
                           className="min-h-[60px] w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                           placeholder="Texto de la pregunta"

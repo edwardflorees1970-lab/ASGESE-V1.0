@@ -491,8 +491,16 @@ export function PreviewModal({
                 <div key={s.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
                   <div className="text-sm font-semibold">{s.titulo}</div>
                   <div className="mt-3 space-y-3">
-                    {questions.filter((q) => q.section_id === s.id).map((q) => (
-                      <div key={q.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    {(() => {
+                      const sectionQuestions = questions.filter((q) => q.section_id === s.id);
+                      return sectionQuestions.map((q, qIndex) => (
+                      <div key={q.id}>
+                      {q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo && (
+                        <div className="mb-1.5 mt-2 text-xs font-bold uppercase tracking-wide text-white/50">
+                          {q.subtitulo}
+                        </div>
+                      )}
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                         <div className="text-sm font-semibold">{q.orden_in_section ?? q.orden}. {q.texto}</div>
                         <div className="mt-2">
                           {q.tipo === "yes_no" && (
@@ -795,7 +803,9 @@ export function PreviewModal({
                           ))}
                         </div>
                       </div>
-                    ))}
+                      </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               ))}

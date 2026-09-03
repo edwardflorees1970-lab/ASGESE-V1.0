@@ -36,6 +36,7 @@ type Question = {
   section_id: string | null;
   tipo: string;
   texto: string;
+  subtitulo?: string | null;
   orden: number;
   orden_in_section: number | null;
   required: boolean;
@@ -660,7 +661,7 @@ export function FichaDinamicaPage() {
 
           const { data: qRows, error: qErr } = await supabase
             .from("form_question")
-            .select("id, template_id, section_id, tipo, texto, orden, orden_in_section, required, config_json")
+            .select("id, template_id, section_id, tipo, texto, subtitulo, orden, orden_in_section, required, config_json")
             .eq("template_id", tpl.id)
             .order("orden", { ascending: true });
           if (qErr) throw new Error(qErr.message);
@@ -746,7 +747,7 @@ export function FichaDinamicaPage() {
 
         const { data: qRows, error: qErr } = await supabase
           .from("form_question")
-          .select("id, template_id, section_id, tipo, texto, orden, orden_in_section, required, config_json")
+          .select("id, template_id, section_id, tipo, texto, subtitulo, orden, orden_in_section, required, config_json")
           .eq("template_id", tpl.id)
           .order("orden", { ascending: true });
         if (qErr) throw new Error(qErr.message);
@@ -1940,11 +1941,17 @@ export function FichaDinamicaPage() {
           <div className="mt-4 space-y-5">
             {questions
               .filter((q) => q.section_id === s.id)
-              .map((q) => {
+              .map((q, qIndex, arr) => {
                 const value = answers[q.id] ?? {};
                 const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
                 return (
-                  <div key={q.id} className="dynamic-question-card rounded-xl border p-4">
+                  <div key={q.id}>
+                  {q.subtitulo && q.subtitulo !== arr[qIndex - 1]?.subtitulo && (
+                    <div className="mb-2 mt-1 text-xs font-bold uppercase tracking-wide text-white/60">
+                      {q.subtitulo}
+                    </div>
+                  )}
+                  <div className="dynamic-question-card rounded-xl border p-4">
                     <div className="text-sm font-semibold">
                       {q.orden_in_section ?? q.orden}. {q.texto}
                     </div>
@@ -2259,6 +2266,7 @@ export function FichaDinamicaPage() {
                         );
                       })}
                     </div>
+                  </div>
                   </div>
                 );
               })}

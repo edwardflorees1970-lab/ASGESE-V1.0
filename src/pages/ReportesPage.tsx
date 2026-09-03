@@ -847,7 +847,7 @@ export function ReportesPage() {
             .order("orden", { ascending: true }),
           supabase
             .from("form_question")
-            .select("id, template_id, section_id, tipo, texto, orden, orden_in_section, config_json")
+            .select("id, template_id, section_id, tipo, texto, subtitulo, orden, orden_in_section, config_json")
             .eq("template_id", run.template_id)
             .order("orden", { ascending: true }),
           supabase
@@ -1259,12 +1259,21 @@ export function ReportesPage() {
 
       (secRows ?? []).forEach((s: any) => {
         drawSectionHeader(s.titulo);
-        (qRows ?? []).filter((q: any) => q.section_id === s.id).forEach((q: any) => {
+        const sectionQuestions = (qRows ?? []).filter((q: any) => q.section_id === s.id);
+        sectionQuestions.forEach((q: any, qIndex: number) => {
           // Use stricter inner bounds for question text to avoid any right-edge clipping in long lines.
           const qInnerLeft = 8;
           const qInnerRight = 10;
           const qX = M + qInnerLeft;
           const qContentW = pageW - qX - (M + qInnerRight);
+          if (q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo) {
+            ensureSpace(lineH + 3);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(70);
+            drawWrappedLines(splitSafe(q.subtitulo, qContentW - 1), qX, lineH);
+            doc.setTextColor(20);
+          }
           doc.setFont("helvetica", "bold");
           doc.setFontSize(10);
           const title = `${q.orden_in_section ?? q.orden}. ${q.texto}`;
