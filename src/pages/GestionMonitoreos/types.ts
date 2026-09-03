@@ -50,6 +50,7 @@ export type Section = {
   template_id: string;
   titulo: string;
   orden: number;
+  subtitulos?: string[] | null;
 };
 
 export type InstitucionLite = {
