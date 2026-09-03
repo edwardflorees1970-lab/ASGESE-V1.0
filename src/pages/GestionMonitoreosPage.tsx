@@ -106,6 +106,7 @@ export function GestionMonitoreosPage() {
   const [editIeQuery, setEditIeQuery] = useState("");
   const [editIeResults, setEditIeResults] = useState<InstitucionLite[]>([]);
   const [editIeSelected, setEditIeSelected] = useState<InstitucionLite[]>([]);
+  const [editIeFiltroCount, setEditIeFiltroCount] = useState(0);
   const [savingEditIe, setSavingEditIe] = useState(false);
   const [solSearch, setSolSearch] = useState("");
   const [solStatusFilter, setSolStatusFilter] = useState("ALL");
@@ -491,16 +492,19 @@ export function GestionMonitoreosPage() {
     (async () => {
       const { data } = await supabase
         .from("monitoreo_solicitud_ie")
-        .select("institucion_id, institucion_educativa(id, nombre, codigo_modular, codigo_local)")
+        .select("institucion_id, origen, institucion_educativa(id, nombre, codigo_modular, codigo_local)")
         .eq("solicitud_id", selected.id);
       const rows = (data ?? []) as Array<{
         institucion_id: string;
+        origen: string;
         institucion_educativa: InstitucionLite | InstitucionLite[] | null;
       }>;
-      const list = rows
+      const manualList = rows
+        .filter((r) => r.origen === "manual")
         .map((r) => (Array.isArray(r.institucion_educativa) ? r.institucion_educativa[0] : r.institucion_educativa))
         .filter((ie): ie is InstitucionLite => !!ie);
-      setEditIeSelected(list);
+      setEditIeSelected(manualList);
+      setEditIeFiltroCount(rows.filter((r) => r.origen === "filtro").length);
     })();
   }, [selected]);
 
@@ -667,10 +671,13 @@ export function GestionMonitoreosPage() {
   const saveEditIe = async () => {
     if (!selected || !canOwnerOrAdmin) return;
     setSavingEditIe(true);
+    // Solo se tocan las filas 'manual' -- las 'filtro' (populate_solicitud_ie)
+    // nunca se borran ni reinsertan desde este panel.
     const { error: delErr } = await supabase
       .from("monitoreo_solicitud_ie")
       .delete()
-      .eq("solicitud_id", selected.id);
+      .eq("solicitud_id", selected.id)
+      .eq("origen", "manual");
     if (delErr) {
       setToast({ type: "err", msg: delErr.message });
       setSavingEditIe(false);
@@ -679,14 +686,17 @@ export function GestionMonitoreosPage() {
     if (editIeSelected.length) {
       const { error: insErr } = await supabase
         .from("monitoreo_solicitud_ie")
-        .insert(editIeSelected.map((ie) => ({ solicitud_id: selected.id, institucion_id: ie.id })));
+        .upsert(
+          editIeSelected.map((ie) => ({ solicitud_id: selected.id, institucion_id: ie.id, origen: "manual" })),
+          { onConflict: "solicitud_id,institucion_id" }
+        );
       if (insErr) {
         setToast({ type: "err", msg: insErr.message });
         setSavingEditIe(false);
         return;
       }
     }
-    setToast({ type: "ok", msg: "Instituciones actualizadas." });
+    setToast({ type: "ok", msg: "Instituciones manuales actualizadas." });
     setSavingEditIe(false);
   };
 
@@ -751,7 +761,7 @@ export function GestionMonitoreosPage() {
     if (ieSelected.length) {
       const { error: ieErr } = await supabase
         .from("monitoreo_solicitud_ie")
-        .insert(ieSelected.map((ie) => ({ solicitud_id: solicitudId, institucion_id: ie.id })));
+        .insert(ieSelected.map((ie) => ({ solicitud_id: solicitudId, institucion_id: ie.id, origen: "manual" })));
       if (ieErr) {
         secondaryError = true;
         setToast({ type: "err", msg: `Solicitud creada, pero fallaron las instituciones: ${ieErr.message}` });
@@ -2326,7 +2336,10 @@ export function GestionMonitoreosPage() {
               </div>
 
               <div className="management-subpanel rounded-xl border p-3.5">
-                <div className="management-subpanel-title text-xs font-bold">Instituciones (selección manual)</div>
+                <div className="management-subpanel-title text-xs font-bold">Instituciones adicionales (manual)</div>
+                <p className="mt-1 text-xs text-white/50">
+                  Agrega aquí solo IE puntuales fuera de los filtros del monitoreo, para marcarlas dentro de una meta focalizada (CdD).
+                </p>
                 <input
                   className="management-control mt-2 w-full rounded-lg border px-3 py-2 text-sm"
                   placeholder="Buscar por nombre o código modular"
@@ -2353,23 +2366,23 @@ export function GestionMonitoreosPage() {
                   </div>
                 )}
                 {ieSelected.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-white/10 p-1.5">
                     {ieSelected.map((ie) => (
-                      <span
+                      <div
                         key={ie.id}
-                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[11px]"
+                        className="flex items-center justify-between gap-2 rounded-md bg-white/5 px-2 py-1 text-[11px]"
                       >
-                        {ie.nombre}
+                        <span className="truncate">{ie.nombre}</span>
                         <button
                           type="button"
                           onClick={() => setIeSelected((v) => v.filter((x) => x.id !== ie.id))}
                           aria-label={`Quitar ${ie.nombre}`}
                           title={`Quitar ${ie.nombre}`}
-                          className="text-white/60"
+                          className="flex-shrink-0 text-white/60"
                         >
                           ✕
                         </button>
-                      </span>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -2674,10 +2687,15 @@ export function GestionMonitoreosPage() {
                     </button>
                   </div>
                   <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                    <div className="text-sm font-semibold">Instituciones (selección manual)</div>
+                    <div className="text-sm font-semibold">Instituciones adicionales (manual)</div>
                     <p className="mt-1 text-xs text-white/50">
-                      Instituciones específicas para este monitoreo — úsalo para marcar las IE que cuentan para una meta focalizada (CdD).
+                      Agrega aquí solo IE puntuales fuera de los filtros del monitoreo, para marcarlas dentro de una meta focalizada (CdD).
                     </p>
+                    {editIeFiltroCount > 0 && (
+                      <p className="mt-1 text-[11px] text-white/40">
+                        {editIeFiltroCount} institución{editIeFiltroCount === 1 ? "" : "es"} ya entran por los filtros del monitoreo (Gestión/Modalidad/Nivel) — esas no se editan aquí.
+                      </p>
+                    )}
                     <input
                       className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
                       placeholder="Buscar por nombre o código modular"
@@ -2703,23 +2721,23 @@ export function GestionMonitoreosPage() {
                       </div>
                     )}
                     {editIeSelected.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-white/10 p-1.5">
                         {editIeSelected.map((ie) => (
-                          <span
+                          <div
                             key={ie.id}
-                            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[11px]"
+                            className="flex items-center justify-between gap-2 rounded-md bg-white/5 px-2 py-1 text-[11px]"
                           >
-                            {ie.nombre}
+                            <span className="truncate">{ie.nombre}</span>
                             <button
                               type="button"
                               onClick={() => setEditIeSelected((v) => v.filter((x) => x.id !== ie.id))}
                               aria-label={`Quitar ${ie.nombre}`}
                               title={`Quitar ${ie.nombre}`}
-                              className="text-white/60"
+                              className="flex-shrink-0 text-white/60"
                             >
                               ✕
                             </button>
-                          </span>
+                          </div>
                         ))}
                       </div>
                     )}
