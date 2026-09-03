@@ -3568,9 +3568,21 @@ export function GestionMonitoreosPage() {
                           placeholder="Subtítulo (opcional) — ej. 1. MONITOREO DE RECEPCIÓN Y ALMACENAMIENTO"
                           value={qSubtitulo}
                           onChange={(e) => setQSubtitulo(e.target.value)}
+                          list="subtitulos-existentes"
                         />
+                        <datalist id="subtitulos-existentes">
+                          {Array.from(
+                            new Set(
+                              questions
+                                .filter((q) => q.section_id === selectedSectionId && q.subtitulo)
+                                .map((q) => q.subtitulo as string)
+                            )
+                          ).map((s) => (
+                            <option key={s} value={s} />
+                          ))}
+                        </datalist>
                         <p className="text-[11px] text-white/40">
-                          Preguntas seguidas con el mismo subtítulo se agrupan bajo ese encabezado dentro de la sección.
+                          Elige uno ya usado en esta sección (empieza a escribir para ver sugerencias) o crea uno nuevo. Preguntas seguidas con el mismo subtítulo se agrupan bajo ese encabezado.
                         </p>
                         <textarea
                           className="min-h-[60px] w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
