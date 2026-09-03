@@ -254,13 +254,16 @@ export async function exportPreviewPdf(params: {
     drawSectionHeader(s.titulo);
 
     const sectionQuestions = questions.filter((q) => q.section_id === s.id);
-    sectionQuestions.forEach((q, qIndex) => {
-      if (q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo) {
+    const seenSubtitulos = new Set<string>();
+    sectionQuestions.forEach((q) => {
+      const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
+      if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+      if (showSubtitulo) {
         ensureSpace(lineH + 3);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
         doc.setTextColor(90);
-        const subLines = doc.splitTextToSize(q.subtitulo, contentW);
+        const subLines = doc.splitTextToSize(q.subtitulo ?? "", contentW);
         doc.text(subLines, M, y);
         y += subLines.length * lineH;
         doc.setTextColor(20);

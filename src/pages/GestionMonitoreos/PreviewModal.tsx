@@ -493,9 +493,13 @@ export function PreviewModal({
                   <div className="mt-3 space-y-3">
                     {(() => {
                       const sectionQuestions = questions.filter((q) => q.section_id === s.id);
-                      return sectionQuestions.map((q, qIndex) => (
+                      const seenSubtitulos = new Set<string>();
+                      return sectionQuestions.map((q) => {
+                      const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
+                      if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
+                      return (
                       <div key={q.id}>
-                      {q.subtitulo && q.subtitulo !== sectionQuestions[qIndex - 1]?.subtitulo && (
+                      {showSubtitulo && (
                         <div className="mb-1.5 mt-2 text-xs font-bold uppercase tracking-wide text-white/50">
                           {q.subtitulo}
                         </div>
@@ -804,7 +808,8 @@ export function PreviewModal({
                         </div>
                       </div>
                       </div>
-                      ));
+                      );
+                      });
                     })()}
                   </div>
                 </div>
