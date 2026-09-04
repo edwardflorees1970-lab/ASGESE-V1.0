@@ -167,7 +167,7 @@ export function GestionMonitoreosPage() {
   const [previewData, setPreviewData] = useState<Record<string, any>>({});
   const [showTemplateDetail, setShowTemplateDetail] = useState(true);
   const [activeStep, setActiveStep] = useState<
-    "datos" | "aprobacion" | "fichas" | "encabezado" | "preguntas" | "preview"
+    "datos" | "aprobacion" | "fichas" | "encabezado" | "secciones" | "preguntas" | "preview"
   >("datos");
   const skipNextStepResetRef = useRef(false);
   const questionFormRef = useRef<HTMLDivElement | null>(null);
@@ -266,8 +266,13 @@ export function GestionMonitoreosPage() {
         status: statusFor("encabezado", !!selectedTemplateId),
       },
       {
+        id: "secciones",
+        label: "Secciones",
+        status: statusFor("secciones", !!selectedTemplateId && sections.length > 0),
+      },
+      {
         id: "preguntas",
-        label: "Secciones y preguntas",
+        label: "Preguntas",
         status: statusFor(
           "preguntas",
           !!selectedTemplateId && sections.length > 0 && questions.length > 0
@@ -3360,13 +3365,13 @@ export function GestionMonitoreosPage() {
                 </>
                 )}
 
-                {activeStep === "preguntas" && (
+                {activeStep === "secciones" && (
                 <>
                 {!selectedTemplateId && (
                   <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
-                    <div className="text-sm font-semibold">Primero elige o crea una ficha para agregar sus secciones y preguntas</div>
+                    <div className="text-sm font-semibold">Primero elige o crea una ficha para agregar sus secciones</div>
                     <p className="mt-1 text-xs text-white/60">
-                      Las secciones y preguntas se configuran dentro de una ficha.
+                      Las secciones se configuran dentro de una ficha.
                     </p>
                     <button
                       type="button"
@@ -3380,7 +3385,7 @@ export function GestionMonitoreosPage() {
                 {selectedTemplateId && !showTemplateDetail && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Ficha seleccionada — preguntas</div>
+                      <div className="text-sm font-semibold">Ficha seleccionada — secciones</div>
                       <button
                         type="button"
                         onClick={() => setShowTemplateDetail(true)}
@@ -3394,7 +3399,7 @@ export function GestionMonitoreosPage() {
 
                 {selectedTemplateId && showTemplateDetail && (
                   <div>
-                    <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                       <div className="text-sm font-semibold">Secciones</div>
                       <div className="mt-2 space-y-1.5">
                         {sections.map((s, sIndex) => (
@@ -3502,8 +3507,46 @@ export function GestionMonitoreosPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+                </>
+                )}
 
-                    <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                {activeStep === "preguntas" && (
+                <>
+                {!selectedTemplateId && (
+                  <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
+                    <div className="text-sm font-semibold">Primero elige o crea una ficha para agregar sus preguntas</div>
+                    <p className="mt-1 text-xs text-white/60">
+                      Las preguntas se configuran dentro de una ficha.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveStep("fichas")}
+                      className="mt-3 rounded-lg border border-[var(--app-accent)] bg-white/5 px-3 py-1.5 text-xs font-semibold text-[var(--app-accent)]"
+                    >
+                      Ir a Fichas
+                    </button>
+                  </div>
+                )}
+                {selectedTemplateId && !showTemplateDetail && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold">Ficha seleccionada — preguntas</div>
+                      <button
+                        type="button"
+                        onClick={() => setShowTemplateDetail(true)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                      >
+                        Abrir ficha
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTemplateId && showTemplateDetail && (
+                  <div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">Preguntas</div>
                         <button
@@ -3606,15 +3649,10 @@ export function GestionMonitoreosPage() {
                             </p>
                             <button
                               type="button"
-                              onClick={() => {
-                                document.getElementById("add-section-input")?.focus();
-                                document
-                                  .getElementById("add-section-row")
-                                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                              }}
+                              onClick={() => setActiveStep("secciones")}
                               className="mt-3 rounded-lg border border-[var(--app-accent)] bg-white/5 px-3 py-1.5 text-xs font-semibold text-[var(--app-accent)]"
                             >
-                              Crear mi primera sección
+                              Ir a Secciones
                             </button>
                           </div>
                         ) : (
