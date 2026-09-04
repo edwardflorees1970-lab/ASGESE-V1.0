@@ -1888,6 +1888,7 @@ export function GestionMonitoreosPage() {
         ids.map((id, idx) => supabase.from("form_question").update({ orden_in_section: idx + 1 }).eq("id", id))
       );
     };
+    let savedQuestionId: string | null = null;
 
     if (editingQuestionId) {
       const { sectionQs, insertAt } = computeInsertAt(editingQuestionId);
@@ -1910,6 +1911,7 @@ export function GestionMonitoreosPage() {
         return;
       }
       await applyOrder(orderedIds);
+      savedQuestionId = editingQuestionId;
     } else {
       const { sectionQs, insertAt } = computeInsertAt();
       const { data: inserted, error } = await supabase
@@ -1931,6 +1933,7 @@ export function GestionMonitoreosPage() {
         const orderedIds = [...sectionQs.map((q) => q.id)];
         orderedIds.splice(insertAt, 0, inserted.id);
         await applyOrder(orderedIds);
+        savedQuestionId = inserted.id;
       }
       if (error) {
         setToast({ type: "err", msg: error.message });
@@ -1945,7 +1948,14 @@ export function GestionMonitoreosPage() {
       resetQuestionForm();
       setShowQuestionForm(false);
     }
-    loadQuestions(selectedTemplateId);
+    await loadQuestions(selectedTemplateId);
+    if (savedQuestionId) {
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`question-row-${savedQuestionId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
   };
 
   const startEditQuestion = (q: Question) => {
@@ -3576,7 +3586,7 @@ export function GestionMonitoreosPage() {
                                 prevSub = curSub;
                                 const displayNum = runCounter;
                                 return (
-                        <div key={q.id}>
+                        <div key={q.id} id={`question-row-${q.id}`}>
                         {showSubtitulo && (
                           <div className="mb-1 mt-2 text-[11px] font-bold uppercase tracking-wide text-white/50">
                             {q.subtitulo}
