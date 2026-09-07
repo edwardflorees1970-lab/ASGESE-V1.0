@@ -494,6 +494,14 @@ export function FichaDinamicaPage() {
     [user?.id, midParam, monitoreoCodigo, fichaCodigo, runIdParam, isTestMode]
   );
   const [localDraftPromptOpen, setLocalDraftPromptOpen] = useState(false);
+  // Also read via ref (not as an effect dependency) below: closing the
+  // prompt -- by recovering OR discarding -- flips this from true to false,
+  // and if that flip were a dependency the autosave effect would re-run
+  // right then and write a brand-new local draft the instant the old one
+  // was dismissed, even with nothing edited since. A write should only
+  // happen because header/footer/answers actually changed.
+  const localDraftPromptOpenRef = useRef(localDraftPromptOpen);
+  localDraftPromptOpenRef.current = localDraftPromptOpen;
   const [localDraftPending, setLocalDraftPending] = useState<LocalDraftSnapshot | null>(null);
   const shouldAutoFillMonitor = monitorReadOnly && !runIdParam && !runId;
   const isEditMode = Boolean(runIdParam);
@@ -930,7 +938,7 @@ export function FichaDinamicaPage() {
   useEffect(() => {
     if (!template?.id) return;
     if (runHydrating) return;
-    if (localDraftPromptOpen) return;
+    if (localDraftPromptOpenRef.current) return;
     const snapshot: LocalDraftSnapshot = {
       runId: runIdRef.current,
       runStatus: runStatusRef.current,
@@ -940,7 +948,7 @@ export function FichaDinamicaPage() {
       updatedAt: new Date().toISOString(),
     };
     localStorage.setItem(localDraftKey, JSON.stringify(snapshot));
-  }, [template?.id, localDraftKey, header, footer, answers, runHydrating, localDraftPromptOpen]);
+  }, [template?.id, localDraftKey, header, footer, answers, runHydrating]);
 
   useEffect(() => {
     if (!localDraftPromptOpen || !localDraftPending) return;
