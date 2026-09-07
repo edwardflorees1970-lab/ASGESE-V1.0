@@ -11,7 +11,7 @@ import { DataExportConsentDialog } from "../components/DataExportConsentDialog";
 import { SignatureRequestModal } from "../components/SignatureRequestModal";
 import { IconButton } from "../components/ui/IconButton";
 import { normalizeHeaderConfig, type HeaderFieldDef } from "../lib/dynamicHeader";
-import { groupMatrixCols, sectionRomanNumeral } from "./GestionMonitoreos/helpers";
+import { groupMatrixCols, sectionRomanNumeral, buildTablaMatrizFlags } from "./GestionMonitoreos/helpers";
 import {
   exportAnalyticsCsv,
   exportAnalyticsExcel,
@@ -955,28 +955,74 @@ export function ReportesPage() {
       const lineH = 5;
       const smallLineH = 4.2;
 
+      // Pages after the first reserve a thin band at the top for a running
+      // header (ficha code + institucion) drawn in the final per-page pass
+      // below -- if loose printed sheets get separated, every page after
+      // the cover still says which ficha it belongs to.
+      const RUNNING_HEADER_TOP_Y = 24;
       const ensureSpace = (need: number) => {
         if (y + need > pageH - 14) {
           doc.addPage();
-          y = 18;
+          y = RUNNING_HEADER_TOP_Y;
         }
       };
 
-      const drawSectionHeader = (title: string) => {
+      const ACCENT: [number, number, number] = [0, 119, 182];
+      const ACCENT_SOFT: [number, number, number] = [232, 244, 250];
+      const ACCENT_DARK: [number, number, number] = [4, 61, 95];
+      const BORDER_SOFT: [number, number, number] = [206, 224, 236];
+      const CARD_FILL: [number, number, number] = [250, 252, 254];
+      const TITLE_INK: [number, number, number] = [30, 34, 40];
+      const META_INK: [number, number, number] = [100, 108, 118];
+      const STATUS_YES_TEXT: [number, number, number] = [21, 111, 63];
+      const STATUS_YES_BG: [number, number, number] = [223, 246, 231];
+      const STATUS_NO_TEXT: [number, number, number] = [178, 34, 34];
+      const STATUS_NO_BG: [number, number, number] = [252, 226, 226];
+      const RADIUS = 1.6;
+
+      const statusBadgeHeight = 5.4;
+      const drawStatusBadge = (value: "SI" | "NO", x: number, yTop: number) => {
+        const isYes = value === "SI";
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        const label = isYes ? "SI" : "NO";
+        const padX = 2.6;
+        const w = doc.getTextWidth(label) + padX * 2;
+        doc.setFillColor(...(isYes ? STATUS_YES_BG : STATUS_NO_BG));
+        doc.roundedRect(x, yTop, w, statusBadgeHeight, 1.3, 1.3, "F");
+        doc.setTextColor(...(isYes ? STATUS_YES_TEXT : STATUS_NO_TEXT));
+        doc.text(label, x + padX, yTop + statusBadgeHeight - 1.8);
+        doc.setTextColor(20);
+        return w;
+      };
+
+      const drawSectionHeader = (title: string, noCount = 0) => {
         ensureSpace(10);
-        doc.setFillColor(224, 240, 249);
-        doc.setDrawColor(0, 119, 182);
-        doc.rect(M, y - 2.5, contentW, 8, "FD");
-        doc.setFillColor(0, 119, 182);
-        doc.rect(M, y - 2.5, 1.4, 8, "F");
+        doc.setFillColor(...ACCENT_SOFT);
+        doc.setDrawColor(...BORDER_SOFT);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(M, y - 2.5, contentW, 8, RADIUS, RADIUS, "FD");
+        doc.setFillColor(...ACCENT);
+        doc.roundedRect(M, y - 2.5, 2.2, 8, RADIUS, RADIUS, "F");
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
-        doc.setTextColor(4, 61, 95);
-        doc.text(title, M + 4, y + 2.5);
+        doc.setTextColor(...ACCENT_DARK);
+        doc.text(title, M + 5, y + 2.5);
+        if (noCount > 0) {
+          const label = `${noCount} NO`;
+          doc.setFontSize(8);
+          const badgeW = doc.getTextWidth(label) + 5;
+          const badgeX = M + contentW - badgeW - 3;
+          doc.setFillColor(...STATUS_NO_BG);
+          doc.roundedRect(badgeX, y - 1, badgeW, 5, 1.2, 1.2, "F");
+          doc.setTextColor(...STATUS_NO_TEXT);
+          doc.text(label, badgeX + badgeW / 2, y + 2.3, { align: "center" });
+        }
         doc.setTextColor(20);
         y += 10;
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
+        doc.setLineWidth(0.2);
       };
 
       const drawKeyValueGrid = (pairs: Array<[string, string]>) => {
@@ -984,7 +1030,8 @@ export function ReportesPage() {
         const cols = 2;
         const colW = contentW / cols;
         const rows = Math.ceil(pairs.length / cols);
-        doc.setDrawColor(200);
+        doc.setDrawColor(...BORDER_SOFT);
+        doc.setLineWidth(0.15);
         for (let r = 0; r < rows; r += 1) {
           const rowPairs = Array.from({ length: cols }, (_, c) => pairs[r * cols + c]).filter(Boolean) as Array<
             [string, string]
@@ -999,7 +1046,8 @@ export function ReportesPage() {
             const idx = r * cols + c;
             const x = M + c * colW;
             const yCell = y;
-            doc.rect(x, yCell, colW, rowH);
+            doc.setFillColor(...CARD_FILL);
+            doc.roundedRect(x + 0.4, yCell, colW - 0.8, rowH, 1, 1, "FD");
             const pair = pairs[idx];
             if (!pair) continue;
             doc.setFontSize(8);
@@ -1026,10 +1074,14 @@ export function ReportesPage() {
         // jsPDF: doc.text() intercalado con doc.rect(..,"FD") a veces
         // corrompe el color de relleno del siguiente rect -> hay que
         // reafirmar setFillColor antes de CADA rect, no solo una vez.
-        const fill = () => doc.setFillColor(240, 246, 250);
+        const fill = () => doc.setFillColor(...ACCENT_SOFT);
         doc.setFontSize(6.5);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...ACCENT_DARK);
         ensureSpace(rowH * (rows.length + (groups ? 2 : 1)) + 2);
-        doc.setDrawColor(200);
+        doc.setDrawColor(...BORDER_SOFT);
+        const tableTop = y;
+        const tableStartPage = doc.getCurrentPageInfo().pageNumber;
         if (groups) {
           fill();
           doc.rect(x, y, labelW, rowH * 2, "FD");
@@ -1080,15 +1132,25 @@ export function ReportesPage() {
           y += rowH;
         }
         rows.forEach((row, i) => {
+          const isTotalRow = /total/i.test(row);
+          const rowFill: [number, number, number] = isTotalRow
+            ? ACCENT_SOFT
+            : i % 2 === 1
+              ? CARD_FILL
+              : [255, 255, 255];
           const labelLines = splitSafeForMatrix(row, labelW - 2);
           const thisRowH = labelLines.length > 1 ? rowH + 3.2 * (labelLines.length - 1) : rowH;
           ensureSpace(thisRowH + 2);
-          doc.rect(x, y, labelW, thisRowH);
+          doc.setFont("helvetica", isTotalRow ? "bold" : "normal");
+          doc.setTextColor(...(isTotalRow ? ACCENT_DARK : TITLE_INK));
+          doc.setFillColor(...rowFill);
+          doc.rect(x, y, labelW, thisRowH, "FD");
           labelLines.forEach((line, li) => {
             doc.text(line, x + 1.5, y + 3.5 + li * 3.4);
           });
           cols.forEach((_col, j) => {
-            doc.rect(x + labelW + j * colW, y, colW, thisRowH);
+            doc.setFillColor(...rowFill);
+            doc.rect(x + labelW + j * colW, y, colW, thisRowH, "FD");
             const cell = matrix?.[i]?.[j];
             doc.text(cell === undefined || cell === null || cell === "" ? "-" : String(cell), x + labelW + j * colW + colW / 2, y + thisRowH / 2 + 1, {
               align: "center",
@@ -1096,6 +1158,18 @@ export function ReportesPage() {
           });
           y += thisRowH;
         });
+        // Only frame the table if it never crossed a page break -- drawing
+        // a rect from tableTop (previous page's coordinates) to the current
+        // y (this page's) after addPage() resets the canvas draws a stray
+        // line unrelated to anything on the new page.
+        if (doc.getCurrentPageInfo().pageNumber === tableStartPage) {
+          doc.setDrawColor(...ACCENT);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(x, tableTop, labelW + colW * cols.length, y - tableTop, RADIUS, RADIUS, "S");
+          doc.setLineWidth(0.2);
+        }
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(20);
         y += 3;
         doc.setFontSize(9);
       };
@@ -1115,9 +1189,7 @@ export function ReportesPage() {
         if (line) out.push(line);
         return out.length ? out.slice(0, 2) : ["-"];
       };
-      const splitSafe = (text: string, maxW: number) => {
-        const raw = String(text ?? "-");
-        const out: string[] = [];
+      const wrapParagraph = (raw: string, maxW: number, out: string[]) => {
         let line = "";
         const pushLine = () => {
           if (line) out.push(line);
@@ -1150,6 +1222,18 @@ export function ReportesPage() {
           }
         }
         pushLine();
+      };
+      // Text pulled from the DB (often pasted from Word) can carry literal
+      // \r\n / \n characters. If those survive inside a single line, jsPDF's
+      // doc.text() renders its own internal line break for them using its
+      // default line-height -- vertical space our y += lh loop never
+      // accounted for, so the next block lands on top of it. Split on real
+      // line breaks first and wrap each paragraph on its own so every
+      // rendered line is one we actually counted.
+      const splitSafe = (text: string, maxW: number) => {
+        const raw = String(text ?? "-").replace(/\r\n?/g, "\n");
+        const out: string[] = [];
+        raw.split("\n").forEach((paragraph) => wrapParagraph(paragraph, maxW, out));
         return out.length ? out : ["-"];
       };
       const drawWrappedLines = (lines: string[], x: number, lh: number) => {
@@ -1180,36 +1264,140 @@ export function ReportesPage() {
       } catch {
         // ignore
       }
-      y = bannerY + bannerH + 10;
-      doc.setFillColor(232, 244, 250);
-      doc.setDrawColor(0, 119, 182);
-      doc.rect(M, y - 10, contentW, 22, "FD");
-      doc.setFillColor(0, 119, 182);
-      doc.rect(M, y - 10, contentW, 1.6, "F");
+      y = bannerY + bannerH + 8;
 
+      // The raw titulo often carries a trailing legal-citation parenthetical
+      // ("... EN LA IE (RM N° 501-2025-MINEDU/ RM N°153-2023-MINEDU/ ...)")
+      // glued onto the real title. Left inline it turns the title into a
+      // 5-line wall of text where the citation crowds out the actual name
+      // of the ficha. Split it off and render it as a small footnote line
+      // instead so the real title reads in 2-3 lines.
+      const rawTitle = tpl.titulo || "";
+      const titleCitationMatch = /^(.*?)\s*(\([^()]*\))\s*$/.exec(rawTitle);
+      const hasCitation =
+        !!titleCitationMatch && /\bRM\b|N[°º]|MINEDU|-ED\b/i.test(titleCitationMatch[2]);
+      const mainTitle = hasCitation ? titleCitationMatch![1].trim() : rawTitle;
+      const titleCitation = hasCitation ? titleCitationMatch![2].trim() : "";
+
+      // Measure title/subtitle lines up front so the title card's height
+      // always matches the actual text -- a fixed box height made long
+      // titles (4+ wrapped lines) spill out past the blue border.
+      const titleMaxW = contentW - 8;
+      const titleLineH = 5.4;
+      const subLineH = 4.6;
+      const citationLineH = 3.6;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.setTextColor(4, 61, 95);
-      const titleMaxW = contentW - 6;
-      const titleLines = splitSafe(tpl.titulo || "", titleMaxW);
-      doc.text(titleLines, M + 3, y);
-      y += Math.max(6, titleLines.length * 5);
+      const titleLines = splitSafe(mainTitle, titleMaxW);
+      let subLines: string[] = [];
       if (tpl.subtitulo) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(11);
-        const subLines = splitSafe(tpl.subtitulo, titleMaxW);
-        doc.text(subLines, M + 3, y);
-        y += Math.max(6, subLines.length * 4.5);
+        subLines = splitSafe(tpl.subtitulo, titleMaxW);
       }
+      let citationLines: string[] = [];
+      if (titleCitation) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        citationLines = splitSafe(titleCitation, titleMaxW);
+      }
+      const cardPad = 3.4;
+      const titleCardH =
+        cardPad * 2 +
+        titleLines.length * titleLineH +
+        (subLines.length ? subLines.length * subLineH : 0) +
+        (citationLines.length ? citationLines.length * citationLineH + 1.5 : 0);
+      ensureSpace(titleCardH + 6);
+
+      const titleCardTop = y - cardPad;
+      doc.setFillColor(...ACCENT_SOFT);
+      doc.setDrawColor(...BORDER_SOFT);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(M, titleCardTop, contentW, titleCardH, RADIUS, RADIUS, "FD");
+      doc.setFillColor(...ACCENT);
+      doc.roundedRect(M, titleCardTop, 2.2, titleCardH, RADIUS, RADIUS, "F");
+      y += cardPad;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(...ACCENT_DARK);
+      drawWrappedLines(titleLines, M + 5, titleLineH);
+      if (subLines.length) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.setTextColor(60);
+        drawWrappedLines(subLines, M + 5, subLineH);
+      }
+      if (citationLines.length) {
+        y += 1.5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.setTextColor(...META_INK);
+        drawWrappedLines(citationLines, M + 5, citationLineH);
+      }
+      doc.setTextColor(20);
+      y = titleCardTop + titleCardH + 6;
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.5);
-      doc.setTextColor(70);
-      doc.text(`Run: ${run.id}  |  Estado: ${run.status}  |  Fecha: ${fmtDateShort(run.created_at)}`, M + 3, y);
+      doc.setTextColor(120);
+      doc.text(`Run: ${run.id}  |  Estado: ${run.status}  |  Fecha: ${fmtDateShort(run.created_at)}`, M + 1, y);
       doc.setTextColor(20);
-      y += 4;
-      doc.setDrawColor(220);
-      doc.line(M, y, pageW - M, y);
-      y += 10;
+      y += 7;
+
+      // Executive summary: a quick SI/NO/compliance read before the reader
+      // has to hunt through 10+ pages of individual answers to find it.
+      {
+        const yesNoQuestions = (qRows ?? []).filter(
+          (q: any) => q.tipo === "yes_no" || q.tipo === "yes_no_nivel"
+        );
+        let siCount = 0;
+        let noCount = 0;
+        yesNoQuestions.forEach((q: any) => {
+          const v = answersMap[q.id]?.yn;
+          if (v === "SI") siCount += 1;
+          else if (v === "NO") noCount += 1;
+        });
+        const totalEval = siCount + noCount;
+        if (totalEval > 0) {
+          const pctCumple = Math.round((siCount / totalEval) * 100);
+          const summaryCardH = 24;
+          ensureSpace(summaryCardH + 6);
+          const cardTop = y;
+          doc.setFillColor(...CARD_FILL);
+          doc.setDrawColor(...BORDER_SOFT);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(M, cardTop, contentW, summaryCardH, RADIUS, RADIUS, "FD");
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.5);
+          doc.setTextColor(...META_INK);
+          doc.text("RESUMEN EJECUTIVO", M + 5, cardTop + 6);
+
+          const tiles: Array<{ value: string; label: string; color: [number, number, number] }> = [
+            { value: `${pctCumple}%`, label: "Cumplimiento", color: ACCENT_DARK },
+            { value: String(siCount), label: `Cumple (SI) de ${totalEval}`, color: STATUS_YES_TEXT },
+            { value: String(noCount), label: "No cumple (NO)", color: STATUS_NO_TEXT },
+          ];
+          const tileW = contentW / tiles.length;
+          tiles.forEach((tile, i) => {
+            const cx = M + tileW * i + tileW / 2;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(17);
+            doc.setTextColor(...tile.color);
+            doc.text(tile.value, cx, cardTop + 17, { align: "center" });
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7.5);
+            doc.setTextColor(...META_INK);
+            doc.text(tile.label, cx, cardTop + 21.5, { align: "center" });
+            if (i > 0) {
+              doc.setDrawColor(...BORDER_SOFT);
+              doc.line(M + tileW * i, cardTop + 4, M + tileW * i, cardTop + summaryCardH - 4);
+            }
+          });
+          doc.setTextColor(20);
+          y = cardTop + summaryCardH + 6;
+        }
+      }
 
       const headerPairs: Array<[string, string]> = [];
       if (effectiveHeader.institucion) headerPairs.push(["Institucion educativa", header.institucion ?? ""]);
@@ -1257,8 +1445,73 @@ export function ReportesPage() {
         drawKeyValueGrid(nivelPairs);
       }
 
+      const tablaMatrizFlags = buildTablaMatrizFlags(secRows ?? [], qRows ?? []);
+
+      // How many "NO" answers each section has, so both the index and each
+      // section's own header can flag it up front instead of making the
+      // reader scan every question to notice it.
+      const sectionNoCounts: number[] = (secRows ?? []).map((s: any) =>
+        (qRows ?? []).reduce((count: number, q: any) => {
+          if (q.section_id !== s.id) return count;
+          if (q.tipo !== "yes_no" && q.tipo !== "yes_no_nivel") return count;
+          return answersMap[q.id]?.yn === "NO" ? count + 1 : count;
+        }, 0)
+      );
+
+      // Section index: we don't know which page each section lands on until
+      // we've drawn the whole document (page count depends on how much each
+      // section wraps). So we draw the index list now with a placeholder in
+      // place of the page number, remember exactly where each placeholder
+      // sits (page + x/y), then -- once the real section pages are known --
+      // paint over each placeholder and write the true number in the same
+      // spot. No insertPage() juggling, and it survives the index itself
+      // spanning more than one page.
+      type IndexPlaceholder = { page: number; x: number; y: number; entryIndex: number };
+      const indexEntryPages: number[] = [];
+      const indexPlaceholders: IndexPlaceholder[] = [];
+      if ((secRows ?? []).length > 1) {
+        drawSectionHeader("Indice de secciones");
+        const numW = 26;
+        const rowGapY = 1.5;
+        (secRows ?? []).forEach((s: any, sIndex: number) => {
+          const numeral = sectionRomanNumeral(sIndex, tablaMatrizFlags);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          const label = `${numeral}. ${s.titulo}`;
+          const lines = splitSafe(label, contentW - numW - 4);
+          const rowH = Math.max(6, lines.length * 4.4);
+          ensureSpace(rowH + rowGapY + 2);
+          const rowTop = y;
+          doc.setTextColor(...TITLE_INK);
+          drawWrappedLines(lines, M, 4.4);
+          const placeholderY = rowTop + 3.5;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(...META_INK);
+          doc.text("--", pageW - M, placeholderY, { align: "right" });
+          if (sectionNoCounts[sIndex] > 0) {
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(...STATUS_NO_TEXT);
+            doc.text(`${sectionNoCounts[sIndex]} NO`, pageW - M - numW, placeholderY, { align: "right" });
+          }
+          indexPlaceholders.push({
+            page: doc.getCurrentPageInfo().pageNumber,
+            x: pageW - M,
+            y: placeholderY,
+            entryIndex: sIndex,
+          });
+          doc.setDrawColor(...BORDER_SOFT);
+          doc.setLineWidth(0.15);
+          doc.line(M, y + rowGapY - 0.5, pageW - M, y + rowGapY - 0.5);
+          y += rowGapY;
+          doc.setTextColor(20);
+        });
+        y += 2;
+      }
+
       (secRows ?? []).forEach((s: any, sIndex: number) => {
-        drawSectionHeader(`${sectionRomanNumeral(sIndex)}. ${s.titulo}`);
+        drawSectionHeader(`${sectionRomanNumeral(sIndex, tablaMatrizFlags)}. ${s.titulo}`, sectionNoCounts[sIndex]);
+        indexEntryPages[sIndex] = doc.getCurrentPageInfo().pageNumber;
         const sectionQuestions = (qRows ?? []).filter((q: any) => q.section_id === s.id);
         const seenSubtitulos = new Set<string>();
         let runCounter = 0;
@@ -1275,32 +1528,33 @@ export function ReportesPage() {
           const qContentW = pageW - qX - (M + qInnerRight);
           const showSubtitulo = !!q.subtitulo && !seenSubtitulos.has(q.subtitulo);
           if (q.subtitulo) seenSubtitulos.add(q.subtitulo);
-          if (showSubtitulo) {
-            ensureSpace(lineH + 3);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(9);
-            doc.setTextColor(70);
-            drawWrappedLines(splitSafe(q.subtitulo, qContentW - 1), qX, lineH);
-            doc.setTextColor(20);
-          }
+
+          // Pre-measure every line up front so the whole card reserves its
+          // space in one ensureSpace() call. Drawing rect/text interleaved
+          // across an addPage() mid-block is what produced the "letras
+          // montadas" glitch: two lines landing on the same y after a page
+          // break split a single question in half.
           doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          const subtituloLines = showSubtitulo ? splitSafe(q.subtitulo, qContentW - 1) : [];
           doc.setFontSize(10);
           const title = `${displayNum}. ${q.texto}`;
-          // Measure with the same font/size used for rendering; otherwise long bold lines can overflow.
-          const lines = splitSafe(title, qContentW - 1);
-          drawWrappedLines(lines, qX, lineH);
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9);
+          const titleLines = splitSafe(title, qContentW - 1);
 
+          const isMatrix = q.tipo === "tabla_matriz";
           const p = answersMap[q.id] ?? {};
+          const statusValue: "SI" | "NO" | null =
+            (q.tipo === "yes_no" || q.tipo === "yes_no_nivel") && (p.yn === "SI" || p.yn === "NO")
+              ? p.yn
+              : null;
           const parts: string[] = [];
-          if (q.tipo === "yes_no") parts.push(`Respuesta: ${p.yn ?? "-"}`);
+          if (q.tipo === "yes_no" && !statusValue) parts.push(`Respuesta: ${p.yn ?? "-"}`);
           if (q.tipo === "yes_no_nivel") {
             const levelLabels = q.config_json?.levelLabels ?? [];
             const nivelLabel = p.nivel
               ? levelLabels.find((l: any) => l.value === p.nivel)?.label ?? p.nivel
               : "-";
-            parts.push(`Respuesta: ${p.yn ?? "-"}`);
+            if (!statusValue) parts.push(`Respuesta: ${p.yn ?? "-"}`);
             parts.push(`Nivel: ${nivelLabel}`);
           }
           if (q.tipo === "opciones") {
@@ -1311,14 +1565,6 @@ export function ReportesPage() {
           if (q.tipo === "texto") parts.push(`Respuesta: ${p.text ?? "-"}`);
           if (q.tipo === "numero") parts.push(`Respuesta: ${p.number ?? "-"}`);
           if (q.tipo === "archivo_pdf") parts.push(`Archivo: ${p.fileName ?? "-"}`);
-          if (q.tipo === "tabla_matriz") {
-            if (parts.length) {
-              const detail = parts.join(" | ");
-              drawWrappedLines(splitSafe(detail, qContentW - 1), qX, smallLineH);
-              parts.length = 0;
-            }
-            drawMatrixTable(qX, q.config_json?.rows ?? [], q.config_json?.cols ?? [], p.matrix ?? []);
-          }
           if (q.config_json?.include_obs !== false) parts.push(`Observacion: ${p.obs ?? "-"}`);
           const extraFields = normalizeExtraFields(q.config_json?.extra_fields);
           extraFields.forEach((f) => {
@@ -1328,19 +1574,104 @@ export function ReportesPage() {
                 : p?.extra?.[fieldKey(f.label)] ?? p?.extra?.[f.label] ?? "-";
             parts.push(`${f.label}: ${val || "-"}`);
           });
+          doc.setFontSize(9);
+          const detailLines = parts.length ? splitSafe(parts.join(" | "), qContentW - 1) : [];
+          const badgeBlockH = statusValue ? statusBadgeHeight + 1.6 : 0;
 
-          if (parts.length) {
-            const detail = parts.join(" | ");
-            const detailLines = splitSafe(detail, qContentW - 1);
+          // Card holding subtitulo + title + status badge (+ detail, when there is no matrix below it).
+          const cardPad = 2.4;
+          const topBlockH =
+            (subtituloLines.length ? subtituloLines.length * lineH + 2 : 0) +
+            titleLines.length * lineH +
+            (isMatrix ? badgeBlockH : badgeBlockH + detailLines.length * smallLineH);
+          ensureSpace(topBlockH + cardPad * 2 + 4);
+
+          const cardTop = y - 2;
+          const cardH = topBlockH + cardPad * 2;
+          doc.setFillColor(...CARD_FILL);
+          doc.setDrawColor(...BORDER_SOFT);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(M, cardTop, contentW, cardH, RADIUS, RADIUS, "FD");
+          doc.setFillColor(...ACCENT);
+          doc.roundedRect(M, cardTop, 1.6, cardH, RADIUS, RADIUS, "F");
+          y += cardPad;
+
+          if (subtituloLines.length) {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(...META_INK);
+            drawWrappedLines(subtituloLines, qX, lineH);
+            y += 2;
+          }
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.setTextColor(...TITLE_INK);
+          drawWrappedLines(titleLines, qX, lineH);
+          if (statusValue) {
+            drawStatusBadge(statusValue, qX, y - 3.6);
+            y += statusBadgeHeight + 1.6;
+          }
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(...META_INK);
+          if (!isMatrix && detailLines.length) {
             drawWrappedLines(detailLines, qX, smallLineH);
           }
+          doc.setTextColor(20);
+          y = cardTop + cardH + 4;
 
-          y += 4;
-          doc.setDrawColor(235);
-          doc.line(M, y, pageW - M, y);
-          y += 3;
+          if (isMatrix) {
+            const matrixRows: string[] = q.config_json?.rows ?? [];
+            const matrixCols: string[] = q.config_json?.cols ?? [];
+            const isBlankCell = (cell: any) =>
+              cell === undefined || cell === null || String(cell).trim() === "" || String(cell).trim() === "-";
+            const matrixIsEmpty =
+              matrixRows.length > 0 &&
+              matrixCols.length > 0 &&
+              matrixRows.every((_r, i) => matrixCols.every((_c, j) => isBlankCell(p.matrix?.[i]?.[j])));
+            if (matrixIsEmpty) {
+              // A grid of dashes for every row/column tells the reader
+              // nothing and costs a near-empty page. Collapse it to one
+              // line instead.
+              ensureSpace(smallLineH + 6);
+              doc.setFont("helvetica", "italic");
+              doc.setFontSize(9);
+              doc.setTextColor(...META_INK);
+              doc.text("Sin personal registrado en este nivel.", qX, y + 2);
+              doc.setFont("helvetica", "normal");
+              doc.setTextColor(20);
+              y += smallLineH + 4;
+            } else {
+              drawMatrixTable(qX, matrixRows, matrixCols, p.matrix ?? []);
+            }
+            if (detailLines.length) {
+              ensureSpace(detailLines.length * smallLineH + 2);
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(9);
+              doc.setTextColor(...META_INK);
+              drawWrappedLines(detailLines, qX, smallLineH);
+              doc.setTextColor(20);
+              y += 3;
+            }
+          }
         });
       });
+
+      if (indexPlaceholders.length) {
+        const lastContentPage = doc.getCurrentPageInfo().pageNumber;
+        indexPlaceholders.forEach((ph) => {
+          doc.setPage(ph.page);
+          doc.setFillColor(255, 255, 255);
+          doc.rect(ph.x - 12, ph.y - 3.2, 12, 4, "F");
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(...META_INK);
+          const realPage = indexEntryPages[ph.entryIndex];
+          doc.text(realPage ? String(realPage) : "-", ph.x, ph.y, { align: "right" });
+          doc.setTextColor(20);
+        });
+        doc.setPage(lastContentPage);
+      }
 
       const footerPairs: Array<[string, string]> = [];
       if (effectiveFooter.observacion) footerPairs.push(["Observacion general", footer.observacion ?? ""]);
@@ -1357,13 +1688,29 @@ export function ReportesPage() {
       }
 
       if (effectiveFooter.firmas) {
-        if (y + 22 > pageH - 14) {
-          doc.addPage();
-          y = 18;
-        }
-        doc.setDrawColor(120);
-        doc.line(M, y + 12, M + 70, y + 12);
-        doc.line(pageW - M - 70, y + 12, pageW - M, y + 12);
+        const cardW = 76;
+        const cardH = 36;
+        const leftX = M;
+        const rightX = pageW - M - cardW;
+        ensureSpace(cardH + 4);
+
+        const cardTopY = y;
+        [leftX, rightX].forEach((cx) => {
+          doc.setFillColor(...CARD_FILL);
+          doc.setDrawColor(...BORDER_SOFT);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(cx, cardTopY, cardW, cardH, RADIUS, RADIUS, "FD");
+          doc.setFillColor(...ACCENT);
+          doc.roundedRect(cx, cardTopY, 1.6, cardH, RADIUS, RADIUS, "F");
+        });
+
+        const innerX = 4;
+        const sigLineY = cardTopY + 22;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(...META_INK);
+        doc.text("Firma docente monitoreado", leftX + innerX, cardTopY + 6);
+        doc.text("Firma monitor", rightX + innerX, cardTopY + 6);
 
         const drawSignatureImage = async (path: string | null | undefined, x: number) => {
           if (!path) return;
@@ -1387,12 +1734,9 @@ export function ReportesPage() {
               createImageBitmap(blob),
             ]);
             // Se ajusta al recuadro preservando la proporcion real de la imagen
-            // (antes se forzaba a 70x13mm y la firma salia deformada/aplastada).
-            // maxH esta acotado a 12mm: la banda libre entre el fin de la tabla
-            // "Cierre" (en y) y la linea de firma (en y+12) es de solo 12mm, asi
-            // que una altura mayor hacia que la firma invadiera la fila anterior.
-            const maxW = 70;
-            const maxH = 12;
+            // (antes se forzaba a un tamano fijo y la firma salia deformada).
+            const maxW = cardW - innerX * 2;
+            const maxH = 13;
             const ratio = bitmap.width / bitmap.height;
             let w = maxW;
             let h = w / ratio;
@@ -1400,36 +1744,59 @@ export function ReportesPage() {
               h = maxH;
               w = h * ratio;
             }
-            const drawX = x + (maxW - w) / 2;
-            const lineY = y + 12;
-            doc.addImage(dataUrl, "PNG", drawX, Math.max(y, lineY - h), w, h);
+            const drawX = x + innerX + (maxW - w) / 2;
+            doc.addImage(dataUrl, "PNG", drawX, sigLineY - h, w, h);
           } catch {
             // sin firma digital disponible: se deja la linea en blanco para firmar a mano
           }
         };
-        await drawSignatureImage(runRow.docente_firma_path, M);
-        await drawSignatureImage(runRow.monitor_firma_path, pageW - M - 70);
+        await drawSignatureImage(runRow.docente_firma_path, leftX);
+        await drawSignatureImage(runRow.monitor_firma_path, rightX);
 
+        doc.setDrawColor(...BORDER_SOFT);
+        doc.line(leftX + innerX, sigLineY, leftX + cardW - innerX, sigLineY);
+        doc.line(rightX + innerX, sigLineY, rightX + cardW - innerX, sigLineY);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...TITLE_INK);
+        if (footer.docente_nombre) doc.text(String(footer.docente_nombre), leftX + innerX, sigLineY + 5);
+        if (footer.monitor_nombre) doc.text(String(footer.monitor_nombre), rightX + innerX, sigLineY + 5);
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
-        doc.text("Firma docente monitoreado", M, y + 16);
-        doc.text("Firma monitor", pageW - M - 70, y + 16);
-        if (footer.docente_nombre) {
-          doc.text(String(footer.docente_nombre), M, y + 20);
-        }
-        if (footer.docente_dni) {
-          doc.text(`DNI: ${footer.docente_dni}`, M, y + 24);
-        }
-        if (footer.monitor_nombre) {
-          doc.text(String(footer.monitor_nombre), pageW - M - 70, y + 20);
-        }
-        if (footer.monitor_dni) {
-          doc.text(`DNI: ${footer.monitor_dni}`, pageW - M - 70, y + 24);
-        }
+        doc.setTextColor(...META_INK);
+        if (footer.docente_dni) doc.text(`DNI: ${footer.docente_dni}`, leftX + innerX, sigLineY + 9.5);
+        if (footer.monitor_dni) doc.text(`DNI: ${footer.monitor_dni}`, rightX + innerX, sigLineY + 9.5);
+        doc.setTextColor(20);
+        y = cardTopY + cardH + 4;
       }
 
+      const runningHeaderLeft = [tpl.codigo, header.institucion].filter(Boolean).join(" · ");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const runningHeaderRightMaxW = contentW * 0.55;
+      let runningHeaderRight = mainTitle;
+      if (doc.getTextWidth(runningHeaderRight) > runningHeaderRightMaxW) {
+        while (runningHeaderRight.length > 1 && doc.getTextWidth(`${runningHeaderRight}...`) > runningHeaderRightMaxW) {
+          runningHeaderRight = runningHeaderRight.slice(0, -1).trimEnd();
+        }
+        runningHeaderRight += "...";
+      }
       const totalPages = doc.getNumberOfPages();
       for (let pno = 1; pno <= totalPages; pno += 1) {
         doc.setPage(pno);
+        if (pno > 1 && runningHeaderLeft) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(...META_INK);
+          doc.text(runningHeaderLeft, M, 14);
+          doc.setFont("helvetica", "normal");
+          doc.text(runningHeaderRight, pageW - M, 14, { align: "right" });
+          doc.setDrawColor(...BORDER_SOFT);
+          doc.setLineWidth(0.2);
+          doc.line(M, 17, pageW - M, 17);
+          doc.setTextColor(20);
+        }
         doc.setDrawColor(220);
         doc.line(M, pageH - 11, pageW - M, pageH - 11);
         doc.setFont("helvetica", "normal");

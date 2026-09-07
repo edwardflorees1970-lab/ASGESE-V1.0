@@ -50,26 +50,45 @@ export const DEFAULT_NIVEL_INFO = [
   { nivel: 3, descripcion: "Alto" },
 ];
 
-export const FIXED_HEADER_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "institucion", label: "Institución educativa" },
-  { key: "codigo_modular", label: "Código modular" },
-  { key: "codigo_local", label: "Código local" },
-  { key: "distrito", label: "Distrito / lugar" },
-  { key: "rei", label: "REI" },
-  { key: "monitor", label: "Monitor" },
-  { key: "monitor_doc_tipo", label: "Tipo doc. monitor" },
-  { key: "monitor_numero_doc", label: "Numero doc. monitor" },
-  { key: "monitoreado", label: "Monitoreado" },
-  { key: "monitoreado_doc_tipo", label: "Tipo doc. monitoreado" },
-  { key: "monitoreado_numero_doc", label: "Numero doc. monitoreado" },
-  { key: "monitoreado_cargo", label: "Cargo monitoreado" },
-  { key: "monitoreado_telefono", label: "Telefono monitoreado" },
-  { key: "monitoreado_correo", label: "Correo monitoreado" },
-  { key: "condicion", label: "Condición de monitoreado" },
-  { key: "area", label: "Área que monitorea" },
-  { key: "numero_visitas", label: "Numero de visitas a la IE" },
-  { key: "fecha_aplicacion", label: "Fecha de aplicacion" },
-  { key: "hora_inicio", label: "Hora de inicio" },
-  { key: "hora_fin", label: "Hora de fin" },
-  { key: "nivel_avance", label: "Nivel de avance (Sí)" },
+export const FIXED_HEADER_GROUPS: Array<{
+  id: string;
+  label: string;
+  fields: Array<{ key: string; label: string }>;
+}> = [
+  {
+    id: "general",
+    label: "I. Datos generales",
+    fields: [
+      { key: "institucion", label: "Institución educativa" },
+      { key: "codigo_modular", label: "Código modular" },
+      { key: "codigo_local", label: "Código local" },
+      { key: "distrito", label: "Distrito / lugar" },
+      { key: "rei", label: "REI" },
+      { key: "area", label: "Área que monitorea" },
+      { key: "numero_visitas", label: "Numero de visitas a la IE" },
+      { key: "fecha_aplicacion", label: "Fecha de aplicacion" },
+      { key: "hora_inicio", label: "Hora de inicio" },
+      { key: "hora_fin", label: "Hora de fin" },
+      { key: "nivel_avance", label: "Nivel de avance (Sí)" },
+    ],
+  },
+  {
+    id: "informante",
+    label: "II. Datos del informante",
+    fields: [
+      { key: "monitor", label: "Monitor" },
+      { key: "monitor_doc_tipo", label: "Tipo doc. monitor" },
+      { key: "monitor_numero_doc", label: "Numero doc. monitor" },
+      { key: "monitoreado", label: "Monitoreado" },
+      { key: "monitoreado_doc_tipo", label: "Tipo doc. monitoreado" },
+      { key: "monitoreado_numero_doc", label: "Numero doc. monitoreado" },
+      { key: "monitoreado_cargo", label: "Cargo monitoreado" },
+      { key: "monitoreado_telefono", label: "Telefono monitoreado" },
+      { key: "monitoreado_correo", label: "Correo monitoreado" },
+      { key: "condicion", label: "Condición de monitoreado" },
+    ],
+  },
 ];
+
+export const FIXED_HEADER_FIELDS: Array<{ key: string; label: string }> =
+  FIXED_HEADER_GROUPS.flatMap((group) => group.fields);
