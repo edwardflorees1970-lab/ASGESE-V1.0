@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
@@ -434,6 +434,15 @@ export function FichaDinamicaPage() {
   const [pendingEvidenceFiles, setPendingEvidenceFiles] = useState<Record<string, File>>({});
   const [runId, setRunId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<string | null>(null);
+  // Read (not watched) inside the local-draft autosave effect below: saving
+  // a run updates runId/runStatus, and if the effect re-ran on that alone it
+  // would immediately rewrite a fresh "local draft" snapshot right after
+  // clearLocalDraft() just erased it -- the recover prompt would then never
+  // go away, even though nothing unsaved is left to recover.
+  const runIdRef = useRef(runId);
+  runIdRef.current = runId;
+  const runStatusRef = useRef(runStatus);
+  runStatusRef.current = runStatus;
   const [saving, setSaving] = useState(false);
   const [showUp, setShowUp] = useState(false);
   const [showDown, setShowDown] = useState(true);
@@ -923,15 +932,15 @@ export function FichaDinamicaPage() {
     if (runHydrating) return;
     if (localDraftPromptOpen) return;
     const snapshot: LocalDraftSnapshot = {
-      runId,
-      runStatus,
+      runId: runIdRef.current,
+      runStatus: runStatusRef.current,
       header,
       footer,
       answers,
       updatedAt: new Date().toISOString(),
     };
     localStorage.setItem(localDraftKey, JSON.stringify(snapshot));
-  }, [template?.id, localDraftKey, runId, runStatus, header, footer, answers, runHydrating, localDraftPromptOpen]);
+  }, [template?.id, localDraftKey, header, footer, answers, runHydrating, localDraftPromptOpen]);
 
   useEffect(() => {
     if (!localDraftPromptOpen || !localDraftPending) return;
