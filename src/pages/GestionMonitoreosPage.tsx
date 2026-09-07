@@ -19,6 +19,7 @@ import {
   DUP_RULE_MODULAR,
   DUP_RULE_NONE,
   FIXED_HEADER_FIELDS,
+  FIXED_HEADER_GROUPS,
   GESTIONES,
   MODALIDADES,
   QUESTION_TYPES,
@@ -34,6 +35,7 @@ import {
   toggleGestion,
   toggleValue,
   sectionRomanNumeral,
+  buildTablaMatrizFlags,
 } from "./GestionMonitoreos/helpers";
 import { ManagementIcon } from "./GestionMonitoreos/ManagementIcon";
 import { ReorderButtons } from "./GestionMonitoreos/ReorderButtons";
@@ -144,6 +146,7 @@ export function GestionMonitoreosPage() {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
 
   const [questions, setQuestions] = useState<Question[]>([]);
+  const tablaMatrizFlags = useMemo(() => buildTablaMatrizFlags(sections, questions), [sections, questions]);
   const [qTexto, setQTexto] = useState("");
   const [qSubtitulo, setQSubtitulo] = useState("");
   const [newSubtituloBySection, setNewSubtituloBySection] = useState<Record<string, string>>({});
@@ -3139,34 +3142,54 @@ export function GestionMonitoreosPage() {
                       <p className="mt-1 text-xs text-white/50">
                         Marca los datos que van impresos en la parte superior de la ficha.
                       </p>
-                      <div className="mt-3 space-y-2">
-                        {orderedFixedHeaderFields.map((field, index) => (
-                          <div
-                            key={field.key}
-                            className="grid items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 md:grid-cols-[1fr_auto]"
-                          >
-                            <label className="flex items-center gap-2 text-xs text-white/70">
-                              <input
-                                type="checkbox"
-                                checked={!!templateHeader[field.key]}
-                                onChange={(e) =>
-                                  setTemplateHeader((s: any) =>
-                                    normalizeHeaderConfig({ ...s, [field.key]: e.target.checked })
-                                  )
-                                }
-                              />
-                              {field.label}
-                            </label>
-                            <ReorderButtons
-                              label="campo"
-                              onUp={() => moveFixedHeaderField(field.key, -1)}
-                              onDown={() => moveFixedHeaderField(field.key, 1)}
-                              disabledUp={index === 0}
-                              disabledDown={index === orderedFixedHeaderFields.length - 1}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                      {(() => {
+                        const groupIdByKey = new Map(
+                          FIXED_HEADER_GROUPS.flatMap((group) =>
+                            group.fields.map((field) => [field.key, group.id] as const)
+                          )
+                        );
+                        const indexByKey = new Map(orderedFixedHeaderFields.map((f, i) => [f.key, i]));
+                        return FIXED_HEADER_GROUPS.map((group) => {
+                          const groupFields = orderedFixedHeaderFields.filter(
+                            (field) => groupIdByKey.get(field.key) === group.id
+                          );
+                          if (!groupFields.length) return null;
+                          return (
+                            <div key={group.id} className="mt-3 space-y-2">
+                              <p className="text-xs font-semibold text-white/60">{group.label}</p>
+                              {groupFields.map((field) => {
+                                const index = indexByKey.get(field.key) ?? 0;
+                                return (
+                                  <div
+                                    key={field.key}
+                                    className="grid items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 md:grid-cols-[1fr_auto]"
+                                  >
+                                    <label className="flex items-center gap-2 text-xs text-white/70">
+                                      <input
+                                        type="checkbox"
+                                        checked={!!templateHeader[field.key]}
+                                        onChange={(e) =>
+                                          setTemplateHeader((s: any) =>
+                                            normalizeHeaderConfig({ ...s, [field.key]: e.target.checked })
+                                          )
+                                        }
+                                      />
+                                      {field.label}
+                                    </label>
+                                    <ReorderButtons
+                                      label="campo"
+                                      onUp={() => moveFixedHeaderField(field.key, -1)}
+                                      onDown={() => moveFixedHeaderField(field.key, 1)}
+                                      disabledUp={index === 0}
+                                      disabledDown={index === orderedFixedHeaderFields.length - 1}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        });
+                      })()}
                       {templateHeader.area && (
                         <div className="mt-3">
                           <div className="text-xs text-white/60">Opciones de área (una por línea)</div>
@@ -3427,7 +3450,7 @@ export function GestionMonitoreosPage() {
                                 onClick={() => setSelectedSectionId(s.id)}
                                 className="text-left text-xs font-medium"
                               >
-                                {sectionRomanNumeral(sIndex)}. {s.titulo}
+                                {sectionRomanNumeral(sIndex, tablaMatrizFlags)}. {s.titulo}
                               </button>
                               {canEditTemplates && (
                                 <div className="flex flex-shrink-0 items-center gap-2">

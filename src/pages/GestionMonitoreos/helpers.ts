@@ -6,7 +6,7 @@ import {
   NIVELES_BY_MODALIDAD,
   ALL_NIVELES,
 } from "./constants";
-import type { ExtraFieldCfg } from "./types";
+import type { ExtraFieldCfg, Question, Section } from "./types";
 
 export function normalizeTime24(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 4);
@@ -60,25 +60,46 @@ export function groupMatrixCols(cols: string[]): { group: string | null; cols: s
   return groups;
 }
 
-// Numeral romano para el titulo de seccion, offset +3 porque Datos
-// generales, Datos del informante y la tabla de asistencia (I, II, III)
-// vienen del encabezado fijo, no son "secciones" del constructor -- la
-// primera seccion real siempre arranca en IV.
+// Numeral romano para el titulo de seccion. Datos generales y Datos del
+// informante (I, II) vienen del encabezado fijo, no son "secciones" del
+// constructor. La seccion que contiene las preguntas tipo tabla_matriz
+// (la tabla de asistencia) corresponde siempre a la seccion III del PDF
+// fisico: se muestra fija como "III" y no consume un numero correlativo,
+// para que la primera seccion real del constructor siga arrancando en IV
+// sin importar en que posicion del arreglo quede la tabla.
 const ROMAN_MAP: Array<[number, string]> = [
   [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"],
   [100, "C"], [90, "XC"], [50, "L"], [40, "XL"],
   [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
 ];
-export function sectionRomanNumeral(sectionIndex0: number): string {
-  let n = sectionIndex0 + 1 + 3;
+function toRomanNumeral(n: number): string {
+  let value = n;
   let out = "";
-  for (const [value, symbol] of ROMAN_MAP) {
-    while (n >= value) {
+  for (const [amount, symbol] of ROMAN_MAP) {
+    while (value >= amount) {
       out += symbol;
-      n -= value;
+      value -= amount;
     }
   }
   return out;
+}
+
+export function isTablaMatrizSection(sectionId: string, questions: Pick<Question, "section_id" | "tipo">[]): boolean {
+  return questions.some((q) => q.section_id === sectionId && q.tipo === "tabla_matriz");
+}
+
+export function buildTablaMatrizFlags(sections: Pick<Section, "id">[], questions: Pick<Question, "section_id" | "tipo">[]): boolean[] {
+  return sections.map((s) => isTablaMatrizSection(s.id, questions));
+}
+
+export function sectionRomanNumeral(sectionIndex0: number, tablaMatrizFlags: boolean[] = []): string {
+  const HEADER_OFFSET = 3; // I. Datos generales, II. Datos del informante, III. Tabla de asistencia
+  if (tablaMatrizFlags[sectionIndex0]) return toRomanNumeral(HEADER_OFFSET);
+  let precedingNormalSections = 0;
+  for (let i = 0; i < sectionIndex0; i += 1) {
+    if (!tablaMatrizFlags[i]) precedingNormalSections += 1;
+  }
+  return toRomanNumeral(HEADER_OFFSET + precedingNormalSections + 1);
 }
 
 function isTotalLabel(label: string) {
