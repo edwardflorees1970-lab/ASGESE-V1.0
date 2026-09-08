@@ -1641,60 +1641,68 @@ button:hover .agebre-action-icon {
   right: 1.25rem;
   width: min(25rem, calc(100vw - 2rem));
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--app-warning) 48%, var(--app-border));
-  border-radius: 1.25rem;
-  padding: 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-xl);
+  padding: 1rem 1rem 1rem 1.15rem;
   color: var(--app-text);
   background: var(--app-surface);
   box-shadow: var(--app-shadow-md);
   animation: expiryNoticeIn 360ms var(--app-ease) both;
 }
 
+.expiry-notice-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--app-warning), color-mix(in srgb, var(--app-warning) 55%, var(--app-accent)));
+}
+
 .expiry-notice-header { display: flex; align-items: center; gap: .75rem; }
 .expiry-notice-icon {
   display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--app-warning) 55%, transparent);
-  border-radius: .8rem;
-  color: #b45309;
-  background: color-mix(in srgb, var(--app-warning) 15%, var(--app-surface));
-  font-size: 1.1rem;
-  font-weight: 850;
-}
-.expiry-notice-eyebrow { color: #b45309; font-size: .64rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-.expiry-notice h2 { margin-top: .1rem; font-size: .98rem; font-weight: 780; line-height: 1.25; }
-.expiry-notice-close {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--app-border);
-  border-radius: .65rem;
+  border-radius: var(--app-radius-md);
+  color: var(--app-warning);
+  background: color-mix(in srgb, var(--app-warning) 10%, var(--app-surface-2));
+}
+.expiry-notice-eyebrow { color: var(--app-muted); font-size: .64rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.expiry-notice h2 { margin-top: .1rem; color: var(--app-text); font-size: .95rem; font-weight: 750; line-height: 1.25; }
+.expiry-notice-close {
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
   color: var(--app-muted);
   background: var(--app-surface-2);
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
   transition: border-color 220ms, color 220ms, transform 220ms, box-shadow 220ms;
 }
 .expiry-notice-close:hover { border-color: color-mix(in srgb, var(--app-danger) 55%, var(--app-border)); color: var(--app-danger); transform: translateY(-1px); box-shadow: var(--app-shadow-sm); }
-.expiry-notice-description { margin-top: .75rem; color: var(--app-muted); font-size: .76rem; line-height: 1.5; }
-.expiry-notice-list { display: grid; gap: .45rem; margin-top: .75rem; }
-.expiry-notice-item { display: flex; align-items: center; justify-content: space-between; gap: .75rem; border: 1px solid var(--app-border); border-radius: .8rem; padding: .55rem .65rem; background: var(--app-surface-2); }
+.expiry-notice-description { margin-top: .7rem; color: var(--app-muted); font-size: .76rem; line-height: 1.5; }
+.expiry-notice-list { display: grid; gap: .4rem; margin-top: .75rem; }
+.expiry-notice-item { display: flex; align-items: center; justify-content: space-between; gap: .75rem; border: 1px solid var(--app-border); border-radius: var(--app-radius-md); padding: .55rem .65rem; background: var(--app-surface-2); transition: border-color 220ms, background-color 220ms; }
+.expiry-notice-item:hover { border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border)); }
 .expiry-notice-item strong, .expiry-notice-item span { display: block; }
 .expiry-notice-item strong { overflow: hidden; color: var(--app-text); font-size: .73rem; text-overflow: ellipsis; white-space: nowrap; }
-.expiry-notice-item div > span { margin-top: .12rem; color: var(--app-muted); font-size: .65rem; }
-.expiry-notice-days { flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--app-warning) 44%, transparent); border-radius: 999px; padding: .22rem .48rem; color: #b45309; background: color-mix(in srgb, var(--app-warning) 12%, var(--app-surface)); font-size: .65rem; font-weight: 800; }
+.expiry-notice-item div > span { margin-top: .12rem; color: var(--app-muted); font-size: .65rem; font-variant-numeric: tabular-nums; }
+.expiry-notice-days { flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--app-warning) 42%, transparent); border-radius: 999px; padding: .22rem .5rem; color: var(--app-warning); background: color-mix(in srgb, var(--app-warning) 11%, transparent); font-size: .65rem; font-weight: 800; }
 .expiry-notice-more { padding: .2rem .25rem 0; color: var(--app-muted); font-size: .68rem; }
 .expiry-notice-timer { margin-top: .85rem; }
 .expiry-notice-timer-label { display: flex; justify-content: space-between; color: var(--app-muted); font-size: .66rem; }
-.expiry-notice-timer-label strong { color: #b45309; font-variant-numeric: tabular-nums; }
-.expiry-notice-track { height: .32rem; margin-top: .4rem; overflow: hidden; border-radius: 999px; background: var(--app-surface-3); }
-.expiry-notice-track > div { height: 100%; border-radius: inherit; background: var(--app-warning); transition: width 1s linear; }
+.expiry-notice-timer-label strong { color: var(--app-text); font-variant-numeric: tabular-nums; }
+.expiry-notice-track { height: .28rem; margin-top: .4rem; overflow: hidden; border-radius: 999px; background: var(--app-surface-3); }
+.expiry-notice-track > div { height: 100%; border-radius: inherit; background: var(--app-accent); transition: width 1s linear; }
 
 @keyframes expiryNoticeIn {
   from { opacity: 0; transform: translate3d(1.5rem, -.5rem, 0) scale(.98); }
