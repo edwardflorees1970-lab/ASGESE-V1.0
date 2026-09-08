@@ -99,8 +99,11 @@ export function SessionExpiryNotice() {
 
   return (
     <section className="expiry-notice" role="dialog" aria-modal="false" aria-labelledby="expiry-notice-title">
+      <div className="expiry-notice-accent" aria-hidden="true" />
       <div className="expiry-notice-header">
-        <div className="expiry-notice-icon" aria-hidden="true">!</div>
+        <div className="expiry-notice-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17" /><path d="M8 14.5h2M8 17.5h5" /></svg>
+        </div>
         <div className="min-w-0 flex-1">
           <div className="expiry-notice-eyebrow">Aviso de vigencia</div>
           <h2 id="expiry-notice-title">Monitoreos próximos a vencer</h2>
