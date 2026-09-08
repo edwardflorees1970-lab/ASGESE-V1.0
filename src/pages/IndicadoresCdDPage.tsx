@@ -109,10 +109,14 @@ function shortDate(iso: string) {
 
 function calcAvancePct(meta: number | null | undefined, avance: number | null | undefined) {
   if (avance == null || !Number.isFinite(Number(avance))) return null;
-  const a = Number(avance);
   const m = Number(meta ?? 0);
-  if (Number.isFinite(m) && m > 0) return (a / m) * 100;
-  return a;
+  // Sin meta definida no hay porcentaje que calcular -- devolver el conteo
+  // crudo (p.ej. "8 instituciones visitadas") como si fuera "8%" contamina
+  // cualquier promedio/ranking que mezcle este registro con otros que si
+  // tienen meta real, y puede disparar alertas falsas de "va en X%".
+  if (!Number.isFinite(m) || m <= 0) return null;
+  const a = Number(avance);
+  return (a / m) * 100;
 }
 
 function pct(value: number | null | undefined) {
@@ -479,25 +483,31 @@ export function IndicadoresCdDPage() {
     return monitoreos
       .filter((m) => selectedMonitoreo === "ALL" || m.id === selectedMonitoreo)
       .map((m) => {
-        const avgMon = avg(records.filter((r) => r.monitoreoId === m.id && r.avancePct !== null).map((r) => Number(r.avancePct ?? 0)));
+        const valores = records
+          .filter((r) => r.monitoreoId === m.id && r.avancePct !== null)
+          .map((r) => Number(r.avancePct ?? 0));
         return {
           ...m,
           startMonth: monthIndex(m.fecha_inicio),
           endMonth: monthIndex(m.fecha_fin),
           dateProgress: dayProgress(m.fecha_inicio, m.fecha_fin),
-          avancePromedio: avgMon,
+          // null cuando ningun compromiso de este monitoreo tiene meta
+          // definida -- no confundir "sin datos de meta" con "0% de avance".
+          avancePromedio: valores.length ? avg(valores) : null,
         };
       });
   }, [monitoreos, records, selectedMonitoreo]);
 
   const alerts = useMemo(() => {
     const items: Array<{ tone: "bad" | "warn" | "good" | "info"; title: string; detail: string }> = [];
-    const expired = cronograma.filter((m) => (daysToEnd(m.fecha_fin) ?? 1) < 0 && m.avancePromedio < 100);
+    const expired = cronograma.filter(
+      (m) => (daysToEnd(m.fecha_fin) ?? 1) < 0 && m.avancePromedio !== null && m.avancePromedio < 100
+    );
     expired.forEach((m) => {
       items.push({
         tone: "bad",
         title: `${m.codigo} vencido`,
-        detail: `${m.nombre} cerro el ${shortDate(m.fecha_fin)} | va en ${m.avancePromedio.toFixed(1)}%.`,
+        detail: `${m.nombre} cerro el ${shortDate(m.fecha_fin)} | va en ${(m.avancePromedio ?? 0).toFixed(1)}%.`,
       });
     });
     filteredRecords
