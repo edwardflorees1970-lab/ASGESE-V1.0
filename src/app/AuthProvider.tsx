@@ -155,6 +155,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { active = false; };
   }, [profile?.role, userId]);
 
+  const lastProfileRefreshAt = useRef(0);
+
   const refreshProfile = useCallback(async () => {
     if (!userId) return;
     if (inflight.current) return;
@@ -168,11 +170,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!userId) return;
-    const onFocus = () => refreshProfile();
-    window.addEventListener("focus", onFocus);
-    const t = window.setTimeout(() => refreshProfile(), 500);
+    // Un solo disparador silencioso al recuperar foco, con piso de 10s.
+    // Antes había focus + visibilitychange + setTimeout inicial todos
+    // llamando a refreshProfile sin control, duplicando la consulta a
+    // profiles cada vez que el usuario cambiaba de pestaña y volvía.
+    const MIN_INTERVAL_MS = 10000;
+    const maybeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastProfileRefreshAt.current < MIN_INTERVAL_MS) return;
+      lastProfileRefreshAt.current = now;
+      refreshProfile();
+    };
+    document.addEventListener("visibilitychange", maybeRefresh);
+    const t = window.setTimeout(() => {
+      lastProfileRefreshAt.current = Date.now();
+      refreshProfile();
+    }, 500);
     return () => {
-      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", maybeRefresh);
       window.clearTimeout(t);
     };
   }, [refreshProfile, userId]);

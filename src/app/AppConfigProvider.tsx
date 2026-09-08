@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useMemo, useState } from "react";
+﻿import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 type AppConfigCtx = {
@@ -29,11 +29,16 @@ async function fetchMode(): Promise<boolean | null> {
   return parseMode((data as any)?.value);
 }
 
+const MIN_REFRESH_INTERVAL_MS = 10000;
+
 export function AppConfigProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isTestMode, setIsTestMode] = useState(false);
+  const lastFetchAt = useRef(0);
 
-  const refresh = async () => {
+  const refresh = async (opts?: { force?: boolean }) => {
+    if (!opts?.force && Date.now() - lastFetchAt.current < MIN_REFRESH_INTERVAL_MS) return;
+    lastFetchAt.current = Date.now();
     setLoading(true);
     try {
       const v = await fetchMode();
@@ -55,19 +60,7 @@ export function AppConfigProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    refresh();
-
-    // Relee modo cuando se establece/actualiza sesión para evitar estado
-    // inicial incorrecto al entrar (ej. mostrar PROD hasta refrescar).
-    const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        refresh();
-      }
-    });
-
-    return () => {
-      authSub.subscription.unsubscribe();
-    };
+    refresh({ force: true });
   }, []);
 
   useEffect(() => {
