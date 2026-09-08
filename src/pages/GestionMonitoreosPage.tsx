@@ -613,6 +613,14 @@ export function GestionMonitoreosPage() {
 
   const updateSolicitud = async () => {
     if (!selected || !canOwnerOrAdmin) return;
+    if (!editFechaInicio || !editFechaFin) {
+      setToast({ type: "err", msg: "Completa fecha de inicio y fecha fin." });
+      return;
+    }
+    if (editFechaFin <= editFechaInicio) {
+      setToast({ type: "err", msg: "La fecha fin debe ser posterior a la fecha de inicio." });
+      return;
+    }
     setSaving(true);
     setError(null);
     const { error } = await supabase
