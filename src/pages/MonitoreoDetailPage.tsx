@@ -2,6 +2,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
+import { useAppConfig } from "../app/AppConfigProvider";
 import { getFichasByMonitoreo } from "../lib/monitoreoApi";
 import { canSeeAllRole } from "../lib/roles";
 import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
@@ -95,6 +96,7 @@ export function MonitoreoDetailPage() {
   const nav = useNavigate();
   const { monitoreoCodigo } = useParams();
   const { profile, profileLoading } = useAuth();
+  const { isTestMode } = useAppConfig();
 
   const [loading, setLoading] = useState(true);
   const [monitoreo, setMonitoreo] = useState<MonitoreoRow | null>(null);
@@ -119,6 +121,7 @@ export function MonitoreoDetailPage() {
           .select("id, codigo, nombre, descripcion, anio, is_active, fecha_fin")
           .eq("codigo", monitoreoCodigo)
           .eq("is_active", true)
+          .eq("is_test", isTestMode)
           .order("anio", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -187,7 +190,7 @@ export function MonitoreoDetailPage() {
     return () => {
       alive = false;
     };
-  }, [monitoreoCodigo, profileLoading, profile?.id, profile?.role]);
+  }, [monitoreoCodigo, profileLoading, profile?.id, profile?.role, isTestMode]);
 
   const cards = useMemo(() => fichas, [fichas]);
 
