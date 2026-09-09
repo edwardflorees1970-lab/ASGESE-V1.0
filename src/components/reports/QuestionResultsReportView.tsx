@@ -15,7 +15,7 @@ export function QuestionResultsReportView({ report }: { report: QuestionResultsR
       </div>
 
       {primary && (
-        <div className="grid gap-4 2xl:grid-cols-[1fr_1.2fr]">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
           <DashboardPanel title="Pregunta seleccionada" description={`${primary.question_type} · ${primary.axis}`}>
             <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-5 text-base leading-7 text-white/85">{primary.question_text}</div>
           </DashboardPanel>
@@ -25,13 +25,13 @@ export function QuestionResultsReportView({ report }: { report: QuestionResultsR
 
       <QuestionsConsolidatedPanel questions={report.questions} />
 
-      <div className="grid gap-4 2xl:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {report.questions.slice(0, 12).map((question) => (
           <BarSeriesPanel key={`${question.question_id}-${question.axis}`} title={`Ítem ${question.question_order}: ${question.question_text}`} description={`Dimensión: ${question.axis} · Base: ${question.total}`} data={question.distribution} horizontal={false} limit={12} />
         ))}
       </div>
 
-      <div className="grid gap-4 2xl:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <ResponseMatrixTable title="Matriz de resultados por institución" rows={report.by_institution} />
         <ResponseMatrixTable title="Matriz de resultados por REI" rows={report.by_rei} />
         <ResponseMatrixTable title="Matriz de resultados por distrito" rows={report.by_district} />
