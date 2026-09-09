@@ -57,6 +57,7 @@ export type ReportFilterOptions = {
 };
 
 export type SeriesItem = { label: string; value: number };
+export type StatusSeriesItem = { label: string; finalizada: number; en_proceso: number; value: number };
 export type MatrixItem = { label: string; axis: string; response: string; value: number; percentage: number };
 
 export type ExecutiveReport = {
@@ -68,9 +69,9 @@ export type ExecutiveReport = {
     institution_count: number;
     unlinked_institution_count: number;
   };
-  by_monitor: SeriesItem[];
-  by_rei: SeriesItem[];
-  by_district: SeriesItem[];
+  by_monitor: StatusSeriesItem[];
+  by_rei: StatusSeriesItem[];
+  by_district: StatusSeriesItem[];
   by_month: SeriesItem[];
   by_status: SeriesItem[];
 };
