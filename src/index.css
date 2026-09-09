@@ -1633,15 +1633,18 @@ button:hover .agebre-action-icon {
   text-overflow: ellipsis;
 }
 
-/* Aviso temporal de vigencia al iniciar sesión: toast compacto, esquina
-   inferior derecha -- lejos del topbar y del contenido de la pagina.
+/* Aviso temporal de vigencia al iniciar sesión: toast compacto.
+   Antes vivia abajo-derecha -- zona muerta de atencion que el ojo no
+   visita por defecto. Se mueve arriba-derecha, bajo el topbar y cerca
+   del avatar/badge de entorno, que es donde la vista ya cae al cargar
+   la pagina (mismo principio que Gmail/Slack/GitHub para toasts).
    Ambar vivo (rgb 245 158 11) igual al de .badge-amber y los chips del
    dashboard; var(--app-warning) es mas apagado/marron y desentonaba. */
 .expiry-toast {
   --expiry-amber: 245 158 11;
   position: fixed;
   z-index: 115;
-  bottom: 1.5rem;
+  top: 5.25rem;
   right: 1.5rem;
   width: min(22rem, calc(100vw - 2.5rem));
   border: 1.5px solid rgb(var(--expiry-amber) / 45%);
@@ -1703,7 +1706,7 @@ button:hover .agebre-action-icon {
 .expiry-toast-chip-muted { color: var(--app-muted-2); }
 
 @keyframes expiryToastIn {
-  from { opacity: 0; transform: translate3d(0, .75rem, 0) scale(.97); }
+  from { opacity: 0; transform: translate3d(0, -.75rem, 0) scale(.97); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
@@ -1755,7 +1758,7 @@ button:hover .agebre-action-icon {
 .reports-run-count svg { width: .8rem; height: .8rem; }
 
 @media (max-width: 639px) {
-  .expiry-toast { right: .75rem; bottom: .75rem; width: calc(100vw - 1.5rem); }
+  .expiry-toast { top: 4.5rem; right: .75rem; width: calc(100vw - 1.5rem); }
   .reports-monitor-meta { align-items: flex-start; }
 }
 
