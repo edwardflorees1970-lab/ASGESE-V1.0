@@ -6,8 +6,8 @@ describe("analyticsReportExportTable", () => {
   it("convierte el reporte ejecutivo a filas por dimension", () => {
     const report: ExecutiveReport = {
       kpis: { total_runs: 2, finalized_runs: 1, draft_runs: 1, monitor_count: 1, institution_count: 2, unlinked_institution_count: 0 },
-      by_monitor: [{ label: "Monitor A", value: 2 }],
-      by_rei: [{ label: "01", value: 2 }],
+      by_monitor: [{ label: "Monitor A", finalizada: 1, en_proceso: 1, value: 2 }],
+      by_rei: [{ label: "01", finalizada: 1, en_proceso: 1, value: 2 }],
       by_district: [],
       by_month: [],
       by_status: [],

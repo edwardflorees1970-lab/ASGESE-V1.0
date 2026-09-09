@@ -54,7 +54,7 @@ export function analyticsReportExportTable(
     };
   }
   const executive = report as ExecutiveReport;
-  const dimensionRows = (dimension: string, items: ExecutiveReport["by_monitor"]) => {
+  const dimensionRows = (dimension: string, items: Array<{ label: string; value: number }>) => {
     const total = items.reduce((sum, item) => sum + Number(item.value), 0);
     return items.map((item) => ({
       dimension,
