@@ -41,7 +41,7 @@ function FilterSection({
         <span>{title}</span>
         {hint && <span className="report-filter-section-hint">{hint}</span>}
       </div>
-      <div className="mt-2.5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">{children}</div>
+      <div className="mt-2 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-1">{children}</div>
     </div>
   );
 }
@@ -79,7 +79,7 @@ export function ReportFilterPanel({
       </div>
 
       {reportTypeInfo && (
-        <div className="report-filter-guide mt-3 flex items-start gap-2.5 rounded-xl border p-3">
+        <div className="report-filter-guide mt-3 flex items-start gap-2.5 rounded-xl border">
           <DashboardIcon name="trend" className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0 text-xs leading-5">
             <strong className="block text-white/85">{reportTypeInfo.title}</strong>
@@ -88,7 +88,7 @@ export function ReportFilterPanel({
         </div>
       )}
 
-      <div className="report-filter-sections mt-4">
+      <div className="report-filter-sections mt-3">
         <FilterSection icon="calendar" title="Periodo">
           <DashboardSelect icon="calendar" label="Año" value={filters.year} options={optionsWithAll(options.years, "Todos los años")} onChange={(value) => onChange({ year: value })} />
           <DashboardSelect icon="calendar" label="Mes" value={filters.month} options={MONTH_OPTIONS} onChange={(value) => onChange({ month: value })} />
@@ -106,15 +106,17 @@ export function ReportFilterPanel({
         </FilterSection>
 
         <FilterSection icon="people" title="Quién y en qué nivel">
-          <SearchableFilter label="Monitor" value={searchableValue(filters.monitor_id)} options={options.monitors} allLabel="Todos los monitores" placeholder="Buscar monitor..." onChange={searchableChange("monitor_id")} />
           <DashboardSelect icon="activity" label="Nivel" value={filters.nivel} options={optionsWithAll(options.levels, "Todos los niveles")} onChange={(value) => onChange({ nivel: value })} />
           <DashboardSelect icon="people" label="REI" value={filters.rei} options={optionsWithAll(options.reis, "Todas las REI")} onChange={(value) => onChange({ rei: value })} />
+          <div className="sm:col-span-2 xl:col-span-1">
+            <SearchableFilter label="Monitor" value={searchableValue(filters.monitor_id)} options={options.monitors} allLabel="Todos los monitores" placeholder="Buscar monitor..." onChange={searchableChange("monitor_id")} />
+          </div>
         </FilterSection>
       </div>
 
-      <details className="report-filter-advanced mt-4 rounded-xl border border-white/10 bg-white/[0.025] p-3">
+      <details className="report-filter-advanced mt-3 rounded-xl border border-white/10 bg-white/[0.025] p-3">
         <summary className="cursor-pointer text-xs font-semibold text-white/65">Filtros avanzados <span className="text-white/35">· institución, distrito, estado, fechas exactas</span></summary>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+        <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
           <SearchableFilter label="Institución" value={searchableValue(filters.institucion_id)} options={options.institutions} allLabel="Todas las instituciones" placeholder="Buscar institución..." onChange={searchableChange("institucion_id")} />
           <DashboardSelect icon="target" label="Distrito" value={filters.distrito} options={optionsWithAll(options.districts, "Todos los distritos")} onChange={(value) => onChange({ distrito: value })} />
           <DashboardSelect icon="check" label="Estado" value={filters.status} options={STATUS_OPTIONS} onChange={(value) => onChange({ status: value })} />
@@ -129,7 +131,7 @@ export function ReportFilterPanel({
         </div>
       </details>
 
-      <button type="button" disabled={loading} onClick={onGenerate} className="executive-primary-action mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-60">
+      <button type="button" disabled={loading} onClick={onGenerate} className="executive-primary-action mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-60">
         <DashboardIcon name={loading ? "clock" : "trend"} className="h-4 w-4" />
         {loading ? "Generando reporte..." : "Generar reporte"}
       </button>
