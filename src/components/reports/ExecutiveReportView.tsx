@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { KpiCard } from "../dashboard/DashboardWidgets";
 import type { ExecutiveReport } from "../../lib/analyticsReportsApi";
-import { BarSeriesPanel, PieSeriesPanel, ReportVisualActions, ReportVisualModal } from "./ReportCharts";
+import { PieSeriesPanel, ReportVisualActions, ReportVisualModal, StatusBarSeriesPanel } from "./ReportCharts";
 
 const format = new Intl.NumberFormat("es-PE");
 
@@ -17,9 +17,9 @@ function ExecutiveContent({ report, expanded = false }: { report: ExecutiveRepor
         <KpiCard label="Instituciones" value={format.format(report.kpis.institution_count)} detail={report.kpis.unlinked_institution_count ? `${report.kpis.unlinked_institution_count} fichas requieren vinculación` : "Todas las fichas están vinculadas"} icon="target" className={expanded ? "sm:col-span-2 xl:col-span-1" : "sm:col-span-2 2xl:col-span-1"} />
       </div>
       <div className={`grid gap-4 ${expanded ? "xl:grid-cols-2" : "2xl:grid-cols-2"}`}>
-        <BarSeriesPanel title="Recuento de fichas por monitor" data={report.by_monitor} />
-        <BarSeriesPanel title="Recuento de fichas por REI" data={report.by_rei} />
-        <BarSeriesPanel title="Recuento de fichas por distrito" data={report.by_district} />
+        <StatusBarSeriesPanel title="Fichas por monitor" description="Finalizada vs en proceso. Incluye monitores asignados sin fichas." data={report.by_monitor} />
+        <StatusBarSeriesPanel title="Fichas por REI" description="Finalizada vs en proceso. Incluye REI sin actividad." data={report.by_rei} />
+        <StatusBarSeriesPanel title="Fichas por distrito" description="Finalizada vs en proceso. Incluye distritos sin actividad." data={report.by_district} />
         <PieSeriesPanel title="Distribución por mes de registro" data={report.by_month} />
       </div>
     </div>

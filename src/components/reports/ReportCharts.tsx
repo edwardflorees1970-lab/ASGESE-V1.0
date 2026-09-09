@@ -17,7 +17,7 @@ import {
 import { DashboardPanel, EmptyChart } from "../dashboard/DashboardWidgets";
 import { exportChartElementAsPng } from "../../lib/chartImageExport";
 import { EXECUTIVE_CHART, EXECUTIVE_CHART_COLORS } from "../../lib/designSystem";
-import type { CrossItem, MatrixItem, QuestionDistribution, SeriesItem } from "../../lib/analyticsReportsApi";
+import type { CrossItem, MatrixItem, QuestionDistribution, SeriesItem, StatusSeriesItem } from "../../lib/analyticsReportsApi";
 
 const COLORS = EXECUTIVE_CHART_COLORS;
 const CHART_TICK_COLOR = "var(--report-chart-tick)";
@@ -192,6 +192,107 @@ export function BarSeriesPanel({ title, description, data, horizontal = true, li
       </DashboardPanel>
       {expanded && <ReportVisualModal title={title} wide={visible.length > 10} autoExport={autoExport} onAutoExported={() => setAutoExport(false)} onClose={() => { setExpanded(false); setAutoExport(false); }} details={<StaticSeriesDetails data={visible} />}>
         {!visible.length ? <EmptyChart /> : <SeriesBarChart data={visible} horizontal={horizontal} expanded />}
+      </ReportVisualModal>}
+    </>
+  );
+}
+
+type DisplayStatusSeriesItem = StatusSeriesItem & { display: string };
+
+function withStatusDisplay(data: StatusSeriesItem[]): DisplayStatusSeriesItem[] {
+  return data.map((item) => ({
+    ...item,
+    finalizada: Number(item.finalizada ?? 0),
+    en_proceso: Number(item.en_proceso ?? 0),
+    value: Number(item.value ?? (item.finalizada ?? 0) + (item.en_proceso ?? 0)),
+    display: shortLabel(item.label),
+  }));
+}
+
+function StatusSeriesTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: Array<{ payload?: DisplayStatusSeriesItem }>;
+  label?: string | number;
+}) {
+  if (!active || !payload?.length) return null;
+  const item = payload[0]?.payload;
+  if (!item) return null;
+  return (
+    <div className="dashboard-chart-tooltip min-w-44 rounded-xl border border-white/10 px-3 py-2 shadow-2xl">
+      <div className="mb-1.5 text-[11px] font-semibold text-white/70">{item.label ?? label}</div>
+      <div className="flex items-center justify-between gap-4 text-xs"><span className="text-white/55">Finalizada</span><strong className="text-emerald-300">{item.finalizada.toLocaleString("es-PE")}</strong></div>
+      <div className="mt-1 flex items-center justify-between gap-4 text-xs"><span className="text-white/55">En proceso</span><strong className="text-amber-300">{item.en_proceso.toLocaleString("es-PE")}</strong></div>
+      <div className="mt-1.5 flex items-center justify-between gap-4 border-t border-white/10 pt-1.5 text-xs"><span className="text-white/55">Total</span><strong>{item.value.toLocaleString("es-PE")}</strong></div>
+    </div>
+  );
+}
+
+function StatusSeriesBarChart({ data, horizontal, expanded = false }: { data: DisplayStatusSeriesItem[]; horizontal: boolean; expanded?: boolean }) {
+  const height = horizontal
+    ? Math.min(expanded ? 960 : 720, Math.max(expanded ? 260 : 230, data.length * (expanded ? 46 : 36) + 90))
+    : Math.min(expanded ? 560 : 440, Math.max(expanded ? 300 : 260, 250 + data.length * (expanded ? 22 : 16)));
+  return (
+    <div style={{ height }} className="min-w-0">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={{ top: 28, right: expanded ? 38 : 22, bottom: horizontal ? 8 : 72, left: horizontal ? (expanded ? 70 : 30) : 0 }}>
+          <CartesianGrid stroke={EXECUTIVE_CHART.grid} strokeDasharray="3 3" horizontal={!horizontal} vertical={horizontal} />
+          {horizontal ? <>
+            <XAxis type="number" domain={[0, (maximum: number) => Math.max(1, Math.ceil(maximum * 1.22))]} tick={{ fill: CHART_TICK_COLOR, fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis type="category" dataKey="display" interval={0} minTickGap={0} width={expanded ? 200 : 145} tick={{ fill: CHART_LABEL_COLOR, fontSize: expanded ? 12 : 10 }} axisLine={false} tickLine={false} />
+          </> : <>
+            <XAxis dataKey="display" interval={0} minTickGap={0} angle={-35} textAnchor="end" height={78} tick={{ fill: CHART_TICK_COLOR, fontSize: expanded ? 11 : 9 }} axisLine={false} tickLine={false} />
+            <YAxis domain={[0, (maximum: number) => Math.max(1, Math.ceil(maximum * 1.18))]} tick={{ fill: CHART_TICK_COLOR, fontSize: 10 }} axisLine={false} tickLine={false} />
+          </>}
+          <Tooltip content={<StatusSeriesTooltip />} />
+          <Legend formatter={(value) => String(value)} wrapperStyle={{ fontSize: expanded ? 12 : 10 }} />
+          <Bar isAnimationActive={false} stackId="status" dataKey="finalizada" name="Finalizada" fill={EXECUTIVE_CHART.secondary} maxBarSize={expanded ? 34 : 28} />
+          <Bar isAnimationActive={false} stackId="status" dataKey="en_proceso" name="En proceso" fill={EXECUTIVE_CHART.warning} radius={horizontal ? [0, 5, 5, 0] : [5, 5, 0, 0]} maxBarSize={expanded ? 34 : 28}>
+            <LabelList dataKey="value" position={horizontal ? "right" : "top"} fill={CHART_LABEL_COLOR} fontSize={expanded ? 11 : 9} />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function StaticStatusSeriesDetails({ data }: { data: DisplayStatusSeriesItem[] }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {data.map((item, index) => (
+        <div key={`${item.label}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs">
+          <div className="truncate text-white/55" title={item.label}>{item.label}</div>
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <strong className="text-base text-white">{item.value.toLocaleString("es-PE")}</strong>
+            <span className="font-semibold text-emerald-300">{item.finalizada}</span>
+            <span className="font-semibold text-amber-300">{item.en_proceso}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Como BarSeriesPanel, pero apila finalizada/en_proceso en vez de un solo
+ * conteo -- sin esto, un monitor/REI/distrito con muchas fichas "en
+ * proceso" se ve igual que uno con las mismas fichas ya finalizadas.
+ */
+export function StatusBarSeriesPanel({ title, description, data, horizontal = true, limit }: {
+  title: string; description?: string; data: StatusSeriesItem[]; horizontal?: boolean; limit?: number;
+}) {
+  const visible = useMemo(() => withStatusDisplay(limit ? data.slice(0, limit) : data), [data, limit]);
+  const [expanded, setExpanded] = useState(false);
+  const [autoExport, setAutoExport] = useState(false);
+  const openForExport = () => { setAutoExport(true); setExpanded(true); };
+  return (
+    <>
+      <DashboardPanel title={title} description={description} action={<ReportVisualActions onView={() => setExpanded(true)} onImage={openForExport} />}>
+        <div data-export-expand="true" role="img" aria-label={`${title}. Gráfico de barras con ${visible.length} categorías, finalizada vs en proceso.`} className="mt-4 max-h-[32rem] min-w-0 overflow-y-auto overflow-x-hidden">
+          {!visible.length ? <EmptyChart /> : <StatusSeriesBarChart data={visible} horizontal={horizontal} />}
+        </div>
+      </DashboardPanel>
+      {expanded && <ReportVisualModal title={title} wide={visible.length > 10} autoExport={autoExport} onAutoExported={() => setAutoExport(false)} onClose={() => { setExpanded(false); setAutoExport(false); }} details={<StaticStatusSeriesDetails data={visible} />}>
+        {!visible.length ? <EmptyChart /> : <StatusSeriesBarChart data={visible} horizontal={horizontal} expanded />}
       </ReportVisualModal>}
     </>
   );
