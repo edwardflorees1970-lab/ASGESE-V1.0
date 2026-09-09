@@ -1644,13 +1644,13 @@ button:hover .agebre-action-icon {
   bottom: 1.5rem;
   right: 1.5rem;
   width: min(22rem, calc(100vw - 2.5rem));
-  border: 1px solid var(--app-border);
+  border: 1.5px solid rgb(var(--expiry-amber) / 45%);
   border-radius: var(--app-radius-lg);
   padding: .75rem .8rem;
   color: var(--app-text);
   background: var(--app-surface);
-  box-shadow: var(--app-shadow-md);
-  animation: expiryToastIn 320ms var(--app-ease) both;
+  box-shadow: var(--app-shadow-md), 0 0 0 4px rgb(var(--expiry-amber) / 9%);
+  animation: expiryToastIn 320ms var(--app-ease) both, expiryToastPulse 1.8s ease-out 320ms 2;
 }
 
 .expiry-toast-row { display: flex; align-items: center; gap: .65rem; }
@@ -1705,6 +1705,13 @@ button:hover .agebre-action-icon {
 @keyframes expiryToastIn {
   from { opacity: 0; transform: translate3d(0, .75rem, 0) scale(.97); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* Dos pulsos suaves al aparecer para que no se pierda contra el fondo
+   blanco de la pagina -- luego queda quieto, sin molestar. */
+@keyframes expiryToastPulse {
+  0%, 100% { box-shadow: var(--app-shadow-md), 0 0 0 4px rgb(var(--expiry-amber) / 9%); }
+  50% { box-shadow: var(--app-shadow-md), 0 0 0 9px rgb(var(--expiry-amber) / 16%); }
 }
 
 /* Confirmación institucional previa a cada descarga. */
