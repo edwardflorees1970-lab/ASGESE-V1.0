@@ -1633,6 +1633,35 @@ button:hover .agebre-action-icon {
   text-overflow: ellipsis;
 }
 
+/* Guia contextual: recuerda que reporte se esta armando y para que sirve,
+   sin depender de que el usuario haya visto la tarjeta de arriba. */
+.report-filter-guide {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--analytics-accent, var(--app-accent)) 8%, var(--app-surface));
+  border-color: color-mix(in srgb, var(--analytics-accent, var(--app-accent)) 30%, var(--app-border));
+}
+.report-filter-guide svg { color: var(--analytics-accent, var(--app-accent)); }
+
+/* Secciones agrupadas por que representa cada filtro (cuando / que ver /
+   quien y en que nivel) en vez de una lista plana sin jerarquia. */
+.report-filter-sections { display: grid; gap: 1.1rem; }
+.report-filter-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: .4rem;
+  color: var(--analytics-accent, var(--app-accent));
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.report-filter-section-head svg { flex: 0 0 auto; }
+.report-filter-section-hint { color: var(--app-muted); font-size: .62rem; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.report-filter-section + .report-filter-section { padding-top: .9rem; border-top: 1px dashed var(--app-border); }
+
+.report-filter-advanced summary { list-style: none; }
+.report-filter-advanced summary::-webkit-details-marker { display: none; }
+
 /* Aviso temporal de vigencia al iniciar sesión: toast compacto.
    Antes vivia abajo-derecha -- zona muerta de atencion que el ojo no
    visita por defecto. Se mueve arriba-derecha, bajo el topbar y cerca

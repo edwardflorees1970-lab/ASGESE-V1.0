@@ -1,4 +1,5 @@
 import { DashboardIcon, DashboardSelect, SearchableFilter } from "../dashboard/DashboardWidgets";
+import type { IconName } from "../dashboard/DashboardWidgets";
 import type {
   AnalyticsReportFilters,
   AnalyticsReportType,
@@ -22,8 +23,32 @@ function optionsWithAll(options: ReportOption[], allLabel: string) {
   return [{ value: "", label: allLabel }, ...options];
 }
 
+function FilterSection({
+  icon,
+  title,
+  hint,
+  children,
+}: {
+  icon: IconName;
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="report-filter-section">
+      <div className="report-filter-section-head">
+        <DashboardIcon name={icon} className="h-3.5 w-3.5" />
+        <span>{title}</span>
+        {hint && <span className="report-filter-section-hint">{hint}</span>}
+      </div>
+      <div className="mt-2.5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">{children}</div>
+    </div>
+  );
+}
+
 export function ReportFilterPanel({
   reportType,
+  reportTypeInfo,
   filters,
   options,
   loading,
@@ -32,6 +57,7 @@ export function ReportFilterPanel({
   onReset,
 }: {
   reportType: AnalyticsReportType;
+  reportTypeInfo?: { title: string; description: string };
   filters: AnalyticsReportFilters;
   options: ReportFilterOptions;
   loading: boolean;
@@ -52,29 +78,46 @@ export function ReportFilterPanel({
         <button type="button" onClick={onReset} className="report-filter-reset ml-auto shrink-0 whitespace-nowrap rounded-lg border border-white/10 px-2.5 py-1.5 text-center text-xs leading-5 text-white/60 hover:bg-white/5">Limpiar</button>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-        <DashboardSelect label="Año" value={filters.year} options={optionsWithAll(options.years, "Todos los años")} onChange={(value) => onChange({ year: value })} />
-        <DashboardSelect label="Mes" value={filters.month} options={MONTH_OPTIONS} onChange={(value) => onChange({ month: value })} />
-        <SearchableFilter label="Monitoreo" value={searchableValue(filters.monitoreo_id)} options={options.monitorings} allLabel="Todos los monitoreos" placeholder="Buscar monitoreo..." onChange={searchableChange("monitoreo_id")} />
-        <DashboardSelect label="Ficha" value={filters.template_id} options={optionsWithAll(options.templates, "Todas las fichas")} onChange={(value) => onChange({ template_id: value, question_id: "", response: "" })} />
-        <SearchableFilter label="Monitor" value={searchableValue(filters.monitor_id)} options={options.monitors} allLabel="Todos los monitores" placeholder="Buscar monitor..." onChange={searchableChange("monitor_id")} />
-        <DashboardSelect label="Nivel" value={filters.nivel} options={optionsWithAll(options.levels, "Todos los niveles")} onChange={(value) => onChange({ nivel: value })} />
-        <DashboardSelect label="REI" value={filters.rei} options={optionsWithAll(options.reis, "Todas las REI")} onChange={(value) => onChange({ rei: value })} />
+      {reportTypeInfo && (
+        <div className="report-filter-guide mt-3 flex items-start gap-2.5 rounded-xl border p-3">
+          <DashboardIcon name="trend" className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="min-w-0 text-xs leading-5">
+            <strong className="block text-white/85">{reportTypeInfo.title}</strong>
+            <span className="text-white/50">{reportTypeInfo.description}</span>
+          </div>
+        </div>
+      )}
 
-        {reportType === "results" && (
-          <>
-            <SearchableFilter label="Pregunta" value={searchableValue(filters.question_id)} options={options.questions} allLabel="Todas las preguntas" placeholder="Buscar pregunta..." onChange={searchableChange("question_id")} />
-            <DashboardSelect label="Respuesta" value={filters.response} options={optionsWithAll(options.responses, "Todas las respuestas")} onChange={(value) => onChange({ response: value })} />
-          </>
-        )}
+      <div className="report-filter-sections mt-4">
+        <FilterSection icon="calendar" title="Periodo">
+          <DashboardSelect icon="calendar" label="Año" value={filters.year} options={optionsWithAll(options.years, "Todos los años")} onChange={(value) => onChange({ year: value })} />
+          <DashboardSelect icon="calendar" label="Mes" value={filters.month} options={MONTH_OPTIONS} onChange={(value) => onChange({ month: value })} />
+        </FilterSection>
+
+        <FilterSection icon="target" title="Qué reporte ver">
+          <SearchableFilter label="Monitoreo" value={searchableValue(filters.monitoreo_id)} options={options.monitorings} allLabel="Todos los monitoreos" placeholder="Buscar monitoreo..." onChange={searchableChange("monitoreo_id")} />
+          <DashboardSelect icon="target" label="Ficha" value={filters.template_id} options={optionsWithAll(options.templates, "Todas las fichas")} onChange={(value) => onChange({ template_id: value, question_id: "", response: "" })} />
+          {reportType === "results" && (
+            <>
+              <SearchableFilter label="Pregunta" value={searchableValue(filters.question_id)} options={options.questions} allLabel="Todas las preguntas" placeholder="Buscar pregunta..." onChange={searchableChange("question_id")} />
+              <DashboardSelect icon="check" label="Respuesta" value={filters.response} options={optionsWithAll(options.responses, "Todas las respuestas")} onChange={(value) => onChange({ response: value })} />
+            </>
+          )}
+        </FilterSection>
+
+        <FilterSection icon="people" title="Quién y en qué nivel">
+          <SearchableFilter label="Monitor" value={searchableValue(filters.monitor_id)} options={options.monitors} allLabel="Todos los monitores" placeholder="Buscar monitor..." onChange={searchableChange("monitor_id")} />
+          <DashboardSelect icon="activity" label="Nivel" value={filters.nivel} options={optionsWithAll(options.levels, "Todos los niveles")} onChange={(value) => onChange({ nivel: value })} />
+          <DashboardSelect icon="people" label="REI" value={filters.rei} options={optionsWithAll(options.reis, "Todas las REI")} onChange={(value) => onChange({ rei: value })} />
+        </FilterSection>
       </div>
 
-      <details className="mt-4 rounded-xl border border-white/10 bg-white/[0.025] p-3">
-        <summary className="cursor-pointer text-xs font-semibold text-white/65">Filtros avanzados</summary>
+      <details className="report-filter-advanced mt-4 rounded-xl border border-white/10 bg-white/[0.025] p-3">
+        <summary className="cursor-pointer text-xs font-semibold text-white/65">Filtros avanzados <span className="text-white/35">· institución, distrito, estado, fechas exactas</span></summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
           <SearchableFilter label="Institución" value={searchableValue(filters.institucion_id)} options={options.institutions} allLabel="Todas las instituciones" placeholder="Buscar institución..." onChange={searchableChange("institucion_id")} />
-          <DashboardSelect label="Distrito" value={filters.distrito} options={optionsWithAll(options.districts, "Todos los distritos")} onChange={(value) => onChange({ distrito: value })} />
-          <DashboardSelect label="Estado" value={filters.status} options={STATUS_OPTIONS} onChange={(value) => onChange({ status: value })} />
+          <DashboardSelect icon="target" label="Distrito" value={filters.distrito} options={optionsWithAll(options.districts, "Todos los distritos")} onChange={(value) => onChange({ distrito: value })} />
+          <DashboardSelect icon="check" label="Estado" value={filters.status} options={STATUS_OPTIONS} onChange={(value) => onChange({ status: value })} />
           <label className="text-[11px] font-semibold uppercase tracking-[0.11em] text-white/45">
             Fecha desde
             <input type="date" value={filters.date_from} onChange={(event) => onChange({ date_from: event.target.value })} className="dashboard-control mt-2 h-11 w-full rounded-xl border px-3 text-sm text-white outline-none" />

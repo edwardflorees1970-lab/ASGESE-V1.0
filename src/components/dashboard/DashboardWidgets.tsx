@@ -2,7 +2,7 @@ import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } 
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-type IconName =
+export type IconName =
   | "activity"
   | "check"
   | "clock"
@@ -225,11 +225,13 @@ export function DashboardSelect({
   value,
   options,
   onChange,
+  icon = "calendar",
 }: {
   label: string;
   value: string;
   options: readonly Option[];
   onChange: (value: string) => void;
+  icon?: IconName;
 }) {
   const [open, setOpen] = useState(false);
   const { anchorRef, menuPosition } = useFloatingMenu<HTMLButtonElement>(open, 256);
@@ -245,7 +247,7 @@ export function DashboardSelect({
   return (
     <div className="relative min-w-0">
       <span id={labelId} className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.11em] text-white/45">
-        <DashboardIcon name="calendar" className="h-3.5 w-3.5" />{label}
+        <DashboardIcon name={icon} className="h-3.5 w-3.5" />{label}
       </span>
       <button
         ref={anchorRef}

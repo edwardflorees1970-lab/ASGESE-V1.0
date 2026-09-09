@@ -237,7 +237,7 @@ export function AnalyticsReportsPage() {
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         <div className="print:hidden xl:sticky xl:top-0 xl:self-start">
-          <ReportFilterPanel reportType={reportType} filters={filters} options={options} loading={loading || loadingOptions} onChange={patchFilters} onGenerate={() => void runReport(0)} onReset={() => { setFilters({ ...EMPTY_REPORT_FILTERS }); setGenerated(null); setError(null); }} />
+          <ReportFilterPanel reportType={reportType} reportTypeInfo={REPORT_TYPES.find((item) => item.type === reportType)} filters={filters} options={options} loading={loading || loadingOptions} onChange={patchFilters} onGenerate={() => void runReport(0)} onReset={() => { setFilters({ ...EMPTY_REPORT_FILTERS }); setGenerated(null); setError(null); }} />
         </div>
 
         <main className="min-w-0" aria-live="polite" aria-busy={loading}>
