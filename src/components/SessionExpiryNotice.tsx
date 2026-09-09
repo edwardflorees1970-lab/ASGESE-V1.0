@@ -20,9 +20,8 @@ function addDays(dateOnly: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-function formatDate(dateOnly: string) {
-  const [year, month, day] = dateOnly.split("-");
-  return `${day}/${month}/${year}`;
+function daysLabel(days: number) {
+  return days <= 0 ? "Hoy" : `${days} d`;
 }
 
 export function SessionExpiryNotice() {
@@ -97,41 +96,43 @@ export function SessionExpiryNotice() {
 
   if (!open || !items.length) return null;
 
+  const first = items[0];
+  const firstDays = daysFromToday(first.fecha_fin) ?? 0;
+  const summary = items.length === 1
+    ? `${first.nombre} vence en ${firstDays <= 0 ? "menos de un día" : `${firstDays} día${firstDays === 1 ? "" : "s"}`}.`
+    : `${items.length} monitoreos vencen en los próximos ${UPCOMING_DAYS} días.`;
+  const ringPct = Math.round((secondsLeft / NOTICE_DURATION_SECONDS) * 100);
+
   return (
-    <section className="expiry-notice" role="dialog" aria-modal="false" aria-labelledby="expiry-notice-title">
-      <div className="expiry-notice-accent" aria-hidden="true" />
-      <div className="expiry-notice-header">
-        <div className="expiry-notice-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17" /><path d="M8 14.5h2M8 17.5h5" /></svg>
+    <section className="expiry-toast" role="status" aria-live="polite" aria-label="Aviso de vigencia">
+      <div className="expiry-toast-row">
+        <div className="expiry-toast-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17" /><path d="M8 14.5h2M8 17.5h5" /></svg>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="expiry-notice-eyebrow">Aviso de vigencia</div>
-          <h2 id="expiry-notice-title">Monitoreos próximos a vencer</h2>
+          <div className="expiry-toast-title">Vigencia próxima</div>
+          <p className="expiry-toast-text">{summary}</p>
         </div>
-        <button type="button" onClick={() => setOpen(false)} className="expiry-notice-close" aria-label="Cerrar aviso">×</button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="expiry-toast-ring"
+          style={{ "--expiry-ring-pct": `${ringPct}%` } as React.CSSProperties}
+          aria-label={`Cerrar aviso (cierre automático en ${secondsLeft} s)`}
+        >
+          <span className="expiry-toast-ring-inner">×</span>
+        </button>
       </div>
-      <p className="expiry-notice-description">
-        Revisa estos monitoreos para evitar interrupciones en el registro de fichas.
-      </p>
-      <div className="expiry-notice-list">
-        {items.slice(0, 5).map((item) => {
-          const days = daysFromToday(item.fecha_fin) ?? 0;
-          return (
-            <div key={item.id} className="expiry-notice-item">
-              <div className="min-w-0">
-                <strong>{item.nombre}</strong>
-                <span>{item.codigo} · {formatDate(item.fecha_fin)}</span>
-              </div>
-              <span className="expiry-notice-days">{days === 0 ? "Hoy" : `${days} d`}</span>
-            </div>
-          );
-        })}
-        {items.length > 5 && <div className="expiry-notice-more">Y {items.length - 5} monitoreo(s) adicional(es)</div>}
-      </div>
-      <div className="expiry-notice-timer">
-        <div className="expiry-notice-timer-label"><span>Cierre automático</span><strong aria-live="polite">{secondsLeft} s</strong></div>
-        <div className="expiry-notice-track"><div style={{ width: `${(secondsLeft / NOTICE_DURATION_SECONDS) * 100}%` }} /></div>
-      </div>
+      {items.length > 1 && (
+        <div className="expiry-toast-chips">
+          {items.slice(0, 4).map((item) => (
+            <span key={item.id} className="expiry-toast-chip" title={item.nombre}>
+              {item.codigo} · {daysLabel(daysFromToday(item.fecha_fin) ?? 0)}
+            </span>
+          ))}
+          {items.length > 4 && <span className="expiry-toast-chip expiry-toast-chip-muted">+{items.length - 4}</span>}
+        </div>
+      )}
     </section>
   );
 }
