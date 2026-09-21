@@ -1543,6 +1543,18 @@ export function FichaDinamicaPage() {
                 <span>{s.titulo}</span>
               </button>
             ))}
+            <button
+              type="button"
+              className="dynamic-section-link"
+              onClick={() => {
+                const el = document.getElementById("section-cierre");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                setSectionNavOpen(false);
+              }}
+            >
+              <span className="dynamic-section-number">{sections.length + 1}</span>
+              <span>Cierre</span>
+            </button>
           </div>
         </nav>
       </div>
@@ -2272,7 +2284,7 @@ export function FichaDinamicaPage() {
         </div>
       ))}
 
-      <div className="dynamic-form-panel rounded-2xl border p-4 sm:p-5">
+      <div id="section-cierre" className="dynamic-form-panel rounded-2xl border p-4 sm:p-5">
         <div className="text-sm font-semibold">Cierre</div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {effectiveFooterCfg?.observacion && (
