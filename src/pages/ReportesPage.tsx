@@ -3048,7 +3048,11 @@ export function ReportesPage() {
                 </button>
               </div>
             </div>
-            <iframe title="Vista previa PDF" src={previewPdfUrl} className="min-h-0 flex-1 bg-white" />
+            <iframe
+              title="Vista previa PDF"
+              src={`${previewPdfUrl}#toolbar=0&navpanes=0`}
+              className="min-h-0 flex-1 bg-white"
+            />
           </div>
         </div>
       )}
