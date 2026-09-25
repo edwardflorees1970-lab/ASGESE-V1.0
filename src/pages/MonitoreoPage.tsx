@@ -18,9 +18,9 @@ type MonitoreoCard = {
   runCount: number;
 };
 
-function MonitorIcon() {
+function MonitorIcon({ className }: { className?: string } = {}) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className ?? "h-5 w-5"} fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="9" cy="8" r="3" />
       <path d="M3.5 19c.5-3.5 2.3-5.5 5.5-5.5s5 2 5.5 5.5" />
       <path d="M16 7h4M16 11h4M17 15h3" />
@@ -28,9 +28,9 @@ function MonitorIcon() {
   );
 }
 
-function FormsIcon() {
+function FormsIcon({ className }: { className?: string } = {}) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className ?? "h-5 w-5"} fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="6" y="4" width="13" height="16" rx="2" />
       <path d="M3 8v10a3 3 0 0 0 3 3h9M10 9h5M10 13h5M10 17h3" />
     </svg>
@@ -41,9 +41,9 @@ function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-function ClipboardIcon() {
+function ClipboardIcon({ className }: { className?: string } = {}) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className ?? "h-5 w-5"} fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M9 5h6" />
       <path d="M9 3.5h6a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 15 7.5H9A1.5 1.5 0 0 1 7.5 6V5A1.5 1.5 0 0 1 9 3.5Z" />
       <path d="M7.5 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1.5" />
@@ -300,37 +300,29 @@ export function MonitoreoPage() {
         </div>
 
         <div className="monitoring-kpi-grid grid gap-2.5">
-          <div className="monitoring-summary is-runs flex items-center gap-3 rounded-xl border px-3.5 py-3">
-            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><ClipboardIcon /></div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Fichas de monitoreos</div>
-              <div className="monitoring-accent-text mt-0.5 text-2xl font-bold tracking-tight">{loading ? "—" : monitoringRunCount}</div>
-              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Sin registros CdD</div>
-            </div>
+          <div className="monitoring-summary is-runs relative overflow-hidden rounded-xl border px-4 py-3.5">
+            <ClipboardIcon className="monitoring-summary-watermark" />
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--app-muted-2)]">Fichas de monitoreos</div>
+            <div className="monitoring-accent-text mt-1 text-3xl font-bold leading-none tracking-tight">{loading ? "—" : monitoringRunCount}</div>
+            <div className="mt-1.5 text-[11px] text-[var(--app-muted)]">Sin registros CdD</div>
           </div>
-          <div className="monitoring-summary is-cdd flex items-center gap-3 rounded-xl border px-3.5 py-3">
-            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><ClipboardIcon /></div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Fichas CdD</div>
-              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[var(--app-violet)]">{loading ? "—" : cddRunCount}</div>
-              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Registros responsable CdD</div>
-            </div>
+          <div className="monitoring-summary is-cdd relative overflow-hidden rounded-xl border px-4 py-3.5">
+            <ClipboardIcon className="monitoring-summary-watermark" />
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--app-muted-2)]">Fichas CdD</div>
+            <div className="mt-1 text-3xl font-bold leading-none tracking-tight text-[var(--app-violet)]">{loading ? "—" : cddRunCount}</div>
+            <div className="mt-1.5 text-[11px] text-[var(--app-muted)]">Registros responsable CdD</div>
           </div>
-          <div className="monitoring-summary is-monitorings flex items-center gap-3 rounded-xl border px-3.5 py-3">
-            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><MonitorIcon /></div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Monitoreos</div>
-              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[var(--app-info)]">{loading ? "—" : monitoreos.length}</div>
-              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Monitoreos activos</div>
-            </div>
+          <div className="monitoring-summary is-monitorings relative overflow-hidden rounded-xl border px-4 py-3.5">
+            <MonitorIcon className="monitoring-summary-watermark" />
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--app-muted-2)]">Monitoreos</div>
+            <div className="mt-1 text-3xl font-bold leading-none tracking-tight text-[var(--app-info)]">{loading ? "—" : monitoreos.length}</div>
+            <div className="mt-1.5 text-[11px] text-[var(--app-muted)]">Monitoreos activos</div>
           </div>
-          <div className="monitoring-summary is-forms flex items-center gap-3 rounded-xl border px-3.5 py-3">
-            <div className="monitoring-summary-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><FormsIcon /></div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-[var(--app-muted)]">Fichas configuradas</div>
-              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[var(--app-warning)]">{loading ? "—" : totalFichaCount}</div>
-              <div className="mt-0.5 text-[10px] text-[var(--app-muted-2)]">Fichas configuradas</div>
-            </div>
+          <div className="monitoring-summary is-forms relative overflow-hidden rounded-xl border px-4 py-3.5">
+            <FormsIcon className="monitoring-summary-watermark" />
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--app-muted-2)]">Fichas configuradas</div>
+            <div className="mt-1 text-3xl font-bold leading-none tracking-tight text-[var(--app-warning)]">{loading ? "—" : totalFichaCount}</div>
+            <div className="mt-1.5 text-[11px] text-[var(--app-muted)]">Fichas configuradas</div>
           </div>
         </div>
       </section>
