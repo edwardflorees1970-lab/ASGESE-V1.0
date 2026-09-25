@@ -1326,6 +1326,14 @@ button:hover .agebre-action-icon {
   .monitoring-grid > :where(.monitoring-empty-state, .monitoring-grid-message) { grid-column: 1 / -1; }
 }
 
+@container (min-width: 50rem) {
+  .monitoring-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@container (min-width: 68rem) {
+  .monitoring-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 [data-theme="dark"] .monitoring-page {
   --monitoring-accent: #16a49d;
   --monitoring-accent-strong: #54d0ca;
