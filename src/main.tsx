@@ -1,6 +1,7 @@
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.tsx";
+import "@fontsource-variable/outfit";
 import "./index.css";
 import { AuthProvider } from "./app/AuthProvider";
 import { ThemeProvider } from "./app/ThemeProvider";
