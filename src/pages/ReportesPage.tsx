@@ -3022,10 +3022,15 @@ export function ReportesPage() {
       {previewPdfUrl && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
           <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <div className="min-w-0">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-3">
+              <div className="min-w-0 flex-1 pr-2">
                 <div className="truncate text-sm font-semibold text-white">Vista previa</div>
-                <div className="truncate text-xs text-white/60">{previewPdfTitle}</div>
+                <div
+                  className="mt-0.5 text-xs text-white/60"
+                  style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                >
+                  {previewPdfTitle}
+                </div>
               </div>
               <div className="flex shrink-0 gap-2">
                 <button
