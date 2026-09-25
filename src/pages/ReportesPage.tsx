@@ -3027,17 +3027,17 @@ export function ReportesPage() {
                 <div className="truncate text-sm font-semibold text-white">Vista previa</div>
                 <div className="truncate text-xs text-white/60">{previewPdfTitle}</div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                  className="shrink-0 whitespace-nowrap rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                   onClick={() => window.open(previewPdfUrl, "_blank", "noopener,noreferrer")}
                 >
                   Abrir aparte
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                  className="shrink-0 whitespace-nowrap rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                   onClick={() => {
                     URL.revokeObjectURL(previewPdfUrl);
                     setPreviewPdfUrl(null);
