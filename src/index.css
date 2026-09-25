@@ -1195,48 +1195,42 @@ button:hover .agebre-action-icon {
 }
 
 .monitoring-summary {
-  background: color-mix(in srgb, var(--monitoring-accent) 8%, var(--app-surface-2));
-  border-color: color-mix(in srgb, var(--monitoring-accent) 28%, var(--app-border));
+  background: var(--app-surface-2);
+  border-color: var(--app-border);
+  border-left: 3px solid var(--monitoring-accent);
+  transition: transform var(--app-duration-fast) var(--app-ease), box-shadow var(--app-duration-fast) var(--app-ease);
+}
+
+.monitoring-summary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.monitoring-summary-watermark {
+  position: absolute;
+  top: -0.6rem;
+  right: -0.6rem;
+  width: 4rem;
+  height: 4rem;
+  color: var(--monitoring-accent);
+  opacity: 0.1;
+  pointer-events: none;
 }
 
 .monitoring-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
-.monitoring-summary.is-cdd {
-  background: color-mix(in srgb, var(--app-violet) 7%, var(--app-surface-2));
-  border-color: color-mix(in srgb, var(--app-violet) 25%, var(--app-border));
-}
-
-.monitoring-summary.is-cdd .monitoring-summary-icon {
-  color: var(--app-violet);
-  background: color-mix(in srgb, var(--app-violet) 12%, var(--app-surface));
-  border-color: color-mix(in srgb, var(--app-violet) 30%, var(--app-border));
-}
+.monitoring-summary.is-cdd { border-left-color: var(--app-violet); }
+.monitoring-summary.is-cdd .monitoring-summary-watermark { color: var(--app-violet); }
 
 @container (max-width: 48rem) {
   .monitoring-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-.monitoring-summary.is-monitorings {
-  background: color-mix(in srgb, var(--app-info) 7%, var(--app-surface-2));
-  border-color: color-mix(in srgb, var(--app-info) 25%, var(--app-border));
-}
+.monitoring-summary.is-monitorings { border-left-color: var(--app-info); }
+.monitoring-summary.is-monitorings .monitoring-summary-watermark { color: var(--app-info); }
 
-.monitoring-summary.is-monitorings .monitoring-summary-icon {
-  color: var(--app-info);
-  background: color-mix(in srgb, var(--app-info) 12%, var(--app-surface));
-  border-color: color-mix(in srgb, var(--app-info) 30%, var(--app-border));
-}
-
-.monitoring-summary.is-forms {
-  background: color-mix(in srgb, var(--app-warning) 7%, var(--app-surface-2));
-  border-color: color-mix(in srgb, var(--app-warning) 25%, var(--app-border));
-}
-
-.monitoring-summary.is-forms .monitoring-summary-icon {
-  color: var(--app-warning);
-  background: color-mix(in srgb, var(--app-warning) 12%, var(--app-surface));
-  border-color: color-mix(in srgb, var(--app-warning) 30%, var(--app-border));
-}
+.monitoring-summary.is-forms { border-left-color: var(--app-warning); }
+.monitoring-summary.is-forms .monitoring-summary-watermark { color: var(--app-warning); }
 
 .monitoring-toolbar :where(input, select) {
   color: var(--app-text);
