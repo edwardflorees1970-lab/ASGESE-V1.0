@@ -469,6 +469,11 @@ th { font-weight: 650; letter-spacing: 0.01em; }
   font-weight: 750;
   letter-spacing: -0.025em;
   line-height: 1.15;
+  text-wrap: balance;
+}
+
+.agebre-page p {
+  text-wrap: pretty;
 }
 
 .agebre-page h2 { color: var(--app-text); font-weight: 700; letter-spacing: -0.012em; }
