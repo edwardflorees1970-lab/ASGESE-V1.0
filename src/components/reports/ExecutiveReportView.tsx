@@ -64,7 +64,7 @@ function ExecutiveContent({ report, expanded = false }: { report: ExecutiveRepor
         <KpiCard label="Total de fichas" value={format.format(report.kpis.total_runs)} detail="Registros reales, sin fichas TEST" icon="activity" />
         <KpiCard label="Finalizadas" value={format.format(report.kpis.finalized_runs)} detail={`${completion}% del total`} icon="check" tone="emerald" progress={completion} />
         <KpiCard label="En proceso" value={format.format(report.kpis.draft_runs)} detail="Fichas registradas pendientes de cierre" icon="clock" tone="amber" />
-        <KpiCard label="Monitores" value={format.format(report.kpis.monitor_count)} detail="Usuarios con registros en el periodo" icon="people" tone="violet" />
+        <KpiCard label="Monitores" value={format.format(report.kpis.monitor_count)} detail="Usuarios con registros en el periodo" icon="people" tone="cyan" />
         <KpiCard label="Instituciones" value={format.format(report.kpis.institution_count)} detail={report.kpis.unlinked_institution_count ? `${report.kpis.unlinked_institution_count} fichas requieren vinculación` : "Todas las fichas están vinculadas"} icon="target" className={expanded ? "sm:col-span-2 xl:col-span-1" : "sm:col-span-2 lg:col-span-1"} />
       </div>
       <MonitorAttentionPanel data={report.by_monitor} />

@@ -398,10 +398,10 @@ export function HomePage() {
 
       <section className="mt-5 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6" aria-label="Indicadores principales">
         <KpiCard label="Fichas de monitoreos" value={formatter.format(analytics.monitoringTotal)} detail={`${selectedMonthLabel} · ${year}`} icon="activity" tone="cyan" />
-        <KpiCard label="Fichas CdD" value={formatter.format(analytics.cddTotal)} detail="Registros del responsable CdD" icon="people" tone="violet" />
+        <KpiCard label="Fichas CdD" value={formatter.format(analytics.cddTotal)} detail="Registros del responsable CdD" icon="people" tone="cyan" />
         <KpiCard label="Finalizadas" value={formatter.format(analytics.finalizadas)} detail={`${analytics.completionRate}% del total registrado`} icon="check" tone="emerald" progress={analytics.completionRate} />
         <KpiCard label="En proceso" value={formatter.format(analytics.proceso)} detail="Pendientes de cierre o validación" icon="clock" tone="amber" />
-        <KpiCard label="Usuarios activos" value={formatter.format(analytics.userCount)} detail="Registradores únicos del periodo" icon="people" tone="violet" />
+        <KpiCard label="Usuarios activos" value={formatter.format(analytics.userCount)} detail="Registradores únicos del periodo" icon="people" tone="cyan" />
         <KpiCard label="Tasa de cierre" value={`${analytics.completionRate}%`} detail={analytics.completionRate >= 80 ? "Nivel de cumplimiento alto" : "Oportunidad de seguimiento"} icon="target" tone="emerald" progress={analytics.completionRate} />
       </section>
 

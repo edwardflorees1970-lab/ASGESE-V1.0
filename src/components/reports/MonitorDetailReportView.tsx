@@ -31,8 +31,8 @@ export function MonitorDetailReportView({ report, page, pageSize, onPageChange }
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard label="Fichas registradas" value={format.format(report.kpis.total_runs)} detail="Sin registros de prueba" icon="activity" />
-        <KpiCard label="Monitores con registros" value={format.format(report.kpis.monitor_count)} detail="Según los filtros aplicados" icon="people" tone="violet" />
-        <KpiCard label="Instituciones monitoreadas" value={format.format(report.kpis.institution_count)} detail="Instituciones únicas vinculadas" icon="target" tone="emerald" />
+        <KpiCard label="Monitores con registros" value={format.format(report.kpis.monitor_count)} detail="Según los filtros aplicados" icon="people" tone="cyan" />
+        <KpiCard label="Instituciones monitoreadas" value={format.format(report.kpis.institution_count)} detail="Instituciones únicas vinculadas" icon="target" tone="cyan" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <CrossMatrixTable title="Recuento de fichas por monitor y nivel" rows={report.monitor_level} rowKey="monitor" />
