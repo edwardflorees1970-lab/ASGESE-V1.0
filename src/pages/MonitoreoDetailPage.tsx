@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { getFichasByMonitoreo } from "../lib/monitoreoApi";
+import { SkeletonCards } from "../components/Skeleton";
 import { canSeeAllRole } from "../lib/roles";
 import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
 
@@ -223,7 +224,9 @@ export function MonitoreoDetailPage() {
       </section>
 
       {loading ? (
-        <div className="mt-6 text-sm text-white/60">Cargando fichas...</div>
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          <SkeletonCards count={4} />
+        </div>
       ) : error ? (
         <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-100">
           {error}

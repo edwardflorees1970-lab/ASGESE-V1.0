@@ -2,6 +2,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { SkeletonCards } from "../components/Skeleton";
 
 type CatalogItem = { id: string; nombre: string };
 
@@ -881,7 +882,9 @@ export function InstitucionesPage() {
           <span>{pageSize} por página</span>
         </div>
         {loading ? (
-          <div className="text-sm text-white/60">Cargando instituciones...</div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <SkeletonCards count={4} />
+          </div>
         ) : error ? (
           <div className="text-sm text-red-100">{error}</div>
         ) : filtered.length === 0 ? (
