@@ -4,6 +4,7 @@ import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { canSeeAllRole } from "../lib/roles";
 import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
+import { SkeletonCards, SkeletonLine } from "../components/Skeleton";
 
 type MonitoreoRow = {
   id: string;
@@ -660,8 +661,11 @@ export function SeguimientoPage() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
-        Cargando seguimiento...
+      <div className="space-y-4">
+        <SkeletonLine width="240px" />
+        <div className="grid gap-3 md:grid-cols-2">
+          <SkeletonCards count={4} />
+        </div>
       </div>
     );
   }
