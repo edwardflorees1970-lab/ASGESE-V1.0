@@ -13,6 +13,7 @@ import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { supabase } from "../lib/supabaseClient";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { IconButton as UiIconButton } from "../components/ui/IconButton";
+import { SkeletonCards, SkeletonTableRows } from "../components/Skeleton";
 import { UserImportDialog } from "../components/UserImportDialog";
 import { DirectorPlazasDialog } from "../components/DirectorPlazasDialog";
 import { isStrongPassword, normalizeRei } from "../lib/userImport";
@@ -727,9 +728,7 @@ export function UsersPage() {
         {/* Lista mobile */}
         <div className="users-mobile-list mt-5 space-y-3 md:hidden">
           {loading ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
-              Cargando usuarios...
-            </div>
+            <SkeletonCards count={4} />
           ) : items.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
               No hay resultados.
@@ -845,11 +844,7 @@ export function UsersPage() {
 
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 7 : 6}>
-                      Cargando usuarios...
-                    </td>
-                  </tr>
+                  <SkeletonTableRows rows={6} columns={canManageUsers ? 7 : 6} />
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="px-4 py-6 text-sm text-white/60" colSpan={canManageUsers ? 7 : 6}>

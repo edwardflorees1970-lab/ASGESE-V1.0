@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { ProtectedRoute } from "./app/ProtectedRoute";
 import { useAuth } from "./app/AuthProvider";
+import { SkeletonPage } from "./components/Skeleton";
 
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const SetupPasswordPage = lazy(() => import("./pages/SetupPasswordPage").then((m) => ({ default: m.SetupPasswordPage })));
@@ -44,11 +45,7 @@ const RolesPermisosPage = lazy(() => import("./pages/RolesPermisosPage").then((m
 const CatalogosPage = lazy(() => import("./pages/CatalogosPage").then((m) => ({ default: m.CatalogosPage })));
 
 function PageLoader() {
-  return (
-    <div className="grid min-h-[50vh] place-items-center text-sm text-[var(--app-muted)]">
-      Cargando...
-    </div>
-  );
+  return <SkeletonPage />;
 }
 
 function LoginRoute() {

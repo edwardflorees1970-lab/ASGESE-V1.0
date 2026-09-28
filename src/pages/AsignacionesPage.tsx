@@ -4,6 +4,7 @@ import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { roleLabel } from "../lib/roles";
 import { DashboardSelect, SearchableFilter } from "../components/dashboard/DashboardWidgets";
+import { SkeletonCards } from "../components/Skeleton";
 
 type MonitoreoRow = {
   id: string;
@@ -307,7 +308,9 @@ export function AsignacionesPage() {
         </div>
 
         {loading ? (
-          <div className="text-sm text-white/60">Cargando asignaciones...</div>
+          <div className="grid gap-2 md:grid-cols-2">
+            <SkeletonCards count={4} />
+          </div>
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {filtered.map((u) => {
