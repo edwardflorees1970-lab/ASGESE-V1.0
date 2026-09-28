@@ -130,7 +130,7 @@ export const DashboardPanel = memo(function DashboardPanel({
     <section className={`dashboard-panel min-w-0 rounded-2xl p-4 sm:p-5 ${className}`}>
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          {eyebrow && <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-300/80">{eyebrow}</div>}
+          {eyebrow && <div className="tone-text-blue text-[11px] font-semibold uppercase tracking-[0.14em]">{eyebrow}</div>}
           <h2 className="mt-0.5 text-sm font-semibold tracking-tight text-white sm:text-base">{title}</h2>
           {description && <p className="mt-1 text-xs leading-5 text-white/50">{description}</p>}
         </div>
