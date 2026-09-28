@@ -16,6 +16,11 @@ function parseMode(value: unknown): boolean {
 }
 
 async function fetchMode(): Promise<boolean | null> {
+  // Sin sesión (p.ej. pantalla de login) la política de app_config no deja
+  // pasar la consulta y no tiene sentido intentarla: evita ruido en consola.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return null;
+
   const { data, error } = await supabase
     .from("app_config")
     .select("value")
@@ -61,6 +66,10 @@ export function AppConfigProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh({ force: true });
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") refresh({ force: true });
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
