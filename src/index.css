@@ -2490,10 +2490,10 @@ button:hover .agebre-action-icon {
 .operations-kpi span { display: block; font-size: .59rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
 .assignments-kpi strong,
 .operations-kpi strong { display: block; margin-top: .1rem; color: var(--module-accent-strong); font-size: 1rem; line-height: 1.1; }
-.assignments-kpi.is-success strong { color: #15803d; }
+.assignments-kpi.is-success strong { color: var(--app-success); }
 .assignments-kpi.is-pending strong,
-.operations-kpi.is-alert strong { color: #c77400; }
-.operations-kpi.is-info strong { color: #2563d4; }
+.operations-kpi.is-alert strong { color: var(--app-warning); }
+.operations-kpi.is-info strong { color: var(--app-info); }
 .assignments-controls { background: color-mix(in srgb, var(--module-accent) 2%, var(--app-surface)); }
 .assignments-period { color: var(--module-accent-strong); background: var(--module-accent-soft); border-color: color-mix(in srgb, var(--module-accent) 26%, var(--app-border)); }
 .assignments-period svg { width: 1rem; height: 1rem; }
