@@ -1860,6 +1860,12 @@ button:hover .agebre-action-icon {
 .dashboard-tone-amber { color: #dc8d07; }
 .dashboard-tone-violet { color: #8557dc; }
 
+/* Version solo-texto (sin fondo/borde) para resaltados inline dentro de parrafos. */
+.tone-text-blue { color: #079bc2; }
+.tone-text-green { color: #0d9f67; }
+.tone-text-amber { color: #dc8d07; }
+.tone-text-violet { color: #8557dc; }
+
 /* Badges semánticos outlined: heredan la superficie y comunican por borde + texto. */
 .badge-green,
 [class*="rounded-full"][class*="bg-emerald-500/10"],

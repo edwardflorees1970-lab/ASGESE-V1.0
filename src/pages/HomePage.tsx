@@ -357,9 +357,9 @@ export function HomePage() {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-cyan-200">Business Intelligence</span>
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${isTestMode ? "border-amber-400/20 bg-amber-400/10 text-amber-200" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"}`}>{isTestMode ? "Entorno de prueba" : "Datos de producción"}</span>
-            <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-200">
+            <span className="dashboard-tone-blue rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.13em]">Business Intelligence</span>
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${isTestMode ? "dashboard-tone-amber" : "dashboard-tone-green"}`}>{isTestMode ? "Entorno de prueba" : "Datos de producción"}</span>
+            <span className="dashboard-tone-violet rounded-full border px-2.5 py-1 text-[10px] font-semibold">
               {canSeeAll ? "Vista general" : "Mis estadísticas"}
             </span>
           </div>
@@ -371,7 +371,7 @@ export function HomePage() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-white/40">
-          <span className={`h-2 w-2 rounded-full ${loading ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
+          <span className={`h-2 w-2 rounded-full ${loading ? "animate-pulse" : ""}`} style={{ background: loading ? "var(--app-warning)" : "var(--app-success)" }} />
           {loading ? "Actualizando indicadores…" : lastUpdated ? `Actualizado ${lastUpdated.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}` : "Listo"}
         </div>
       </header>
@@ -408,7 +408,7 @@ export function HomePage() {
       <DashboardPanel title="Resumen ejecutivo" eyebrow="Lectura rápida" className="mt-5" action={<span className="hidden rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-white/45 sm:block">{selectedMonitoreoLabel}</span>}>
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-center">
           <p className="text-sm leading-6 text-white/60">
-            En <strong className="font-semibold text-white">{selectedMonthLabel.toLowerCase()} de {year}</strong> se registraron <strong className="font-semibold text-cyan-200">{formatter.format(analytics.monitoringTotal)} fichas de monitoreo</strong> y <strong className="font-semibold text-violet-300">{formatter.format(analytics.cddTotal)} fichas CdD</strong>. {analytics.finalizadas ? `${formatter.format(analytics.finalizadas)} están finalizadas, con una tasa de cierre de ${analytics.completionRate}%.` : "Todavía no existen fichas finalizadas en este periodo."} {topMonitoreo ? `${topMonitoreo.name} concentra el mayor volumen (${formatter.format(topMonitoreo.total)}).` : "No hay concentración por monitoreo para mostrar."}
+            En <strong className="font-semibold text-white">{selectedMonthLabel.toLowerCase()} de {year}</strong> se registraron <strong className="tone-text-blue font-semibold">{formatter.format(analytics.monitoringTotal)} fichas de monitoreo</strong> y <strong className="tone-text-violet font-semibold">{formatter.format(analytics.cddTotal)} fichas CdD</strong>. {analytics.finalizadas ? `${formatter.format(analytics.finalizadas)} están finalizadas, con una tasa de cierre de ${analytics.completionRate}%.` : "Todavía no existen fichas finalizadas en este periodo."} {topMonitoreo ? `${topMonitoreo.name} concentra el mayor volumen (${formatter.format(topMonitoreo.total)}).` : "No hay concentración por monitoreo para mostrar."}
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
             <QuickMetric label="Promedio por usuario" value={analytics.averagePerUser.toFixed(1)} />
@@ -490,7 +490,7 @@ export function HomePage() {
               return (
                 <div key={item.id} className="rounded-xl border border-white/8 bg-black/10 p-3">
                   <div className="flex items-center gap-3">
-                    <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold ${index < 3 && !rankingQuery ? "bg-cyan-400/15 text-cyan-200" : "bg-white/5 text-white/50"}`}>{index + 1}</div>
+                    <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold ${index < 3 && !rankingQuery ? "dashboard-tone-blue" : "bg-white/5 text-white/50"}`}>{index + 1}</div>
                     <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-white/85" title={item.name}>{item.name}</div><div className="mt-0.5 text-[10px] text-white/40">{item.role}</div></div>
                     <div className="text-sm font-semibold text-white">{formatter.format(item.count)}</div>
                   </div>
