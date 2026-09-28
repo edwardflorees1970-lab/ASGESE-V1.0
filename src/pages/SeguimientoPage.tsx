@@ -1026,10 +1026,10 @@ export function SeguimientoPage() {
                   <div className="mt-2 text-xs text-white/60">
                     IE asignadas: {row.assignedCount}
                   </div>
-                  <div className="mt-1 text-xs text-emerald-300">
+                  <div className="tone-text-green mt-1 text-xs">
                     Avance validado: {row.avgValidated}% ({row.validatedCount} IE)
                   </div>
-                  <div className="mt-1 text-xs text-amber-300">
+                  <div className="tone-text-amber mt-1 text-xs">
                     Avance sin validar: {row.avgPendingValidation}% ({row.pendingCount} IE)
                   </div>
                 </div>
