@@ -43,7 +43,7 @@ type GeneratedReport =
   | { type: "executive"; data: ExecutiveReport };
 
 function ExportFileIcon({ format }: { format: "XLSX" | "CSV" | "PDF" }) {
-  return <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 2.8h8l4 4V21H6z" /><path d="M14 3v5h5" /><path d="M8.2 16.5h7.6" /><text x="12" y="14" textAnchor="middle" fill="currentColor" stroke="none" fontSize={format === "XLSX" ? "4.6" : "5.2"} fontWeight="800">{format}</text></svg>;
+  return <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 2.8h8l4 4V21H6z" /><path d="M14 3v5h5" /><path d="M8.2 16.5h7.6" /><text x="12" y="14" textAnchor="middle" fill="currentColor" stroke="none" fontSize={format === "XLSX" ? "4.6" : "5.2"} fontWeight="800">{format}</text></svg>;
 }
 
 function reportFilename(type: AnalyticsReportType) {

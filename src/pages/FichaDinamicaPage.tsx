@@ -122,7 +122,7 @@ const DUP_RULE_MARKER = "__restriccion_duplicado__";
 
 function SectionsIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 6h11M8.5 12h11M8.5 18h11" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
     </svg>

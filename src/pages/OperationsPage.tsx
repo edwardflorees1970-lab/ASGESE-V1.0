@@ -134,7 +134,7 @@ function knownResolvedDevelopmentIncident(message: string) {
 }
 
 function OperationsIcon({ type = "audit" }: { type?: "audit" | "log" | "alert" | "refresh" }) {
-  if (type === "refresh") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7v5h-5M4 17v-5h5" /><path strokeLinecap="round" d="M6 8.5A7 7 0 0 1 18.5 7M18 15.5A7 7 0 0 1 5.5 17" /></svg>;
+  if (type === "refresh") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7v5h-5M4 17v-5h5" /><path strokeLinecap="round" d="M6 8.5A7 7 0 0 1 18.5 7M18 15.5A7 7 0 0 1 5.5 17" /></svg>;
   if (type === "alert") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3 2.8 20h18.4L12 3Z" /><path strokeLinecap="round" d="M12 9v5M12 17.5h.01" /></svg>;
   if (type === "log") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M7 3h10v3H7zM5 5H3v16h18V5h-2" /><path strokeLinecap="round" d="M8 11h8M8 15h8" /></svg>;
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4 6v6c0 5 3.4 7.8 8 9 4.6-1.2 8-4 8-9V6l-8-3Z" /><path strokeLinecap="round" d="m9 12 2 2 4-5" /></svg>;
