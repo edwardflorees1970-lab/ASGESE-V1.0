@@ -325,10 +325,10 @@ th { font-weight: 650; letter-spacing: 0.01em; }
 .agebre-app-shell { color: var(--app-text); background: var(--app-bg); }
 
 .agebre-suite-sidebar {
-  color: #dce7e6;
-  background: #080d0f;
-  border-color: #1b292a;
-  box-shadow: 8px 0 30px rgba(3, 18, 18, 0.12);
+  color: #dfe5da;
+  background: #0d120d;
+  border-color: #212a1e;
+  box-shadow: 8px 0 30px rgba(4, 10, 5, 0.14);
   transition: width var(--app-duration) var(--app-ease), transform var(--app-duration) var(--app-ease);
 }
 
