@@ -2210,7 +2210,7 @@ export function ReportesPage() {
                 }}
                 className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-white/10"
               >
-                <span className="mt-0.5 text-emerald-300"><IconDownload /></span>
+                <span className="tone-text-green mt-0.5"><IconDownload /></span>
                 <span>
                   <span className="block text-sm font-medium text-white">Exportar CSV</span>
                   <span className="block text-xs text-white/50">UTF-8 con BOM para Excel y BI</span>
@@ -2224,7 +2224,7 @@ export function ReportesPage() {
                 }}
                 className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-white/10"
               >
-                <span className="mt-0.5 text-sky-300"><IconReport /></span>
+                <span className="tone-text-blue mt-0.5"><IconReport /></span>
                 <span>
                   <span className="block text-sm font-medium text-white">Exportar Excel (.xlsx)</span>
                   <span className="block text-xs text-white/50">Tipos, filtros y encabezado congelado</span>
@@ -2238,14 +2238,14 @@ export function ReportesPage() {
 
       {exporting && (
         <div className="reports-progress mt-3 rounded-xl border px-4 py-3">
-          <div className="flex items-center justify-between gap-3 text-xs text-sky-100">
+          <div className="tone-text-blue flex items-center justify-between gap-3 text-xs">
             <span>Generando archivo analítico...</span>
             <span>{exportProgress}%</span>
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-sky-400 transition-[width] duration-300"
-              style={{ width: `${exportProgress}%` }}
+              className="h-full rounded-full transition-[width] duration-300"
+              style={{ width: `${exportProgress}%`, background: "var(--app-accent)" }}
             />
           </div>
         </div>
@@ -2322,17 +2322,17 @@ export function ReportesPage() {
                       </div>
                       {locked ? (
                         <span className="reports-status-badge is-locked inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
                           Bloqueado
                         </span>
                       ) : expired ? (
                         <span className="reports-status-badge is-expired inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none">
-                          <span className="h-1.5 w-1.5 rounded-full bg-red-300" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
                           Vencido
                         </span>
                       ) : (
                         <span className="reports-status-badge is-available inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
                           Disponible
                         </span>
                       )}
@@ -2458,17 +2458,17 @@ export function ReportesPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {!reportMonitoreoModal.is_active ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-100">
-                    <span className="h-2 w-2 rounded-full bg-amber-300" />
+                    <span className="h-2 w-2 rounded-full bg-current" />
                     Bloqueado
                   </span>
                 ) : isMonitoreoExpiredLocal(reportMonitoreoModal.fecha_fin) ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-100">
-                    <span className="h-2 w-2 rounded-full bg-red-300" />
+                    <span className="h-2 w-2 rounded-full bg-current" />
                     Vencido
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
-                    <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                    <span className="h-2 w-2 rounded-full bg-current" />
                     Disponible
                   </span>
                 )}
