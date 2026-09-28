@@ -396,13 +396,41 @@ export function HomePage() {
 
       {err && <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100"><div className="font-semibold">No se pudo actualizar el Dashboard</div><div className="mt-1 text-xs text-red-100/80">{err}</div></div>}
 
-      <section className="mt-5 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6" aria-label="Indicadores principales">
-        <KpiCard label="Fichas de monitoreos" value={formatter.format(analytics.monitoringTotal)} detail={`${selectedMonthLabel} · ${year}`} icon="activity" tone="cyan" />
-        <KpiCard label="Fichas CdD" value={formatter.format(analytics.cddTotal)} detail="Registros del responsable CdD" icon="people" tone="cyan" />
-        <KpiCard label="Finalizadas" value={formatter.format(analytics.finalizadas)} detail={`${analytics.completionRate}% del total registrado`} icon="check" tone="emerald" progress={analytics.completionRate} />
-        <KpiCard label="En proceso" value={formatter.format(analytics.proceso)} detail="Pendientes de cierre o validación" icon="clock" tone="amber" />
-        <KpiCard label="Usuarios activos" value={formatter.format(analytics.userCount)} detail="Registradores únicos del periodo" icon="people" tone="cyan" />
-        <KpiCard label="Tasa de cierre" value={`${analytics.completionRate}%`} detail={analytics.completionRate >= 80 ? "Nivel de cumplimiento alto" : "Oportunidad de seguimiento"} icon="target" tone="emerald" progress={analytics.completionRate} />
+      <section className="mt-5 grid min-w-0 gap-3 xl:grid-cols-[1.7fr_1fr]" aria-label="Indicadores principales">
+        <article className="dashboard-kpi-featured relative min-w-0 overflow-hidden rounded-2xl border border-white/10 p-5">
+          <div className={`dashboard-kpi-accent absolute inset-x-0 top-0 h-1 ${analytics.completionRate >= 80 ? "dashboard-tone-green" : "dashboard-tone-amber"}`} />
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-white/55">Tasa de cierre</div>
+              <div className="mt-2 text-4xl font-bold tracking-[-0.03em] text-white sm:text-5xl">{analytics.completionRate}%</div>
+              <div className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${analytics.completionRate >= 80 ? "dashboard-tone-green" : "dashboard-tone-amber"}`}>
+                {analytics.completionRate >= 80 ? "Nivel de cumplimiento alto" : "Oportunidad de seguimiento"}
+              </div>
+            </div>
+            <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${analytics.completionRate >= 80 ? "dashboard-tone-green" : "dashboard-tone-amber"}`}>
+              <DashboardIcon name="target" className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="dashboard-progress-track mt-4 h-1.5 overflow-hidden rounded-full">
+            <div className="dashboard-progress-value h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(0, Math.min(100, analytics.completionRate))}%` }} />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
+            <div>
+              <div className="text-[11px] text-white/45">Finalizadas</div>
+              <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(analytics.finalizadas)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-white/45">En proceso</div>
+              <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(analytics.proceso)}</div>
+            </div>
+          </div>
+        </article>
+
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+          <KpiCard label="Fichas de monitoreos" value={formatter.format(analytics.monitoringTotal)} detail={`${selectedMonthLabel} · ${year}`} icon="activity" tone="cyan" />
+          <KpiCard label="Fichas CdD" value={formatter.format(analytics.cddTotal)} detail="Registros del responsable CdD" icon="people" tone="cyan" />
+          <KpiCard label="Usuarios activos" value={formatter.format(analytics.userCount)} detail="Registradores únicos del periodo" icon="people" tone="cyan" className="col-span-2 xl:col-span-1" />
+        </div>
       </section>
 
       <DashboardPanel title="Resumen ejecutivo" eyebrow="Lectura rápida" className="mt-5" action={<span className="hidden rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-white/45 sm:block">{selectedMonitoreoLabel}</span>}>

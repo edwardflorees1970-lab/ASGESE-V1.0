@@ -1563,7 +1563,8 @@ button:hover .agebre-action-icon {
 }
 
 .dashboard-panel,
-.dashboard-kpi {
+.dashboard-kpi,
+.dashboard-kpi-featured {
   background: var(--dashboard-panel);
   border-color: var(--app-border);
   box-shadow: var(--dashboard-shadow);
@@ -1582,7 +1583,8 @@ button:hover .agebre-action-icon {
   padding: 1rem;
 }
 
-.dashboard-kpi {
+.dashboard-kpi,
+.dashboard-kpi-featured {
   min-height: 8.75rem;
   border-radius: 0.875rem;
   padding: 1rem;
@@ -1593,7 +1595,8 @@ button:hover .agebre-action-icon {
 }
 
 @media (hover: hover) {
-  .dashboard-kpi:hover {
+  .dashboard-kpi:hover,
+  .dashboard-kpi-featured:hover {
     transform: translateY(-2px);
     border-color: color-mix(in srgb, var(--app-accent) 42%, transparent);
     box-shadow: 0 12px 30px rgba(5, 12, 18, 0.2);
@@ -2109,6 +2112,7 @@ button:hover .agebre-action-icon {
 
 [data-theme="light"] .dashboard-panel .text-white,
 [data-theme="light"] .dashboard-kpi .text-white,
+[data-theme="light"] .dashboard-kpi-featured .text-white,
 [data-theme="light"] .dashboard-shell .text-white {
   color: var(--app-text) !important;
 }
@@ -2156,7 +2160,8 @@ button:hover .agebre-action-icon {
   }
 }
 
-.dashboard-kpi .dashboard-kpi-accent { height: 3px; }
+.dashboard-kpi .dashboard-kpi-accent,
+.dashboard-kpi-featured .dashboard-kpi-accent { height: 3px; }
 
 .dashboard-kpi > div:nth-child(2) > div:first-child > div:nth-child(2) {
   margin-top: 0.35rem;
@@ -2175,7 +2180,8 @@ button:hover .agebre-action-icon {
   .agebre-dialog { border-radius: var(--app-radius-lg); }
   [data-tooltip]::after { display: none; }
   .dashboard-panel,
-  .dashboard-kpi { box-shadow: var(--app-shadow-xs); }
+  .dashboard-kpi,
+  .dashboard-kpi-featured { box-shadow: var(--app-shadow-xs); }
 }
 
 [data-theme="light"] .report-modal-header,
