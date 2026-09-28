@@ -10,8 +10,8 @@ export function QuestionResultsReportView({ report }: { report: QuestionResultsR
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard label="Fichas consideradas" value={format.format(report.kpis.run_count)} detail="Registros reales según filtros" icon="activity" />
-        <KpiCard label="Preguntas analizadas" value={format.format(report.kpis.question_count)} detail="Preguntas con respuesta válida" icon="target" tone="violet" />
-        <KpiCard label="Respuestas" value={format.format(report.kpis.answer_count)} detail="Respuestas únicas; opción múltiple no duplica este KPI" icon="check" tone="emerald" />
+        <KpiCard label="Preguntas analizadas" value={format.format(report.kpis.question_count)} detail="Preguntas con respuesta válida" icon="target" tone="cyan" />
+        <KpiCard label="Respuestas" value={format.format(report.kpis.answer_count)} detail="Respuestas únicas; opción múltiple no duplica este KPI" icon="check" tone="cyan" />
       </div>
 
       {primary && (
