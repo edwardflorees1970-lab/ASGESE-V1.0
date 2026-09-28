@@ -170,9 +170,9 @@ export function AppShell() {
     );
     return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-[68px] shrink-0 items-center gap-3 border-b border-slate-800 px-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
-          <img src={logoAgebreUrl} alt="" className="h-9 w-9 object-contain" />
+      <div className="flex h-[76px] shrink-0 items-center gap-3 border-b border-slate-800 px-3">
+        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
+          <img src={logoAgebreUrl} alt="" className="h-[3.1rem] w-[3.1rem] object-contain" />
         </div>
         {!collapsed && <div className="min-w-0 flex-1"><div className="text-base font-extrabold tracking-[0.04em] text-white">ASGESE</div><div className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">Monitoreo integral</div></div>}
         {mobile && <button type="button" onClick={onItemClick} className="agebre-shell-icon-button" aria-label="Cerrar menú"><CloseIcon /></button>}
@@ -299,7 +299,7 @@ export function AppShell() {
     <div className="agebre-app-shell flex h-screen w-full overflow-hidden">
       {mobileOpen && <button type="button" aria-label="Cerrar menú" className="fixed inset-0 z-40 bg-slate-950/55 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
-      <aside className={cls("agebre-suite-sidebar hidden shrink-0 border-r lg:block", sidebarHidden ? "w-[76px]" : "w-[252px]")}>
+      <aside className={cls("agebre-suite-sidebar hidden shrink-0 border-r lg:block", sidebarHidden ? "w-[84px]" : "w-[252px]")}>
         {renderSidebarContent({})}
       </aside>
 
