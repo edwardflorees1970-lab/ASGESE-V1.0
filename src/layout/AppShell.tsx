@@ -7,7 +7,7 @@ import { useTheme } from "../app/ThemeProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { SessionExpiryNotice } from "../components/SessionExpiryNotice";
-import logoAgebreUrl from "../assets/logoagebresf.png";
+import logoAgebreUrl from "../assets/escudo_peru.png";
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
