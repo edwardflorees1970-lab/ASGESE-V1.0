@@ -973,11 +973,11 @@ th { font-weight: 650; letter-spacing: 0.01em; }
 }
 
 [data-theme="light"] .text-amber-100 {
-  color: #b45309 !important;
+  color: var(--app-warning) !important;
 }
 
 [data-theme="light"] .text-emerald-100 {
-  color: #047857 !important;
+  color: var(--app-success) !important;
 }
 
 [data-theme="light"] .text-red-100\/80 {
@@ -985,11 +985,11 @@ th { font-weight: 650; letter-spacing: 0.01em; }
 }
 
 [data-theme="light"] .text-amber-100\/80 {
-  color: #b45309 !important;
+  color: var(--app-warning) !important;
 }
 
 [data-theme="light"] .text-emerald-100\/80 {
-  color: #047857 !important;
+  color: var(--app-success) !important;
 }
 
 [data-theme="light"] .border-red-500\/30 {
@@ -1055,15 +1055,15 @@ select option:checked {
 }
 
 [data-theme="light"] .badge-green {
-  color: #047857 !important;
+  color: var(--app-success) !important;
 }
 
 [data-theme="light"] .badge-amber {
-  color: #b45309 !important;
+  color: var(--app-warning) !important;
 }
 
 [data-theme="light"] .badge-red {
-  color: #b91c1c !important;
+  color: var(--app-danger) !important;
 }
 
 @keyframes fadeUp {
@@ -1530,13 +1530,13 @@ button:hover .agebre-action-icon {
 }
 
 [data-theme="light"] .monitoring-page .badge-green {
-  color: #15803d !important;
+  color: var(--app-success) !important;
   background-color: rgb(var(--badge-rgb) / 10%) !important;
   border-color: rgb(var(--badge-rgb) / 34%) !important;
 }
 
 [data-theme="light"] .monitoring-page .badge-red {
-  color: #c52222 !important;
+  color: var(--app-danger) !important;
   background-color: rgb(var(--badge-rgb) / 7%) !important;
   border-color: rgb(var(--badge-rgb) / 27%) !important;
 }
@@ -2010,7 +2010,7 @@ button:hover .agebre-action-icon {
 [data-theme="light"] [class*="rounded-full"][class*="bg-emerald-500/10"],
 [data-theme="light"] [class*="rounded-full"][class*="bg-emerald-400/10"],
 [data-theme="light"] [class*="rounded-full"][class*="bg-emerald-400/15"] {
-  color: #047857 !important;
+  color: var(--app-success) !important;
   background-color: rgb(var(--badge-rgb) / 13%) !important;
   border-color: rgb(var(--badge-rgb) / 64%) !important;
 }
@@ -2019,7 +2019,7 @@ button:hover .agebre-action-icon {
 [data-theme="light"] [class*="rounded-full"][class*="bg-amber-500/10"],
 [data-theme="light"] [class*="rounded-full"][class*="bg-amber-400/10"],
 [data-theme="light"] [class*="rounded-full"][class*="bg-amber-400/15"] {
-  color: #92400e !important;
+  color: var(--app-warning) !important;
   background-color: rgb(var(--badge-rgb) / 13%) !important;
   border-color: rgb(var(--badge-rgb) / 66%) !important;
 }
@@ -2029,7 +2029,7 @@ button:hover .agebre-action-icon {
 [data-theme="light"] [class*="rounded-full"][class*="bg-red-400/10"],
 [data-theme="light"] [class*="rounded-full"][class*="bg-red-400/15"],
 [data-theme="light"] [class*="rounded-full"][class*="bg-rose-500/15"] {
-  color: #b91c1c !important;
+  color: var(--app-danger) !important;
   background-color: rgb(var(--badge-rgb) / 13%) !important;
   border-color: rgb(var(--badge-rgb) / 64%) !important;
 }
@@ -2138,15 +2138,15 @@ button:hover .agebre-action-icon {
 }
 
 [data-theme="light"] .dashboard-shell .text-emerald-200 {
-  color: #047857 !important;
+  color: var(--app-success) !important;
 }
 
 [data-theme="light"] .dashboard-shell .text-amber-200 {
-  color: #b45309 !important;
+  color: var(--app-warning) !important;
 }
 
 [data-theme="light"] .dashboard-shell .text-violet-200 {
-  color: #6d28d9 !important;
+  color: var(--app-violet) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2290,8 +2290,8 @@ button:hover .agebre-action-icon {
 .management-kpi { min-width: 5.5rem; padding: .55rem .7rem; color: var(--app-muted); background: var(--app-surface-2); border: 1px solid var(--app-border); border-radius: .75rem; }
 .management-kpi span { display: block; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .management-kpi strong { display: block; margin-top: .1rem; color: var(--management-accent-strong); font-size: 1.05rem; line-height: 1.1; }
-.management-kpi.is-pending strong { color: #c77400; }
-.management-kpi.is-approved strong { color: #15803d; }
+.management-kpi.is-pending strong { color: var(--app-warning); }
+.management-kpi.is-approved strong { color: var(--app-success); }
 
 .management-section-icon { width: 2.35rem; height: 2.35rem; display: grid; place-items: center; color: var(--management-accent); background: var(--management-accent-soft); border: 1px solid color-mix(in srgb, var(--management-accent) 26%, var(--app-border)); border-radius: .75rem; }
 .management-section-icon svg { width: 1.15rem; height: 1.15rem; }
@@ -2332,12 +2332,12 @@ button:hover .agebre-action-icon {
 .management-request-card:hover { background: color-mix(in srgb, var(--management-accent) 4%, var(--app-surface)); border-color: color-mix(in srgb, var(--management-accent) 45%, var(--app-border)); transform: translateY(-1px); box-shadow: var(--app-shadow-sm); }
 .management-request-card.is-selected { background: color-mix(in srgb, var(--management-accent) 8%, var(--app-surface)); border-color: var(--management-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--management-accent) 12%, transparent); }
 .management-request-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--management-accent) 20%, transparent); outline-offset: 2px; }
-.management-cdd-badge { color: #1d4ed8; background: rgb(37 99 212 / 9%); border-color: rgb(37 99 212 / 28%); }
+.management-cdd-badge { color: var(--app-info); background: color-mix(in srgb, var(--app-info) 9%, transparent); border-color: color-mix(in srgb, var(--app-info) 28%, transparent); }
 .management-badge { display: inline-flex; align-items: center; border-width: 1px; border-style: solid; font-weight: 700; }
-.management-badge.is-approved { color: #15803d; background: rgb(22 163 74 / 10%); border-color: rgb(22 163 74 / 32%); }
+.management-badge.is-approved { color: var(--app-success); background: color-mix(in srgb, var(--app-success) 10%, transparent); border-color: color-mix(in srgb, var(--app-success) 32%, transparent); }
 .management-badge.is-review,
-.management-badge.is-pending { color: #a65f00; background: rgb(220 141 7 / 10%); border-color: rgb(220 141 7 / 32%); }
-.management-badge.is-rejected { color: #c52222; background: rgb(220 38 38 / 9%); border-color: rgb(220 38 38 / 30%); }
+.management-badge.is-pending { color: var(--app-warning); background: color-mix(in srgb, var(--app-warning) 10%, transparent); border-color: color-mix(in srgb, var(--app-warning) 32%, transparent); }
+.management-badge.is-rejected { color: var(--app-danger); background: color-mix(in srgb, var(--app-danger) 9%, transparent); border-color: color-mix(in srgb, var(--app-danger) 30%, transparent); }
 .management-badge.is-inactive { color: var(--app-muted); background: var(--app-surface-2); border-color: var(--app-border); }
 .management-empty { color: var(--app-muted); background: var(--app-surface-2); border-color: var(--app-border); }
 .management-pagination { border-color: var(--app-border); }
@@ -2398,8 +2398,8 @@ button:hover .agebre-action-icon {
 .reports-kpi { min-width: 5rem; padding: .5rem .65rem; color: var(--app-muted); background: var(--app-surface-2); border: 1px solid var(--app-border); border-radius: .72rem; }
 .reports-kpi span { display: block; font-size: .59rem; font-weight: 750; letter-spacing: .055em; text-transform: uppercase; }
 .reports-kpi strong { display: block; margin-top: .1rem; color: var(--reports-accent-strong); font-size: 1rem; line-height: 1.1; }
-.reports-kpi.is-success strong { color: #15803d; }
-.reports-kpi.is-warning strong { color: #c52222; }
+.reports-kpi.is-success strong { color: var(--app-success); }
+.reports-kpi.is-warning strong { color: var(--app-danger); }
 
 .reports-export-button { color: var(--reports-accent-strong); background: color-mix(in srgb, var(--reports-accent) 6%, var(--app-surface)); border-color: color-mix(in srgb, var(--reports-accent) 32%, var(--app-border)); }
 .reports-export-button:hover:not(:disabled) { background: color-mix(in srgb, var(--reports-accent) 14%, var(--app-surface)); border-color: color-mix(in srgb, var(--reports-accent) 58%, var(--app-border)); transform: translateY(-1px); }
@@ -2420,9 +2420,9 @@ button:hover .agebre-action-icon {
 .reports-secondary-action { color: var(--reports-accent-strong); background: color-mix(in srgb, var(--reports-accent) 5%, var(--app-surface)); border-color: color-mix(in srgb, var(--reports-accent) 32%, var(--app-border)); }
 .reports-secondary-action:hover { background: color-mix(in srgb, var(--reports-accent) 13%, var(--app-surface)); border-color: color-mix(in srgb, var(--reports-accent) 58%, var(--app-border)); transform: translateY(-1px); }
 .reports-status-badge { border-style: solid; border-width: 1px; }
-.reports-status-badge.is-available { color: #15803d; background: rgb(22 163 74 / 10%); border-color: rgb(22 163 74 / 34%); }
-.reports-status-badge.is-expired { color: #c52222; background: rgb(220 38 38 / 9%); border-color: rgb(220 38 38 / 30%); }
-.reports-status-badge.is-locked { color: #a65f00; background: rgb(220 141 7 / 10%); border-color: rgb(220 141 7 / 32%); }
+.reports-status-badge.is-available { color: var(--app-success); background: color-mix(in srgb, var(--app-success) 10%, transparent); border-color: color-mix(in srgb, var(--app-success) 34%, transparent); }
+.reports-status-badge.is-expired { color: var(--app-danger); background: color-mix(in srgb, var(--app-danger) 9%, transparent); border-color: color-mix(in srgb, var(--app-danger) 30%, transparent); }
+.reports-status-badge.is-locked { color: var(--app-warning); background: color-mix(in srgb, var(--app-warning) 10%, transparent); border-color: color-mix(in srgb, var(--app-warning) 32%, transparent); }
 .reports-pagination { color: var(--app-muted); }
 .reports-page .executive-primary-action { color: #fff; background: var(--reports-accent); border-color: var(--reports-accent-strong); box-shadow: 0 6px 16px color-mix(in srgb, var(--reports-accent) 22%, transparent); }
 .reports-page .executive-primary-action:hover:not(:disabled) { background: var(--reports-accent-strong); transform: translateY(-1px); }
@@ -2519,11 +2519,11 @@ button:hover .agebre-action-icon {
 .operations-table tbody tr:hover { background: color-mix(in srgb, var(--module-accent) 4%, var(--app-surface)); }
 .operations-json-toggle { color: var(--module-accent-strong); }
 .operations-json { color: var(--app-text); background: var(--app-surface-3); border: 1px solid var(--app-border); }
-.operations-section-icon.is-alert { color: #c77400; background: rgb(220 141 7 / 9%); border-color: rgb(220 141 7 / 28%); }
+.operations-section-icon.is-alert { color: var(--app-warning); background: color-mix(in srgb, var(--app-warning) 9%, transparent); border-color: color-mix(in srgb, var(--app-warning) 28%, transparent); }
 .operations-alert-card { color: var(--app-text); background: var(--app-surface-2); border-color: var(--app-border); }
 .operations-alert-card.is-resolved { background: rgb(22 163 74 / 5%); border-color: rgb(22 163 74 / 24%); }
-.operations-resolve { color: #15803d; background: rgb(22 163 74 / 8%); border-color: rgb(22 163 74 / 30%); transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
-.operations-resolve:hover:not(:disabled) { background: rgb(22 163 74 / 15%); border-color: rgb(22 163 74 / 48%); transform: translateY(-1px); box-shadow: var(--app-shadow-xs); }
+.operations-resolve { color: var(--app-success); background: color-mix(in srgb, var(--app-success) 8%, transparent); border-color: color-mix(in srgb, var(--app-success) 30%, transparent); transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
+.operations-resolve:hover:not(:disabled) { background: color-mix(in srgb, var(--app-success) 15%, transparent); border-color: color-mix(in srgb, var(--app-success) 48%, transparent); transform: translateY(-1px); box-shadow: var(--app-shadow-xs); }
 .operations-page nav { border-color: var(--app-border); color: var(--app-muted); }
 .operations-page nav button { color: var(--module-accent-strong); background: color-mix(in srgb, var(--module-accent) 5%, var(--app-surface)); border-color: color-mix(in srgb, var(--module-accent) 30%, var(--app-border)); }
 
@@ -2532,9 +2532,9 @@ button:hover .agebre-action-icon {
 .analytics-executive-hero.report-screen-header.executive-report-header { padding: 1.25rem; color: var(--app-text); background: var(--app-surface); border: 1px solid var(--app-border); border-top: 3px solid var(--analytics-accent); border-radius: 1rem; box-shadow: var(--app-shadow-sm); }
 .analytics-executive-eyebrow { color: var(--analytics-accent); }
 .analytics-export-action.agebre-icon-button { width: auto; min-width: 5.25rem; height: 2.5rem; padding: 0 .75rem; gap: .45rem; border-radius: .75rem; font-size: .72rem; font-weight: 750; }
-.analytics-export-action.is-excel { color: #15803d; background: rgb(22 163 74 / 9%); border-color: rgb(22 163 74 / 30%); }
-.analytics-export-action.is-csv { color: #1d4ed8; background: rgb(37 99 212 / 8%); border-color: rgb(37 99 212 / 28%); }
-.analytics-export-action.is-pdf { color: #c52222; background: rgb(220 38 38 / 8%); border-color: rgb(220 38 38 / 28%); }
+.analytics-export-action.is-excel { color: var(--app-success); background: color-mix(in srgb, var(--app-success) 9%, transparent); border-color: color-mix(in srgb, var(--app-success) 30%, transparent); }
+.analytics-export-action.is-csv { color: var(--app-info); background: color-mix(in srgb, var(--app-info) 8%, transparent); border-color: color-mix(in srgb, var(--app-info) 28%, transparent); }
+.analytics-export-action.is-pdf { color: var(--app-danger); background: color-mix(in srgb, var(--app-danger) 8%, transparent); border-color: color-mix(in srgb, var(--app-danger) 28%, transparent); }
 .analytics-report-type { color: var(--app-text); background: var(--app-surface); border-color: var(--app-border); box-shadow: var(--app-shadow-xs); transition: border-color 200ms ease, background-color 200ms ease, transform 200ms ease, box-shadow 200ms ease; }
 .analytics-report-type:hover { background: color-mix(in srgb, var(--analytics-accent) 4%, var(--app-surface)); border-color: color-mix(in srgb, var(--analytics-accent) 44%, var(--app-border)); transform: translateY(-1px); box-shadow: var(--app-shadow-sm); }
 .analytics-report-type.is-active { background: color-mix(in srgb, var(--analytics-accent) 10%, var(--app-surface)); border-color: var(--analytics-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--analytics-accent) 11%, transparent); }
@@ -2708,8 +2708,8 @@ button:hover .agebre-action-icon {
 .institution-card button:hover { transform: translateY(-1px); box-shadow: var(--app-shadow-xs); }
 .institution-card .institution-card__edit { color: var(--institutions-accent-strong); background: color-mix(in srgb, var(--institutions-accent) 7%, var(--app-surface)); border-color: color-mix(in srgb, var(--institutions-accent) 34%, var(--app-border)); }
 .institution-card .institution-card__edit:hover { background: color-mix(in srgb, var(--institutions-accent) 15%, var(--app-surface)); border-color: color-mix(in srgb, var(--institutions-accent) 58%, var(--app-border)); }
-.institution-card .institution-card__delete { color: #c52222; background: rgb(220 38 38 / 8%); border-color: rgb(220 38 38 / 30%); }
-.institution-card .institution-card__delete:hover { background: rgb(220 38 38 / 15%); border-color: rgb(220 38 38 / 48%); }
+.institution-card .institution-card__delete { color: var(--app-danger); background: color-mix(in srgb, var(--app-danger) 8%, transparent); border-color: color-mix(in srgb, var(--app-danger) 30%, transparent); }
+.institution-card .institution-card__delete:hover { background: color-mix(in srgb, var(--app-danger) 15%, transparent); border-color: color-mix(in srgb, var(--app-danger) 48%, transparent); }
 .institutions-directory > div:last-child { color: var(--app-muted); }
 .institutions-directory > div:last-child button { color: var(--institutions-accent-strong); border-color: color-mix(in srgb, var(--institutions-accent) 28%, var(--app-border)); background: color-mix(in srgb, var(--institutions-accent) 5%, var(--app-surface)); }
 .institutions-directory > div:last-child button:disabled { color: var(--app-muted); background: transparent; border-color: var(--app-border); opacity: .55; }
@@ -2880,10 +2880,10 @@ button:hover .agebre-action-icon {
 .users-mobile-pagination { color: var(--app-muted); }
 
 .user-role-badge { display: inline-flex; align-items: center; white-space: nowrap; font-weight: 750; border-style: solid; }
-.user-role-badge.is-admin { color: #a65f00; background: rgb(220 141 7 / 10%); border-color: rgb(220 141 7 / 34%); }
-.user-role-badge.is-jefe_area { color: #1d4ed8; background: rgb(37 99 235 / 9%); border-color: rgb(37 99 235 / 30%); }
-.user-role-badge.is-director { color: #15803d; background: rgb(22 163 74 / 9%); border-color: rgb(22 163 74 / 30%); }
-.user-role-badge.is-responsable_cdd { color: #7e22ce; background: rgb(147 51 234 / 9%); border-color: rgb(147 51 234 / 30%); }
+.user-role-badge.is-admin { color: var(--app-warning); background: color-mix(in srgb, var(--app-warning) 10%, transparent); border-color: color-mix(in srgb, var(--app-warning) 34%, transparent); }
+.user-role-badge.is-jefe_area { color: var(--app-info); background: color-mix(in srgb, var(--app-info) 9%, transparent); border-color: color-mix(in srgb, var(--app-info) 30%, transparent); }
+.user-role-badge.is-director { color: var(--app-success); background: color-mix(in srgb, var(--app-success) 9%, transparent); border-color: color-mix(in srgb, var(--app-success) 30%, transparent); }
+.user-role-badge.is-responsable_cdd { color: var(--app-violet); background: color-mix(in srgb, var(--app-violet) 9%, transparent); border-color: color-mix(in srgb, var(--app-violet) 30%, transparent); }
 .user-role-badge.is-user { color: var(--users-accent-strong); background: var(--users-accent-soft); border-color: color-mix(in srgb, var(--users-accent) 32%, var(--app-border)); }
 
 .users-table-panel { margin-top: .85rem; border-radius: 1rem; }
@@ -2997,8 +2997,8 @@ button:hover .agebre-action-icon {
 .tracking-monitor-status { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; color: var(--app-muted); }
 .tracking-monitor-status > span:last-child { margin-left: 0; }
 .tracking-status-badge { display: inline-flex; align-items: center; font-weight: 750; }
-.tracking-status-badge.is-expired { color: #c52222; background: rgb(220 38 38 / 9%); border-color: rgb(220 38 38 / 30%); }
-.tracking-status-badge.is-available { color: #15803d; background: rgb(22 163 74 / 9%); border-color: rgb(22 163 74 / 30%); }
+.tracking-status-badge.is-expired { color: var(--app-danger); background: color-mix(in srgb, var(--app-danger) 9%, transparent); border-color: color-mix(in srgb, var(--app-danger) 30%, transparent); }
+.tracking-status-badge.is-available { color: var(--app-success); background: color-mix(in srgb, var(--app-success) 9%, transparent); border-color: color-mix(in srgb, var(--app-success) 30%, transparent); }
 
 .tracking-panel { padding: .9rem; border-radius: 1rem; }
 .tracking-panel + .tracking-panel { margin-top: -.15rem; }
@@ -3063,7 +3063,7 @@ button:hover .agebre-action-icon {
 .tracking-panel .text-white\/50,
 .tracking-panel .text-white\/60,
 .tracking-panel .text-white\/70 { color: var(--app-muted); }
-.tracking-monitor-card .text-emerald-300 { color: #15803d; font-weight: 700; }
+.tracking-monitor-card .text-emerald-300 { color: var(--app-success); font-weight: 700; }
 .tracking-monitor-card .text-amber-300 { color: #b86500; font-weight: 700; }
 .tracking-panel button { cursor: pointer; transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
 .tracking-panel button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--app-shadow-xs); }
