@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, clearLegacyAuthStorage } from "../lib/supabaseClient";
-import logoAgebreUrl from "../assets/logoagebresf.png";
+import logoAgebreUrl from "../assets/escudo_peru.png";
 import {
   DOCUMENT_LENGTH,
   docToEmail,

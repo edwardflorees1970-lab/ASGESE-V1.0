@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import { isStrongPassword } from "../lib/userImport";
-import logoAgebreUrl from "../assets/logoagebresf.png";
+import logoAgebreUrl from "../assets/escudo_peru.png";
 
 export function SetupPasswordPage() {
   const { loading, user, refreshProfile } = useAuth();
