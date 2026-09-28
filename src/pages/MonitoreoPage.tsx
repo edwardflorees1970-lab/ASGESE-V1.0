@@ -6,6 +6,7 @@ import { canSeeAllRole } from "../lib/roles";
 import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
 import { useAppConfig } from "../app/AppConfigProvider";
 import { loadCddRegisteredRunCount, loadMonitoringRunCounts } from "../lib/monitoringRunCounts";
+import { SkeletonCards } from "../components/Skeleton";
 
 type MonitoreoCard = {
   id: string;
@@ -368,10 +369,7 @@ export function MonitoreoPage() {
 
       <div className="monitoring-grid mt-4 grid grid-cols-1 gap-4">
         {loading ? (
-          <div className="monitoring-empty-state rounded-2xl border p-6 text-center text-sm text-[var(--app-muted)] lg:col-span-2">
-            <div className="monitoring-loading-icon mx-auto mb-3 grid h-10 w-10 place-items-center rounded-xl"><ClipboardIcon /></div>
-            Cargando monitoreos...
-          </div>
+          <SkeletonCards count={4} />
         ) : error ? (
           <div className="monitoring-grid-message rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100 lg:col-span-2">
             {error}
