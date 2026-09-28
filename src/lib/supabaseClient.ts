@@ -20,7 +20,7 @@ export function clearLegacyAuthStorage() {
     legacyKeys.forEach((k) => window.localStorage.removeItem(k));
     legacyKeys.forEach((k) => window.sessionStorage.removeItem(k));
 
-    console.log("Legacy auth storage cleared:", legacyKeys);
+    if (import.meta.env.DEV) console.log("Legacy auth storage cleared:", legacyKeys);
   } catch (e) {
     console.warn("clearLegacyAuthStorage warning:", e);
   }
