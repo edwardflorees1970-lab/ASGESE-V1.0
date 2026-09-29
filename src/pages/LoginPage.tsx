@@ -226,8 +226,8 @@ export function LoginPage() {
           </div>
 
           <p className="text-[10px] font-bold uppercase tracking-[0.19em] text-[var(--app-accent)] sm:text-xs">Acceso seguro</p>
-          <h2 className="mt-1.5 text-2xl font-bold tracking-[-0.025em] text-[var(--app-text)] sm:text-[1.75rem]">Bienvenido nuevamente</h2>
-          <p className="mt-1.5 text-[13px] leading-5 text-[var(--app-muted)] sm:text-sm sm:leading-6">Ingresa con las credenciales asignadas para acceder al sistema de monitoreo.</p>
+          <h2 className="mt-1.5 text-2xl font-bold tracking-[-0.025em] text-[var(--app-text)] sm:text-[1.75rem]">Ingresar a ASGESE</h2>
+          <p className="mt-1.5 text-[13px] leading-5 text-[var(--app-muted)] sm:text-sm sm:leading-6">Registra monitoreos y consulta resultados con tus credenciales institucionales de UGEL 06.</p>
 
           <div className="login-mode-switch mt-4 grid h-10 w-full max-w-[18rem] grid-cols-2 rounded-xl border p-1 sm:mt-5" role="group" aria-label="Tipo de acceso">
             <button type="button" aria-pressed={mode === "usuario"} onClick={() => changeMode("usuario")} className="login-mode-option rounded-lg px-3 text-[13px] font-semibold">Monitor</button>
