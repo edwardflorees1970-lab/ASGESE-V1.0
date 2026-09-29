@@ -41,6 +41,7 @@ import { ManagementIcon } from "./GestionMonitoreos/ManagementIcon";
 import { ReorderButtons } from "./GestionMonitoreos/ReorderButtons";
 import { StepNav, type StepNavItem } from "./GestionMonitoreos/StepNav";
 import { PreviewModal } from "./GestionMonitoreos/PreviewModal";
+import { PreviewFicha } from "./GestionMonitoreos/PreviewFicha";
 import { exportPreviewPdf as exportPreviewPdfUtil } from "./GestionMonitoreos/exportPreviewPdf";
 import type {
   DeleteFichaResumen,
@@ -53,6 +54,57 @@ import type {
   Solicitud,
   Template,
 } from "./GestionMonitoreos/types";
+
+type BuilderStepId =
+  | "datos"
+  | "aprobacion"
+  | "fichas"
+  | "encabezado"
+  | "secciones"
+  | "preguntas"
+  | "preview";
+
+/** Preferencia del usuario para mantener abierto el panel de vista previa en vivo. */
+const LIVE_PREVIEW_PREF_KEY = "asgese:constructor:live-preview";
+
+/**
+ * Título corto + explicación en una línea de cada paso del constructor. Se
+ * muestra encima del contenido del paso para que el administrador sepa siempre
+ * dónde está y qué se espera que haga ahí.
+ */
+const STEP_GUIDE: Record<BuilderStepId, { title: string; hint: string }> = {
+  datos: {
+    title: "Datos y alcance",
+    hint: "Nombre, fechas y qué instituciones educativas entran en este monitoreo.",
+  },
+  aprobacion: {
+    title: "Aprobación",
+    hint: "Estado de la solicitud y acciones disponibles según ese estado.",
+  },
+  fichas: {
+    title: "Fichas",
+    hint: "Crea o selecciona la ficha de monitoreo que vas a construir.",
+  },
+  encabezado: {
+    title: "Encabezado y cierre",
+    hint: "Qué datos se piden al inicio de la ficha y qué se firma al final.",
+  },
+  secciones: {
+    title: "Secciones",
+    hint: "Agrupa las preguntas en secciones (I, II, III…) y sus subtítulos.",
+  },
+  preguntas: {
+    title: "Preguntas",
+    hint: "Agrega las preguntas de cada sección y elige su tipo de respuesta.",
+  },
+  preview: {
+    title: "Revisar y publicar",
+    hint: "Comprueba la ficha completa y publica la versión para los monitores.",
+  },
+};
+
+/** Pasos en los que tiene sentido ver la ficha mientras se edita. */
+const LIVE_PREVIEW_STEPS: BuilderStepId[] = ["encabezado", "secciones", "preguntas"];
 
 export function GestionMonitoreosPage() {
   const { profile, user } = useAuth();
@@ -169,9 +221,14 @@ export function GestionMonitoreosPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<Record<string, any>>({});
   const [showTemplateDetail, setShowTemplateDetail] = useState(true);
-  const [activeStep, setActiveStep] = useState<
-    "datos" | "aprobacion" | "fichas" | "encabezado" | "secciones" | "preguntas" | "preview"
-  >("datos");
+  const [activeStep, setActiveStep] = useState<BuilderStepId>("datos");
+  const [livePreviewOpen, setLivePreviewOpen] = useState(() => {
+    try {
+      return localStorage.getItem(LIVE_PREVIEW_PREF_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
   const skipNextStepResetRef = useRef(false);
   const questionFormRef = useRef<HTMLDivElement | null>(null);
   const [solicitudDetailModal, setSolicitudDetailModal] = useState<Solicitud | null>(null);
@@ -284,6 +341,24 @@ export function GestionMonitoreosPage() {
       { id: "preview", label: "Revisar y publicar", status: statusFor("preview", false) },
     ];
   }, [activeStep, selected, templates, selectedTemplateId, sections, questions]);
+
+  const stepIndex = Math.max(0, stepItems.findIndex((s) => s.id === activeStep));
+  const prevStep = (stepItems[stepIndex - 1]?.id ?? null) as BuilderStepId | null;
+  const nextStep = (stepItems[stepIndex + 1]?.id ?? null) as BuilderStepId | null;
+  /** El panel lateral en vivo solo aplica si hay ficha elegida y el paso edita su contenido. */
+  const canShowLivePreview = !!selectedTemplateId && LIVE_PREVIEW_STEPS.includes(activeStep);
+
+  const toggleLivePreview = () => {
+    setLivePreviewOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(LIVE_PREVIEW_PREF_KEY, next ? "1" : "0");
+      } catch {
+        /* preferencia no persistible: no es crítico */
+      }
+      return next;
+    });
+  };
 
   const loadSolicitudes = async () => {
     setLoading(true);
@@ -2039,6 +2114,17 @@ export function GestionMonitoreosPage() {
     localStorage.setItem(`preview:${selectedId}:${selectedTemplateId}`, JSON.stringify(next));
   };
 
+  // La vista previa en vivo se dibuja sin que el usuario pulse nada, así que las
+  // respuestas de prueba deben cargarse en cuanto cambia la ficha seleccionada.
+  useEffect(() => {
+    if (!selectedId || !selectedTemplateId) {
+      setPreviewData({});
+      return;
+    }
+    loadPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, selectedTemplateId]);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
@@ -2502,13 +2588,59 @@ export function GestionMonitoreosPage() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="flex flex-col gap-4 md:flex-row">
                 <div className="md:w-[220px] md:shrink-0">
+                  <div className="mb-2 hidden text-[11px] font-bold uppercase tracking-[0.14em] text-white/40 md:block">
+                    Pasos del constructor
+                  </div>
                   <StepNav
                     steps={stepItems}
                     current={activeStep}
-                    onSelect={(id) => setActiveStep(id as typeof activeStep)}
+                    onSelect={(id) => setActiveStep(id as BuilderStepId)}
                   />
                 </div>
                 <div className="min-w-0 flex-1 space-y-4">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--app-accent)]">
+                      Paso {stepIndex + 1} de {stepItems.length}
+                    </div>
+                    <div className="mt-0.5 text-base font-semibold">{STEP_GUIDE[activeStep].title}</div>
+                    <p className="mt-1 max-w-[62ch] text-xs text-white/60">{STEP_GUIDE[activeStep].hint}</p>
+                  </div>
+                  {selectedTemplateId && (
+                    <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                      {LIVE_PREVIEW_STEPS.includes(activeStep) && (
+                        <button
+                          type="button"
+                          onClick={toggleLivePreview}
+                          aria-pressed={livePreviewOpen}
+                          className={`hidden items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold xl:flex ${
+                            livePreviewOpen
+                              ? "border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] text-[var(--app-accent)]"
+                              : "border-white/10 bg-white/5 text-white/80"
+                          }`}
+                        >
+                          <span className="h-3.5 w-3.5"><ManagementIcon type="eye" /></span>
+                          {livePreviewOpen ? "Ocultar vista previa" : "Vista previa en vivo"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          loadPreview();
+                          setPreviewOpen(true);
+                        }}
+                        className={`flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 ${
+                          LIVE_PREVIEW_STEPS.includes(activeStep) ? "xl:hidden" : ""
+                        }`}
+                      >
+                        <span className="h-3.5 w-3.5"><ManagementIcon type="eye" /></span>
+                        Ver ficha completa
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
               {activeStep === "aprobacion" && (
                 <>
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
@@ -3720,17 +3852,6 @@ export function GestionMonitoreosPage() {
                             <span className="h-3.5 w-3.5"><ManagementIcon type="save" /></span>
                             {savingConfig ? "Guardando..." : "Guardar configuración"}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              loadPreview();
-                              setPreviewOpen(true);
-                            }}
-                            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
-                          >
-                            <span className="h-3.5 w-3.5"><ManagementIcon type="eye" /></span>
-                            Vista previa
-                          </button>
                         </div>
 
                         {showQuestionForm && (
@@ -4127,14 +4248,7 @@ Primaria - Faltó`}
               </div>
 
               {activeStep === "preview" && (
-                <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div>
-                    <div className="text-sm font-semibold">Revisar y publicar</div>
-                    <p className="mt-1 text-xs text-white/60">
-                      Revisa cómo se verá la ficha antes de publicarla. Puedes volver a cualquier paso
-                      anterior para hacer ajustes.
-                    </p>
-                  </div>
+                <div className="space-y-3">
                   {!selectedTemplateId ? (
                     <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-center">
                       <div className="text-sm font-semibold">Primero elige o crea una ficha</div>
@@ -4150,43 +4264,130 @@ Primaria - Faltó`}
                       </button>
                     </div>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          loadPreview();
-                          setPreviewOpen(true);
-                        }}
-                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
-                      >
-                        <span className="h-3.5 w-3.5"><ManagementIcon type="eye" /></span>
-                        Vista previa
-                      </button>
-                      {canEditTemplates && (
+                    <>
+                      <div className="flex flex-wrap gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                        {canEditTemplates && (
+                          <button
+                            type="button"
+                            disabled={publishingVersion}
+                            onClick={publishSelectedTemplateVersion}
+                            className="flex items-center gap-1.5 rounded-lg border border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--app-accent)] disabled:opacity-50"
+                          >
+                            <span className="h-3.5 w-3.5"><ManagementIcon type="publish" /></span>
+                            {publishingVersion ? "Publicando..." : "Publicar versión de la ficha"}
+                          </button>
+                        )}
                         <button
                           type="button"
-                          disabled={publishingVersion}
-                          onClick={publishSelectedTemplateVersion}
-                          className="flex items-center gap-1.5 rounded-lg border border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--app-accent)] disabled:opacity-50"
+                          onClick={exportPreviewPdf}
+                          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
                         >
-                          <span className="h-3.5 w-3.5"><ManagementIcon type="publish" /></span>
-                          {publishingVersion ? "Publicando..." : "Publicar versión de la ficha"}
+                          Exportar PDF de prueba
                         </button>
-                      )}
-                      {isAdmin && selected.status === "approved_lv1" && (
-                        <button
-                          type="button"
-                          onClick={() => approveFinal(selected.id)}
-                          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
-                        >
-                          Aprobar final y publicar solicitud
-                        </button>
-                      )}
-                    </div>
+                        {isAdmin && selected.status === "approved_lv1" && (
+                          <button
+                            type="button"
+                            onClick={() => approveFinal(selected.id)}
+                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                          >
+                            Aprobar final y publicar solicitud
+                          </button>
+                        )}
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-white/40">
+                          Así verá la ficha el monitor
+                        </div>
+                        <PreviewFicha
+                          variant="panel"
+                          selectedTemplate={selectedTemplate}
+                          templateHeader={templateHeader}
+                          templateFooter={templateFooter}
+                          previewData={previewData}
+                          savePreview={savePreview}
+                          sections={sections}
+                          questions={questions}
+                          onExportPdf={exportPreviewPdf}
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
               )}
+
+              <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-3">
+                <button
+                  type="button"
+                  disabled={!prevStep}
+                  onClick={() => prevStep && setActiveStep(prevStep)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 disabled:opacity-40"
+                >
+                  ← {prevStep ? STEP_GUIDE[prevStep].title : "Inicio"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!nextStep}
+                  onClick={() => nextStep && setActiveStep(nextStep)}
+                  className="rounded-lg border border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--app-accent)] disabled:opacity-40"
+                >
+                  {nextStep ? STEP_GUIDE[nextStep].title : "Último paso"} →
+                </button>
+              </div>
             </div>
+
+              {canShowLivePreview && livePreviewOpen && (
+                <aside className="hidden xl:block xl:w-[26rem] xl:shrink-0 2xl:w-[30rem]">
+                  <div className="sticky top-4">
+                    <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--app-accent)]">
+                            Vista previa en vivo
+                          </div>
+                          <div className="truncate text-[11px] text-white/50">
+                            Se actualiza mientras editas
+                          </div>
+                        </div>
+                        <div className="flex flex-shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              loadPreview();
+                              setPreviewOpen(true);
+                            }}
+                            title="Abrir la ficha completa en grande"
+                            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80"
+                          >
+                            Ampliar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={toggleLivePreview}
+                            aria-label="Ocultar vista previa en vivo"
+                            title="Ocultar vista previa en vivo"
+                            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                      <div className="max-h-[calc(100vh-9rem)] overflow-y-auto px-3 py-3">
+                        <PreviewFicha
+                          variant="panel"
+                          selectedTemplate={selectedTemplate}
+                          templateHeader={templateHeader}
+                          templateFooter={templateFooter}
+                          previewData={previewData}
+                          savePreview={savePreview}
+                          sections={sections}
+                          questions={questions}
+                          onExportPdf={exportPreviewPdf}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+              )}
               </div>
             </div>
           )}
