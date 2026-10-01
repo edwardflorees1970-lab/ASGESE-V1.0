@@ -2449,10 +2449,15 @@ export function GestionMonitoreosPage() {
               </label>
 
               <div className="management-subpanel rounded-xl border p-3.5">
-                <div className="management-subpanel-title text-xs font-bold">Filtros de alcance</div>
+                <div className="management-subpanel-title text-xs font-bold">Filtros de alcance (opcional)</div>
                 <div className="mt-1 text-[11px] text-[var(--app-muted)]">
-                  ¿A qué tipo de instituciones aplica este monitoreo? (opcional: deja vacío para aplicar a todas)
+                  Déjalo todo sin marcar para que el monitoreo aplique a <strong>todas</strong> las instituciones.
                 </div>
+                {(gestiones.length > 0 || modalidades.length > 0 || tipos.length > 0 || niveles.length > 0) && (
+                  <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-100">
+                    ⚠ Con filtros marcados, este monitoreo solo aplicará a las instituciones que los cumplan — no a todas. Desmarca todo si no es lo que buscas.
+                  </div>
+                )}
                 <div className="management-filter-groups mt-3 grid grid-cols-2 gap-4 2xl:grid-cols-4">
                   <div>
                     <div className="management-group-title text-xs">Gestión</div>
@@ -2848,10 +2853,15 @@ export function GestionMonitoreosPage() {
                   />
                 </div>
                 <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div className="text-sm font-semibold">Filtros</div>
+                  <div className="text-sm font-semibold">Filtros (opcional)</div>
                   <div className="mt-1 text-[11px] text-white/45">
-                    ¿A qué tipo de instituciones aplica este monitoreo?
+                    Déjalo todo sin marcar para que aplique a todas las instituciones.
                   </div>
+                  {(editGestiones.length > 0 || editModalidades.length > 0 || editTipos.length > 0 || editNiveles.length > 0) && (
+                    <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-100">
+                      ⚠ Con filtros marcados, este monitoreo solo aplica a las instituciones que los cumplan — no a todas.
+                    </div>
+                  )}
                   <div className="mt-2 grid gap-3 md:grid-cols-4">
                     <div>
                       <div className="text-xs text-white/60">Gestión</div>
