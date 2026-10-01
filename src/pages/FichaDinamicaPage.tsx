@@ -821,10 +821,7 @@ export function FichaDinamicaPage() {
           .maybeSingle();
         if (!draft || !alive) {
           if (!parsedLocalDraft) resetFormState();
-          if (parsedLocalDraft) {
-            setLocalDraftPending(parsedLocalDraft);
-            setLocalDraftPromptOpen(true);
-          }
+          if (parsedLocalDraft) applyLocalDraft(parsedLocalDraft);
           return;
         }
         setRunId(draft.id);
@@ -857,10 +854,7 @@ export function FichaDinamicaPage() {
           next[r.question_id] = r.value_json;
         });
         setAnswers(next);
-        if (parsedLocalDraft) {
-          setLocalDraftPending(parsedLocalDraft);
-          setLocalDraftPromptOpen(true);
-        }
+        if (parsedLocalDraft) applyLocalDraft(parsedLocalDraft);
         return;
       }
       let parsedLocalDraft: LocalDraftSnapshot | null = null;
@@ -917,10 +911,7 @@ export function FichaDinamicaPage() {
         next[r.question_id] = r.value_json;
       });
       setAnswers(next);
-      if (parsedLocalDraft) {
-        setLocalDraftPending(parsedLocalDraft);
-        setLocalDraftPromptOpen(true);
-      }
+      if (parsedLocalDraft) applyLocalDraft(parsedLocalDraft);
     })().finally(() => {
       if (alive) setRunHydrating(false);
     });
