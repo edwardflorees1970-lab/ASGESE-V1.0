@@ -2417,20 +2417,26 @@ export function GestionMonitoreosPage() {
                 disabled={!canCreate || saving}
               />
               <div className="grid gap-3 md:grid-cols-2">
-                <input
-                  type="date"
-                  className="management-control rounded-lg border px-3 py-2.5 text-sm"
-                  value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
-                  disabled={!canCreate || saving}
-                />
-                <input
-                  type="date"
-                  className="management-control rounded-lg border px-3 py-2.5 text-sm"
-                  value={fechaFin}
-                  onChange={(e) => setFechaFin(e.target.value)}
-                  disabled={!canCreate || saving}
-                />
+                <label className="block text-xs">
+                  <span className="mb-1 block font-semibold text-[var(--app-muted)]">Fecha de inicio</span>
+                  <input
+                    type="date"
+                    className="management-control w-full rounded-lg border px-3 py-2.5 text-sm"
+                    value={fechaInicio}
+                    onChange={(e) => setFechaInicio(e.target.value)}
+                    disabled={!canCreate || saving}
+                  />
+                </label>
+                <label className="block text-xs">
+                  <span className="mb-1 block font-semibold text-[var(--app-muted)]">Fecha de fin</span>
+                  <input
+                    type="date"
+                    className="management-control w-full rounded-lg border px-3 py-2.5 text-sm"
+                    value={fechaFin}
+                    onChange={(e) => setFechaFin(e.target.value)}
+                    disabled={!canCreate || saving}
+                  />
+                </label>
               </div>
               <label className="management-check-row flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold">
                 <input
@@ -2808,18 +2814,24 @@ export function GestionMonitoreosPage() {
                       value={editNombre}
                       onChange={(e) => setEditNombre(e.target.value)}
                     />
-                    <input
-                      type="date"
-                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                      value={editFechaInicio}
-                      onChange={(e) => setEditFechaInicio(e.target.value)}
-                    />
-                    <input
-                      type="date"
-                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                      value={editFechaFin}
-                      onChange={(e) => setEditFechaFin(e.target.value)}
-                    />
+                    <label className="block text-xs">
+                      <span className="mb-1 block font-semibold text-white/60">Fecha de inicio</span>
+                      <input
+                        type="date"
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                        value={editFechaInicio}
+                        onChange={(e) => setEditFechaInicio(e.target.value)}
+                      />
+                    </label>
+                    <label className="block text-xs">
+                      <span className="mb-1 block font-semibold text-white/60">Fecha de fin</span>
+                      <input
+                        type="date"
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                        value={editFechaFin}
+                        onChange={(e) => setEditFechaFin(e.target.value)}
+                      />
+                    </label>
                     <label className="flex items-center gap-2 text-xs text-white/70">
                       <input
                         type="checkbox"
