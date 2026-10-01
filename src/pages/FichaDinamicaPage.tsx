@@ -1149,6 +1149,11 @@ export function FichaDinamicaPage() {
     }
     setIeLoading(true);
     const handle = setTimeout(() => {
+      // Antes se cortaba a los primeros 20 en orden alfabético por nombre
+      // completo -- una IE sin prefijo numérico (ej. "VICTOR RAUL...") podía
+      // quedar enterrada detrás de decenas de coincidencias más "tempranas"
+      // en el abecedario y nunca aparecer. Ahora las coincidencias que
+      // EMPIEZAN con el término buscado van primero.
       const next = iePool
         .filter((ie) => {
           const name = (ie.nombre || "").toLowerCase();
@@ -1156,7 +1161,12 @@ export function FichaDinamicaPage() {
           const loc = (ie.codigo_local || "").toLowerCase();
           return name.includes(term) || mod.includes(term) || loc.includes(term);
         })
-        .slice(0, 20);
+        .sort((a, b) => {
+          const aStarts = (a.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+          const bStarts = (b.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+          return aStarts - bStarts;
+        })
+        .slice(0, 30);
       setIeOptions(next);
       setIeLoading(false);
     }, 120);
