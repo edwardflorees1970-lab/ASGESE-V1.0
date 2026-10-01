@@ -255,8 +255,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
 
       if (newSession?.user?.id) {
-        if (userChanged) setProfile(null);
-        loadProfile(newSession.user.id);
+        if (userChanged) {
+          setProfile(null);
+          loadProfile(newSession.user.id);
+        } else {
+          // Mismo usuario (ej. TOKEN_REFRESHED al volver a la pestaña): no
+          // recargues el perfil sin avisar -- eso ponía profileLoading=true
+          // y tiraba abajo cualquier página que dependiera de `profile`
+          // (ej. la ficha dinámica volvía a "Cargando ficha..." solo por
+          // cambiar de pestaña y volver). El refresh silencioso ya lo cubre
+          // el efecto de visibilitychange de abajo.
+          loadProfile(newSession.user.id, { silent: true });
+        }
       } else {
         setProfile(null);
         setProfileError(null);
