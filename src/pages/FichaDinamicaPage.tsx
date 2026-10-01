@@ -1092,12 +1092,10 @@ export function FichaDinamicaPage() {
         niveles: Array.from(new Set(realFiltroRows.map((r: any) => r.nivel).filter(Boolean))) as string[],
       };
 
-      if (!filters.gestiones.length && !filters.modalidades.length && !filters.niveles.length) {
-        setIePool([]);
-        setIeLoading(false);
-        return;
-      }
-
+      // Sin filtros de alcance => el monitoreo aplica a TODAS las instituciones
+      // (así lo dice el constructor: "deja vacío para aplicar a todas"). Antes
+      // esto cortaba a lista vacía, dejando el campo "Institución Educativa"
+      // sin ninguna opción para el monitor.
       const [{ data: modalidadCatalog }, { data: nivelCatalog }] = await Promise.all([
         supabase.from("cat_modalidad").select("id, nombre"),
         supabase.from("cat_nivel").select("id, nombre"),
