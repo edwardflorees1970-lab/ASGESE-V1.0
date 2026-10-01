@@ -454,6 +454,10 @@ export function FichaDinamicaPage() {
   const [ieOpen, setIeOpen] = useState(false);
   const [ieOptions, setIeOptions] = useState<InstitucionLite[]>([]);
   const [iePool, setIePool] = useState<InstitucionLite[]>([]);
+  // true = el monitoreo no tiene focalizadas ni filtros -> aplica a todas las
+  // instituciones. En ese caso la búsqueda va directo al servidor (ver abajo)
+  // en vez de precargar las 2400+ filas del catálogo en memoria.
+  const [scopeAll, setScopeAll] = useState(false);
   const [ieLoading, setIeLoading] = useState(false);
   const [runHydrating, setRunHydrating] = useState(false);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
@@ -1047,11 +1051,13 @@ export function FichaDinamicaPage() {
     if (!solicitudId) {
       setIePool([]);
       setIeOptions([]);
+      setScopeAll(false);
       return;
     }
     let alive = true;
     (async () => {
       setIeLoading(true);
+      setScopeAll(false);
       const { data } = await supabase
         .from("monitoreo_solicitud_ie")
         .select(
@@ -1084,9 +1090,18 @@ export function FichaDinamicaPage() {
       };
 
       // Sin filtros de alcance => el monitoreo aplica a TODAS las instituciones
-      // (así lo dice el constructor: "deja vacío para aplicar a todas"). Antes
-      // esto cortaba a lista vacía, dejando el campo "Institución Educativa"
-      // sin ninguna opción para el monitor.
+      // (así lo dice el constructor: "deja vacío para aplicar a todas"). Con
+      // 2400+ instituciones, precargar todo el catálogo en el cliente y
+      // ordenarlo por nombre dejaba fuera (por corte de fila/orden alfabético)
+      // instituciones sin prefijo numérico que caen al final del abecedario.
+      // En vez de precargar, se busca directo en el servidor por lo que se
+      // escribe (ver efecto de abajo), sin depender de una lista completa.
+      if (!filters.gestiones.length && !filters.modalidades.length && !filters.niveles.length) {
+        setScopeAll(true);
+        setIePool([]);
+        setIeLoading(false);
+        return;
+      }
       const [{ data: modalidadCatalog }, { data: nivelCatalog }] = await Promise.all([
         supabase.from("cat_modalidad").select("id, nombre"),
         supabase.from("cat_nivel").select("id, nombre"),
@@ -1149,29 +1164,56 @@ export function FichaDinamicaPage() {
     }
     setIeLoading(true);
     const handle = setTimeout(() => {
-      // Antes se cortaba a los primeros 20 en orden alfabético por nombre
-      // completo -- una IE sin prefijo numérico (ej. "VICTOR RAUL...") podía
-      // quedar enterrada detrás de decenas de coincidencias más "tempranas"
-      // en el abecedario y nunca aparecer. Ahora las coincidencias que
-      // EMPIEZAN con el término buscado van primero.
-      const next = iePool
-        .filter((ie) => {
-          const name = (ie.nombre || "").toLowerCase();
-          const mod = (ie.codigo_modular || "").toLowerCase();
-          const loc = (ie.codigo_local || "").toLowerCase();
-          return name.includes(term) || mod.includes(term) || loc.includes(term);
-        })
-        .sort((a, b) => {
-          const aStarts = (a.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
-          const bStarts = (b.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
-          return aStarts - bStarts;
-        })
-        .slice(0, 30);
-      setIeOptions(next);
-      setIeLoading(false);
+      (async () => {
+        if (scopeAll) {
+          // Monitoreo sin focalizadas/filtros (aplica a todas, 2400+ IE):
+          // buscar directo en el servidor por lo escrito, en vez de precargar
+          // y ordenar todo el catálogo en el cliente -- eso era lo que dejaba
+          // fuera instituciones sin prefijo numérico (ej. "VICTOR RAUL..."),
+          // sin importar el rol de quien buscaba.
+          const esc = term.replace(/[%,]/g, "");
+          const { data, error } = await supabase
+            .from("institucion_educativa")
+            .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre), distrito:cat_distrito(nombre)")
+            .or(`nombre.ilike.%${esc}%,codigo_modular.ilike.%${esc}%,codigo_local.ilike.%${esc}%`)
+            .order("nombre", { ascending: true })
+            .limit(30);
+          if (error) {
+            setIeOptions([]);
+            setIeLoading(false);
+            return;
+          }
+          const results = ((data ?? []) as any[]).map(normalizeInstitucionRow);
+          results.sort((a, b) => {
+            const aStarts = (a.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+            const bStarts = (b.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+            return aStarts - bStarts;
+          });
+          setIeOptions(results);
+          setIeLoading(false);
+          return;
+        }
+        // Monitoreo con focalizadas o filtros: el pool ya es una lista acotada
+        // cargada en memoria, se filtra ahí mismo.
+        const next = iePool
+          .filter((ie) => {
+            const name = (ie.nombre || "").toLowerCase();
+            const mod = (ie.codigo_modular || "").toLowerCase();
+            const loc = (ie.codigo_local || "").toLowerCase();
+            return name.includes(term) || mod.includes(term) || loc.includes(term);
+          })
+          .sort((a, b) => {
+            const aStarts = (a.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+            const bStarts = (b.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+            return aStarts - bStarts;
+          })
+          .slice(0, 30);
+        setIeOptions(next);
+        setIeLoading(false);
+      })();
     }, 120);
     return () => clearTimeout(handle);
-  }, [ieQuery, iePool]);
+  }, [ieQuery, iePool, scopeAll]);
 
   useEffect(() => {
     const onScroll = () => {
