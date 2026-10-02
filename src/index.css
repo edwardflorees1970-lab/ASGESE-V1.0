@@ -3101,18 +3101,24 @@ button:hover .agebre-action-icon {
 }
 
 /* Tabla matriz de la ficha: al pasar el cursor o enfocar una celda se resaltan
-   su fila y su columna (encabezados + celdas) para ubicarse en tablas grandes. */
+   su fila y su columna con un tinte suave; la celda activa destaca mucho mas. */
 .matrix-table td[data-cross="on"] {
-  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--app-accent) 6%, transparent);
 }
 .matrix-table th[data-axis="on"],
 .matrix-table td[data-axis="on"] {
-  background: color-mix(in srgb, var(--app-accent) 26%, transparent);
+  background: color-mix(in srgb, var(--app-accent) 14%, transparent);
   color: var(--app-text);
   font-weight: 650;
 }
-.matrix-table td[data-cross="on"] input:not(:focus):not([readonly]) {
-  background-color: color-mix(in srgb, var(--app-accent) 7%, white);
+.matrix-table td[data-cell="on"] {
+  background: color-mix(in srgb, var(--app-accent) 34%, transparent);
+}
+.matrix-table td[data-cell="on"] input:not([readonly]),
+.matrix-table td input:focus {
+  background-color: color-mix(in srgb, var(--app-accent) 12%, white);
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 35%, transparent);
 }
 .matrix-table td input:focus {
   outline: 2px solid var(--app-accent);

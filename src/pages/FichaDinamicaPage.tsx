@@ -2241,6 +2241,7 @@ export function FichaDinamicaPage() {
                                           <td
                                             key={col}
                                             data-cross={i === activeRow || j === activeCol ? "on" : undefined}
+                                            data-cell={i === activeRow && j === activeCol ? "on" : undefined}
                                             onMouseEnter={() => setMatrixHover({ qid: q.id, r: i, c: j })}
                                             className="min-w-[76px] border border-white/10 p-1"
                                           >
