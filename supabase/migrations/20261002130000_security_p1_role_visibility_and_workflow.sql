@@ -1,0 +1,13 @@
+-- Auditoria 2026-10-02, bloque P1 (aplicada en produccion via MCP; versionada aqui).
+-- Resumen:
+--  * can_supervise_all(): admin/jefe_area/director/coordinador leen profiles, form_run, form_answer,
+--    monitoreo_ie_* y monitoreo_solicitud (antes solo admin => pantallas vacias para esos roles).
+--  * monitoreo_solicitud_filtro: lectura para todo autenticado (regla de duplicados y alcance);
+--    filtro/ie escribibles por admin o creador de la solicitud (can_manage_solicitud).
+--  * Aprobacion nivel 1: jefe_area/director aprueban(lv1)/rechazan solicitudes ajenas; la aprobacion
+--    final sigue siendo solo admin; nadie aprueba la propia (trigger guard_solicitud_workflow).
+--  * profiles.self_update: se elimina la subconsulta recursiva (nadie podia actualizar su perfil);
+--    las columnas privilegiadas siguen protegidas por guard_profile_privileged_columns.
+--  * Fichas firmadas: form_answer/form_run no editables por escritura directa del cliente
+--    (save_form_run_atomic es SECURITY DEFINER y no se ve afectado).
+-- El SQL completo esta en el historial de migraciones de Supabase: security_p1_role_visibility_and_workflow.
