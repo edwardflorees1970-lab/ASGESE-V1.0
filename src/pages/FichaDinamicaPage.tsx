@@ -453,6 +453,10 @@ export function FichaDinamicaPage() {
   });
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [pendingEvidenceFiles, setPendingEvidenceFiles] = useState<Record<string, File>>({});
+  // Celda de tabla_matriz bajo el cursor o con foco: resalta su fila y su columna.
+  type MatrixPos = { qid: string; r: number; c: number };
+  const [matrixHover, setMatrixHover] = useState<MatrixPos | null>(null);
+  const [matrixFocus, setMatrixFocus] = useState<MatrixPos | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<string | null>(null);
   // Read (not watched) inside the local-draft autosave effect below.
@@ -2151,19 +2155,26 @@ export function FichaDinamicaPage() {
                       {q.tipo === "tabla_matriz" && (
                         <div className="overflow-x-auto">
                           <table
-                            className="border-collapse text-xs"
+                            className="matrix-table border-collapse text-xs"
                             style={{ minWidth: 140 + (q.config_json?.cols ?? []).length * 76 }}
+                            onMouseLeave={() => setMatrixHover(null)}
                           >
                             <thead>
                               {(() => {
                                 const cols: string[] = q.config_json?.cols ?? [];
                                 const groups = groupMatrixCols(cols);
+                                const act = matrixHover ?? matrixFocus;
+                                const activeCol = act && act.qid === q.id ? act.c : -1;
                                 if (!groups) {
                                   return (
                                     <tr>
                                       <th className="min-w-[140px] border border-white/10 bg-white/5 px-2 py-1 text-left"></th>
-                                      {cols.map((col) => (
-                                        <th key={col} className="min-w-[76px] border border-white/10 bg-white/5 px-2 py-1 text-center">
+                                      {cols.map((col, ci) => (
+                                        <th
+                                          key={col}
+                                          data-axis={ci === activeCol ? "on" : undefined}
+                                          className="min-w-[76px] border border-white/10 bg-white/5 px-2 py-1 text-center"
+                                        >
                                           {col}
                                         </th>
                                       ))}
@@ -2185,10 +2196,15 @@ export function FichaDinamicaPage() {
                                       ))}
                                     </tr>
                                     <tr>
-                                      {groups.flatMap((g) =>
-                                        g.cols.map((label) => (
+                                      {groups.flatMap((g, gi) =>
+                                        g.cols.map((label, li) => (
                                           <th
                                             key={`${g.group}-${label}`}
+                                            data-axis={
+                                              groups.slice(0, gi).reduce((n, x) => n + x.cols.length, 0) + li === activeCol
+                                                ? "on"
+                                                : undefined
+                                            }
                                             className="min-w-[76px] border border-white/10 bg-white/5 px-2 py-1 text-center"
                                           >
                                             {label}
@@ -2205,17 +2221,32 @@ export function FichaDinamicaPage() {
                                 const rows: string[] = q.config_json?.rows ?? [];
                                 const cols: string[] = q.config_json?.cols ?? [];
                                 const groups = groupMatrixCols(cols);
+                                const act = matrixHover ?? matrixFocus;
+                                const activeRow = act && act.qid === q.id ? act.r : -1;
+                                const activeCol = act && act.qid === q.id ? act.c : -1;
                                 return rows.map((row, i) => {
                                   const rowValues = cols.map((_c, j) => value.matrix?.[i]?.[j] ?? "");
                                   const { next: rowComputed, totalFlatIndices } = computeMatrixAutoTotals(groups, rowValues);
                                   return (
                                     <tr key={row}>
-                                      <td className="min-w-[140px] border border-white/10 px-2 py-1 text-white/80">{row}</td>
+                                      <td
+                                        data-axis={i === activeRow ? "on" : undefined}
+                                        className="min-w-[140px] border border-white/10 px-2 py-1 text-white/80"
+                                      >
+                                        {row}
+                                      </td>
                                       {cols.map((col, j) => {
                                         const isTotal = totalFlatIndices.has(j);
                                         return (
-                                          <td key={col} className="min-w-[76px] border border-white/10 p-1">
+                                          <td
+                                            key={col}
+                                            data-cross={i === activeRow || j === activeCol ? "on" : undefined}
+                                            onMouseEnter={() => setMatrixHover({ qid: q.id, r: i, c: j })}
+                                            className="min-w-[76px] border border-white/10 p-1"
+                                          >
                                             <input
+                                              onFocus={() => setMatrixFocus({ qid: q.id, r: i, c: j })}
+                                              onBlur={() => setMatrixFocus(null)}
                                               type="number"
                                               step={q.config_json?.decimals ? 1 / 10 ** q.config_json.decimals : 1}
                                               readOnly={isTotal}
