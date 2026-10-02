@@ -475,7 +475,7 @@ export function ReportesPage() {
     return () => {
       alive = false;
     };
-  }, [year, selectedMonitoreo, isResponsableCdd, user?.id]);
+  }, [year, selectedMonitoreo, isResponsableCdd, user?.id, isTestMode]);
 
   useEffect(() => {
     let alive = true;

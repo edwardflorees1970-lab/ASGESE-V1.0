@@ -158,6 +158,7 @@ export function HomePage() {
         .select("id, codigo, nombre, anio, is_active")
         .eq("anio", Number(year))
         .eq("is_active", true)
+        .eq("is_test", isTestMode)
         .order("nombre", { ascending: true });
       if (!alive || error) return;
       const rows = (data ?? []) as MonitoreoRow[];
@@ -165,7 +166,7 @@ export function HomePage() {
       setMonitoreo((current) => current !== "ALL" && !rows.some((item) => item.codigo === current) ? "ALL" : current);
     })();
     return () => { alive = false; };
-  }, [year]);
+  }, [year, isTestMode]);
 
   useEffect(() => {
     let alive = true;

@@ -230,6 +230,7 @@ export function GestionMonitoreosPage() {
     }
   });
   const skipNextStepResetRef = useRef(false);
+  const loadTemplatesSeqRef = useRef(0);
   const questionFormRef = useRef<HTMLDivElement | null>(null);
   const [solicitudDetailModal, setSolicitudDetailModal] = useState<Solicitud | null>(null);
   const [templateEnabledMap, setTemplateEnabledMap] = useState<Record<string, boolean>>({});
@@ -378,11 +379,15 @@ export function GestionMonitoreosPage() {
   };
 
   const loadTemplates = async (solicitudId: string) => {
+    // Solo la última llamada aplica su resultado: al cambiar rápido de
+    // solicitud, una respuesta vieja pisaba plantillas/selectedTemplateId.
+    const seq = ++loadTemplatesSeqRef.current;
     const { data } = await supabase
       .from("form_template")
       .select("id, solicitud_id, titulo, codigo, subtitulo, header_config, footer_config, orden")
       .eq("solicitud_id", solicitudId)
       .order("orden", { ascending: true });
+    if (seq !== loadTemplatesSeqRef.current) return;
     const rows = (data as Template[]) ?? [];
     setTemplates(rows);
     if (rows.length > 0) setSelectedTemplateId(rows[0].id);
@@ -872,15 +877,34 @@ export function GestionMonitoreosPage() {
     setSaving(false);
   };
 
-  const approveLv1 = async (solicitudId: string) => {
-    await supabase
+  // Actualiza la solicitud y verifica que realmente se tocó una fila: con RLS
+  // un UPDATE sin permiso (o sobre una fila que ya cambió) no da error, solo
+  // afecta 0 filas, y antes la UI lo daba por hecho.
+  const updateSolicitudChecked = async (solicitudId: string, patch: Record<string, unknown>) => {
+    const { data, error: updErr } = await supabase
       .from("monitoreo_solicitud")
-      .update({
-        status: "approved_lv1",
-        approved_lv1_by: user?.id ?? null,
-        approved_lv1_at: new Date().toISOString(),
-      })
-      .eq("id", solicitudId);
+      .update(patch)
+      .eq("id", solicitudId)
+      .select("id");
+    if (updErr) {
+      setToast({ type: "err", msg: updErr.message });
+      return false;
+    }
+    if (!data || data.length === 0) {
+      setToast({ type: "err", msg: "No tienes permiso o la solicitud ya cambió." });
+      await loadSolicitudes();
+      return false;
+    }
+    return true;
+  };
+
+  const approveLv1 = async (solicitudId: string) => {
+    const ok = await updateSolicitudChecked(solicitudId, {
+      status: "approved_lv1",
+      approved_lv1_by: user?.id ?? null,
+      approved_lv1_at: new Date().toISOString(),
+    });
+    if (!ok) return;
     loadSolicitudes();
   };
 
@@ -902,10 +926,8 @@ export function GestionMonitoreosPage() {
   const rejectSolicitud = async (solicitudId: string) => {
     const reason = window.prompt("Motivo de rechazo:")?.trim();
     if (!reason) return;
-    await supabase
-      .from("monitoreo_solicitud")
-      .update({ status: "rejected", motivo_rechazo: reason })
-      .eq("id", solicitudId);
+    const ok = await updateSolicitudChecked(solicitudId, { status: "rejected", motivo_rechazo: reason });
+    if (!ok) return;
     loadSolicitudes();
   };
 
@@ -929,22 +951,21 @@ export function GestionMonitoreosPage() {
         return;
       }
     }
-    await supabase
-      .from("monitoreo_solicitud")
-      .update({ status: "inactive", inactive_at: new Date().toISOString() })
-      .eq("id", solicitudId);
+    const ok = await updateSolicitudChecked(solicitudId, {
+      status: "inactive",
+      inactive_at: new Date().toISOString(),
+    });
+    if (!ok) return;
     loadSolicitudes();
   };
 
   const reactivateMonitoreo = async (solicitudId: string) => {
-    const { error: solErr } = await supabase
-      .from("monitoreo_solicitud")
-      .update({ status: "approved", inactive_at: null, updated_at: new Date().toISOString() })
-      .eq("id", solicitudId);
-    if (solErr) {
-      setToast({ type: "err", msg: solErr.message });
-      return;
-    }
+    const solOk = await updateSolicitudChecked(solicitudId, {
+      status: "approved",
+      inactive_at: null,
+      updated_at: new Date().toISOString(),
+    });
+    if (!solOk) return;
     const { error: monErr } = await supabase
       .from("monitoreo_catalog")
       .update({ is_active: true, updated_at: new Date().toISOString() })
@@ -1237,20 +1258,21 @@ export function GestionMonitoreosPage() {
       let fichaResumen: DeleteFichaResumen[] = tplRows.map((t) => ({ titulo: t.titulo, registros: 0 }));
       let totalRegistros = 0;
       if (templateIds.length) {
-        const { data: runs } = await supabase
-          .from("form_run")
-          .select("template_id")
-          .in("template_id", templateIds);
-        const runRows = (runs ?? []) as Array<{ template_id: string }>;
-        totalRegistros = runRows.length;
-        const byTemplate: Record<string, number> = {};
-        runRows.forEach((r) => {
-          byTemplate[r.template_id] = (byTemplate[r.template_id] ?? 0) + 1;
-        });
-        fichaResumen = tplRows.map((t) => ({
+        // Conteo en servidor por plantilla (head: true, sin traer filas): traer
+        // las filas quedaba truncado por el max-rows de PostgREST.
+        const counts = await Promise.all(
+          tplRows.map((t) =>
+            supabase
+              .from("form_run")
+              .select("id", { count: "exact", head: true })
+              .eq("template_id", t.id)
+          )
+        );
+        fichaResumen = tplRows.map((t, i) => ({
           titulo: t.titulo,
-          registros: byTemplate[t.id] ?? 0,
+          registros: counts[i].count ?? 0,
         }));
+        totalRegistros = fichaResumen.reduce((sum, f) => sum + f.registros, 0);
       }
 
       const [{ count: asigMonCount }, { count: asigIeCount }] = await Promise.all([
@@ -1279,10 +1301,13 @@ export function GestionMonitoreosPage() {
 
   const rebuildIeFromFilters = async (solicitudId: string) => {
     setRebuildIeBusy(true);
+    // Solo las IE generadas por filtros: las agregadas a mano (origen='manual')
+    // deben sobrevivir a la regeneración (populate_solicitud_ie hace lo mismo).
     const { error: delErr } = await supabase
       .from("monitoreo_solicitud_ie")
       .delete()
-      .eq("solicitud_id", solicitudId);
+      .eq("solicitud_id", solicitudId)
+      .eq("origen", "filtro");
     if (delErr) {
       setToast({ type: "err", msg: delErr.message });
       setRebuildIeBusy(false);

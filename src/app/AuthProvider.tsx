@@ -58,6 +58,9 @@ async function fetchProfile(userId: string) {
 const legacyModulesByRole: Record<string, string[]> = {
   admin: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios", "roles_permisos", "catalogos", "operaciones"],
   jefe_area: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios"],
+  // Fallback solo-lectura si falla get_my_module_permissions (refleja
+  // role_module_permission del rol coordinador en BD).
+  coordinador: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "reportes", "reportes_analiticos", "operaciones"],
   director: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios"],
   responsable_cdd: ["inicio", "monitoreo", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones"],
   director_iiee: ["inicio", "monitoreo", "reportes", "instituciones"],
@@ -104,25 +107,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfileError(null);
     }
 
-    const { data, error } = await fetchProfile(uid);
+    try {
+      let data: unknown = null;
+      let errorMessage: string | null = null;
+      try {
+        const res = await fetchProfile(uid);
+        data = res.data;
+        errorMessage = res.error?.message ?? null;
+      } catch (e) {
+        errorMessage = e instanceof Error ? e.message : "Error de red al cargar el perfil.";
+      }
 
-    // Descarta respuestas de una sesión anterior. Sin esta comprobación, una
-    // consulta lenta podía aplicar el perfil y los permisos del usuario previo.
-    if (!alive.current || currentUserId.current !== uid) return;
+      // Descarta respuestas de una sesión anterior. Sin esta comprobación, una
+      // consulta lenta podía aplicar el perfil y los permisos del usuario previo.
+      if (!alive.current || currentUserId.current !== uid) return;
 
-    if (error) {
-      console.warn("AuthProvider: no se pudo cargar profile:", error.message);
-      // En refresh silencioso por foco, conserva el perfil previo para no
-      // desmontar vistas protegidas mientras el usuario edita.
-      if (!silent) setProfile(null);
-      setProfileError(error.message);
-    } else {
-      setProfile((data as Profile) ?? null);
-      setProfileError(null);
-    }
-
-    if (!silent) {
-      setProfileLoading(false);
+      if (errorMessage) {
+        console.warn("AuthProvider: no se pudo cargar profile:", errorMessage);
+        // En refresh silencioso (foco, TOKEN_REFRESHED) se conserva el perfil
+        // previo y NO se marca error: ProtectedRoute desmontaría la página
+        // (y con ella lo que el usuario estaba editando) por un fallo pasajero.
+        if (!silent) {
+          setProfile(null);
+          setProfileError(errorMessage);
+        }
+      } else {
+        setProfile((data as Profile) ?? null);
+        setProfileError(null);
+      }
+    } finally {
+      // Nunca dejar profileLoading pegado en true (excepción o respuesta
+      // descartada); si ya hay otra carga en curso para otro usuario, ella
+      // misma lo gestiona.
+      if (!silent && alive.current && (currentUserId.current === uid || currentUserId.current === null)) {
+        setProfileLoading(false);
+      }
     }
   }, []);
 
@@ -182,14 +201,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastProfileRefreshAt.current = now;
       refreshProfile();
     };
+    // La carga inicial ya la hace loadProfile() al resolver la sesión (y al
+    // cambiar de usuario); el antiguo setTimeout de 500ms la duplicaba. Se
+    // cuenta como "recién refrescado" para respetar el piso de 10s.
+    lastProfileRefreshAt.current = Date.now();
     document.addEventListener("visibilitychange", maybeRefresh);
-    const t = window.setTimeout(() => {
-      lastProfileRefreshAt.current = Date.now();
-      refreshProfile();
-    }, 500);
     return () => {
       document.removeEventListener("visibilitychange", maybeRefresh);
-      window.clearTimeout(t);
     };
   }, [refreshProfile, userId]);
 

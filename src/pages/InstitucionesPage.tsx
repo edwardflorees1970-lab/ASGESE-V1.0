@@ -1,5 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { sanitizeOrTerm } from "../lib/postgrestSearch";
 import { useAuth } from "../app/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { SkeletonCards } from "../components/Skeleton";
@@ -135,6 +136,8 @@ export function InstitucionesPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const loadSeqRef = useRef(0);
   const [nivelId, setNivelId] = useState("");
   const [modalidadId, setModalidadId] = useState("");
   const [distritoId, setDistritoId] = useState("");
@@ -199,6 +202,10 @@ export function InstitucionesPage() {
   }, []);
 
   const load = async () => {
+    // Solo la última consulta aplica su resultado (las respuestas pueden
+    // llegar desordenadas al escribir o cambiar filtros rápido).
+    const seq = ++loadSeqRef.current;
+    const isLatest = () => seq === loadSeqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -225,14 +232,15 @@ export function InstitucionesPage() {
           query = query.or(`rei.eq.${padded},rei.eq.${digits}`);
         }
       }
-      if (q.trim()) {
-        const term = q.trim().replaceAll("%", "");
+      const term = sanitizeOrTerm(debouncedQ);
+      if (term) {
         query = query.or(
           `codigo_modular.ilike.%${term}%,codigo_local.ilike.%${term}%,nombre.ilike.%${term}%`
         );
       }
 
       const { data, error, count } = await query;
+      if (!isLatest()) return;
       if (error) throw new Error(error.message);
       setTotal(count ?? 0);
       const rows = (data ?? []).map((row: any) => ({
@@ -244,19 +252,25 @@ export function InstitucionesPage() {
       })) as InstitucionRow[];
       setItems(rows);
     } catch (e: any) {
-      setError(e?.message || "No se pudo cargar instituciones.");
+      if (isLatest()) setError(e?.message || "No se pudo cargar instituciones.");
     } finally {
-      setLoading(false);
+      if (isLatest()) setLoading(false);
     }
   };
 
+  // Debounce de la búsqueda: no consultar en cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
   useEffect(() => {
     load();
-  }, [q, nivelId, modalidadId, gestion, distritoId, rei, page, pageSize]);
+  }, [debouncedQ, nivelId, modalidadId, gestion, distritoId, rei, page, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, nivelId, modalidadId, gestion, distritoId, rei, pageSize]);
+  }, [debouncedQ, nivelId, modalidadId, gestion, distritoId, rei, pageSize]);
 
   useEffect(() => {
     if (!toast) return;
