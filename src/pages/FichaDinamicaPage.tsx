@@ -1298,9 +1298,9 @@ export function FichaDinamicaPage() {
     if (
       effectiveHeaderCfg.fecha_aplicacion &&
       header.fecha_aplicacion &&
-      !isDateWithinRange(header.fecha_aplicacion, monitoreoFechaInicio, monitoreoFechaFin)
+      !isDateWithinRange(header.fecha_aplicacion, undefined, monitoreoFechaFin)
     ) {
-      return "La fecha de aplicacion debe estar dentro del rango del monitoreo.";
+      return "La fecha de aplicacion no puede ser posterior al fin del monitoreo.";
     }
     if (effectiveHeaderCfg.hora_inicio && !header.hora_inicio) return "Falta hora de inicio.";
     if (effectiveHeaderCfg.hora_fin && !header.hora_fin) return "Falta hora de fin.";
@@ -1369,9 +1369,9 @@ export function FichaDinamicaPage() {
     if (
       effectiveFooterCfg.fecha &&
       footer.fecha &&
-      !isDateWithinRange(footer.fecha, monitoreoFechaInicio, monitoreoFechaFin)
+      !isDateWithinRange(footer.fecha, undefined, monitoreoFechaFin)
     ) {
-      return "La fecha del cierre debe estar dentro del rango del monitoreo.";
+      return "La fecha del cierre no puede ser posterior al fin del monitoreo.";
     }
     if (effectiveFooterCfg.docente_dni) {
       if (!footer.docente_dni) return "Falta el DNI del monitoreado (necesario para la firma digital).";
@@ -1877,7 +1877,6 @@ export function FichaDinamicaPage() {
                 type="date"
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.fecha_aplicacion}
-                min={monitoreoFechaInicio || undefined}
                 max={monitoreoFechaFin || undefined}
                 onChange={(e) => setHeader((s) => ({ ...s, fecha_aplicacion: e.target.value }))}
               />
@@ -2367,7 +2366,6 @@ export function FichaDinamicaPage() {
                 type="date"
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={footer.fecha}
-                min={monitoreoFechaInicio || undefined}
                 max={monitoreoFechaFin || undefined}
                 onChange={(e) => setFooter((s) => ({ ...s, fecha: e.target.value }))}
               />
