@@ -462,7 +462,7 @@ export function FichaDinamicaPage() {
   const [runHydrating, setRunHydrating] = useState(false);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
   const [duplicateRule, setDuplicateRule] = useState<string>(DUP_RULE_NONE);
-  const [monitoreoFechaInicio, setMonitoreoFechaInicio] = useState<string>("");
+  const [, setMonitoreoFechaInicio] = useState<string>("");
   const [monitoreoFechaFin, setMonitoreoFechaFin] = useState<string>("");
   const [monitorIdentity, setMonitorIdentity] = useState<{
     name: string;
