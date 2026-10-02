@@ -2271,12 +2271,12 @@ export function FichaDinamicaPage() {
                           return (
                             <div key={`${q.id}-extra-${key}`} className="space-y-1">
                               <div className="text-xs text-white/60">{field.label}</div>
-                              <textarea
-                                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
-                                rows={2}
-                                value={field.default_value ?? ""}
-                                readOnly
-                              />
+                              <div
+                                className="w-full cursor-default select-text whitespace-pre-wrap rounded-lg border border-dashed border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/70"
+                                title="Texto fijo definido en el monitoreo; no se edita"
+                              >
+                                {field.default_value || "—"}
+                              </div>
                             </div>
                           );
                         }
