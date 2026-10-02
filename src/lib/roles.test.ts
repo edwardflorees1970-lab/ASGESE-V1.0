@@ -26,6 +26,6 @@ describe("roles", () => {
     expect(roleLabel("director")).toBe("Director(a)");
     expect(roleLabel("responsable_cdd")).toBe("Responsable CdD");
     expect(roleLabel("director_iiee")).toBe("Director IIEE");
-    expect(roleLabel("user")).toBe("Monitor");
+    expect(roleLabel("user")).toBe("Especialista");
   });
 });

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -101,7 +102,11 @@ describe("AuthProvider", () => {
     let latest: ReturnType<typeof useAuth> | null = null;
 
     function Consumer() {
-      latest = useAuth();
+      const value = useAuth();
+      // Captura fuera del render (en un efecto) para cumplir react-hooks/globals.
+      useEffect(() => {
+        latest = value;
+      });
       return null;
     }
 
