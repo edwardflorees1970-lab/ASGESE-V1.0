@@ -13,6 +13,12 @@ import {
 } from "../lib/dynamicHeader";
 import { deleteFormRunAtomic, saveFormRunAtomic } from "../lib/formRunApi";
 import { uploadPdfEvidence, validatePdfEvidence } from "../lib/evidenceStorage";
+import {
+  isLocalDraftUsable,
+  readLocalDraft,
+  type LocalDraftSnapshot as LocalDraftSnapshotBase,
+} from "../lib/fichaLocalDraft";
+import { sanitizeOrTerm } from "../lib/postgrestSearch";
 
 type Template = {
   id: string;
@@ -106,14 +112,29 @@ type ExtraFieldCfg = {
   default_value?: string | null;
 };
 
-type LocalDraftSnapshot = {
-  runId: string | null;
-  runStatus: string | null;
-  header: HeaderState;
-  footer: FooterState;
-  answers: Record<string, any>;
-  updatedAt: string;
+type LocalDraftSnapshot = LocalDraftSnapshotBase<HeaderState, FooterState>;
+
+const DEFAULT_FOOTER_CONFIG = {
+  observacion: true,
+  compromiso: true,
+  lugar: true,
+  fecha: true,
+  docente_nombre: true,
+  docente_dni: true,
+  monitor_nombre: true,
+  monitor_dni: true,
 };
+
+type IeServerScope = {
+  modalidadIds?: string[];
+  nivelIds?: string[];
+  gestiones?: string[];
+};
+
+const IE_SELECT =
+  "id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre), distrito:cat_distrito(nombre)";
+const IE_POOL_PAGE = 1000;
+
 
 const DUP_RULE_NONE = "none";
 const DUP_RULE_LOCAL = "codigo_local";
@@ -434,15 +455,18 @@ export function FichaDinamicaPage() {
   const [pendingEvidenceFiles, setPendingEvidenceFiles] = useState<Record<string, File>>({});
   const [runId, setRunId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<string | null>(null);
-  // Read (not watched) inside the local-draft autosave effect below: saving
-  // a run updates runId/runStatus, and if the effect re-ran on that alone it
-  // would immediately rewrite a fresh "local draft" snapshot right after
-  // clearLocalDraft() just erased it -- the recover prompt would then never
-  // go away, even though nothing unsaved is left to recover.
+  // Read (not watched) inside the local-draft autosave effect below.
   const runIdRef = useRef(runId);
   runIdRef.current = runId;
-  const runStatusRef = useRef(runStatus);
-  runStatusRef.current = runStatus;
+  // Versión en servidor (updated_at ?? created_at) del registro cargado; se
+  // guarda en el snapshot local para descartarlo si el servidor cambió luego.
+  const serverVersionRef = useRef<string | null>(null);
+  // Solo se escribe el borrador local tras una edición REAL del usuario
+  // (editHeader/editFooter/editAnswers), nunca por hidratación/autollenado.
+  const userEditedRef = useRef(false);
+  // Si falló la carga de respuestas guardadas, el formulario tiene respuestas
+  // vacías: guardar ahora las pisaría en BD. Se bloquea hasta recargar.
+  const [answersLoadFailed, setAnswersLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showUp, setShowUp] = useState(false);
   const [showDown, setShowDown] = useState(true);
@@ -454,10 +478,12 @@ export function FichaDinamicaPage() {
   const [ieOpen, setIeOpen] = useState(false);
   const [ieOptions, setIeOptions] = useState<InstitucionLite[]>([]);
   const [iePool, setIePool] = useState<InstitucionLite[]>([]);
-  // true = el monitoreo no tiene focalizadas ni filtros -> aplica a todas las
-  // instituciones. En ese caso la búsqueda va directo al servidor (ver abajo)
-  // en vez de precargar las 2400+ filas del catálogo en memoria.
-  const [scopeAll, setScopeAll] = useState(false);
+  // null = monitoreo con IE focalizadas: se filtra iePool en memoria.
+  // objeto = búsqueda en servidor por lo escrito, con las restricciones de
+  // los filtros de alcance (vacío = aplica a todas las instituciones). Así no
+  // se precargan miles de filas que PostgREST trunca por max-rows.
+  const [ieServerScope, setIeServerScope] = useState<IeServerScope | null>(null);
+  const ieSearchSeqRef = useRef(0);
   const [ieLoading, setIeLoading] = useState(false);
   const [runHydrating, setRunHydrating] = useState(false);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
@@ -497,29 +523,22 @@ export function FichaDinamicaPage() {
       }:${isTestMode ? "test" : "prod"}`,
     [user?.id, midParam, monitoreoCodigo, fichaCodigo, runIdParam, isTestMode]
   );
-  const [localDraftPromptOpen, setLocalDraftPromptOpen] = useState(false);
-  // Also read via ref (not as an effect dependency) below: closing the
-  // prompt -- by recovering OR discarding -- flips this from true to false,
-  // and if that flip were a dependency the autosave effect would re-run
-  // right then and write a brand-new local draft the instant the old one
-  // was dismissed, even with nothing edited since. A write should only
-  // happen because header/footer/answers actually changed.
-  const localDraftPromptOpenRef = useRef(localDraftPromptOpen);
-  localDraftPromptOpenRef.current = localDraftPromptOpen;
-  const [localDraftPending, setLocalDraftPending] = useState<LocalDraftSnapshot | null>(null);
   const shouldAutoFillMonitor = monitorReadOnly && !runIdParam && !runId;
   const isEditMode = Boolean(runIdParam);
 
-  const defaultFooter = {
-    observacion: true,
-    compromiso: true,
-    lugar: true,
-    fecha: true,
-    docente_nombre: true,
-    docente_dni: true,
-    monitor_nombre: true,
-    monitor_dni: true,
+  const editHeader: typeof setHeader = (value) => {
+    userEditedRef.current = true;
+    setHeader(value);
   };
+  const editFooter: typeof setFooter = (value) => {
+    userEditedRef.current = true;
+    setFooter(value);
+  };
+  const editAnswers: typeof setAnswers = (value) => {
+    userEditedRef.current = true;
+    setAnswers(value);
+  };
+
   const effectiveHeaderCfg = useMemo(
     () =>
       normalizeHeaderConfig(
@@ -528,7 +547,7 @@ export function FichaDinamicaPage() {
     [headerCfg]
   );
   const effectiveFooterCfg = useMemo(
-    () => (footerCfg && Object.keys(footerCfg).length ? footerCfg : defaultFooter),
+    () => (footerCfg && Object.keys(footerCfg).length ? footerCfg : DEFAULT_FOOTER_CONFIG),
     [footerCfg]
   );
   const customHeaderFields = useMemo(
@@ -582,14 +601,17 @@ export function FichaDinamicaPage() {
   };
 
   const clearLocalDraft = () => {
-    localStorage.removeItem(localDraftKey);
-    setLocalDraftPending(null);
-    setLocalDraftPromptOpen(false);
+    userEditedRef.current = false;
+    try {
+      localStorage.removeItem(localDraftKey);
+    } catch {
+      // ignore
+    }
   };
 
+  // Solo aplica el contenido (cabecera/cierre/respuestas). runId/runStatus
+  // vienen siempre del servidor: el snapshot nunca los pisa.
   const applyLocalDraft = (snapshot: LocalDraftSnapshot) => {
-    setRunId(snapshot.runId ?? null);
-    setRunStatus(snapshot.runStatus ?? null);
     setHeader((s) => {
       const next = { ...s, ...(snapshot.header ?? {}) };
       return {
@@ -701,6 +723,7 @@ export function FichaDinamicaPage() {
               .select("solicitud_id, fecha_inicio, fecha_fin")
               .eq("id", fichaRef.monitoreo_id)
               .maybeSingle();
+            if (!alive) return;
             setMonitoreoFechaInicio((monRef as any)?.fecha_inicio ?? "");
             setMonitoreoFechaFin((monRef as any)?.fecha_fin ?? "");
             setSolicitudId((monRef as any)?.solicitud_id ?? null);
@@ -709,7 +732,7 @@ export function FichaDinamicaPage() {
           if (!alive) return;
           setTemplate(tpl as Template);
           setHeaderCfg(normalizeHeaderConfig(tpl.header_config ?? DEFAULT_HEADER_CONFIG));
-          setFooterCfg(tpl.footer_config ?? defaultFooter);
+          setFooterCfg(tpl.footer_config ?? DEFAULT_FOOTER_CONFIG);
           setSections((secRows as Section[]) ?? []);
           setQuestions((qRows as Question[]) ?? []);
           return;
@@ -720,9 +743,10 @@ export function FichaDinamicaPage() {
           .select("id, codigo, is_active, solicitud_id, fecha_inicio, fecha_fin")
           .eq("is_active", true)
           .eq("codigo", monitoreoCodigo);
-        const { data: mon } = midParam
+        const { data: mon, error: monErr } = midParam
           ? await monQuery.eq("id", midParam).maybeSingle()
           : await monQuery.order("anio", { ascending: false }).limit(1).maybeSingle();
+        if (monErr) throw new Error(`No se pudo cargar el monitoreo: ${monErr.message}`);
         if (!mon?.id) {
           throw new Error(
             `Monitoreo no encontrado para codigo=${(monitoreoCodigo || "").toUpperCase()} mid=${midParam || "-"}`
@@ -731,6 +755,7 @@ export function FichaDinamicaPage() {
         if (isMonitoreoExpired((mon as any).fecha_fin)) {
           throw new Error("Monitoreo vencido. Solicita ampliacion al administrador.");
         }
+        if (!alive) return;
         setMonitoreoFechaInicio((mon as any).fecha_inicio ?? "");
         setMonitoreoFechaFin((mon as any).fecha_fin ?? "");
         setSolicitudId((mon as any).solicitud_id ?? null);
@@ -777,7 +802,7 @@ export function FichaDinamicaPage() {
         if (!alive) return;
         setTemplate(tpl as Template);
         setHeaderCfg(normalizeHeaderConfig(tpl.header_config ?? DEFAULT_HEADER_CONFIG));
-        setFooterCfg(tpl.footer_config ?? defaultFooter);
+        setFooterCfg(tpl.footer_config ?? DEFAULT_FOOTER_CONFIG);
         setSections((secRows as Section[]) ?? []);
         setQuestions((qRows as Question[]) ?? []);
       } catch (e: any) {
@@ -796,99 +821,12 @@ export function FichaDinamicaPage() {
   useEffect(() => {
     if (!template?.id || !user?.id) return;
     let alive = true;
-    (async () => {
-      setRunHydrating(true);
-      if (!runIdParam) {
-        let parsedLocalDraft: LocalDraftSnapshot | null = null;
-        const localDraftRaw = localStorage.getItem(localDraftKey);
-        if (localDraftRaw) {
-          try {
-            const localDraft = JSON.parse(localDraftRaw) as LocalDraftSnapshot;
-            if (localDraft && typeof localDraft === "object" && localDraft.updatedAt) {
-              parsedLocalDraft = localDraft;
-            } else {
-              localStorage.removeItem(localDraftKey);
-            }
-          } catch {
-            localStorage.removeItem(localDraftKey);
-          }
-        }
-        const { data: draft } = await supabase
-          .from("form_run")
-          .select("id, status, header_json, footer_json")
-          .eq("template_id", template.id)
-          .eq("created_by", user.id)
-          .eq("status", "borrador")
-          .eq("is_test", isTestMode)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!draft || !alive) {
-          if (!parsedLocalDraft) resetFormState();
-          if (parsedLocalDraft) applyLocalDraft(parsedLocalDraft);
-          return;
-        }
-        setRunId(draft.id);
-        setRunStatus(draft.status);
-        setHeader((s) => {
-          const next = { ...s, ...(draft.header_json ?? {}) };
-          return {
-            ...next,
-            monitor:
-              next.monitor || (shouldAutoFillMonitor ? effectiveProfileMonitorName || "" : ""),
-            monitor_doc_tipo: (next.monitor_doc_tipo ||
-              (shouldAutoFillMonitor ? effectiveProfileMonitorDocTipo : null) ||
-              "DNI") as "DNI" | "CE",
-            monitor_numero_doc:
-              next.monitor_numero_doc ||
-              (shouldAutoFillMonitor ? effectiveProfileMonitorDocNumero || "" : ""),
-            hora_inicio: cleanStoredTime(next.hora_inicio || ""),
-            hora_fin: cleanStoredTime(next.hora_fin || ""),
-            custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
-          };
-        });
-        setFooter((s) => ({ ...s, ...(draft.footer_json ?? {}) }));
-        const { data: ansRows } = await supabase
-          .from("form_answer")
-          .select("question_id, value_json")
-          .eq("run_id", draft.id);
-        if (!alive) return;
-        const next: Record<string, any> = {};
-        (ansRows ?? []).forEach((r: any) => {
-          next[r.question_id] = r.value_json;
-        });
-        setAnswers(next);
-        if (parsedLocalDraft) applyLocalDraft(parsedLocalDraft);
-        return;
-      }
-      let parsedLocalDraft: LocalDraftSnapshot | null = null;
-      const localDraftRaw = localStorage.getItem(localDraftKey);
-      if (localDraftRaw) {
-        try {
-          const localDraft = JSON.parse(localDraftRaw) as LocalDraftSnapshot;
-          if (localDraft && typeof localDraft === "object" && localDraft.updatedAt) {
-            parsedLocalDraft = localDraft;
-          } else {
-            localStorage.removeItem(localDraftKey);
-          }
-        } catch {
-          localStorage.removeItem(localDraftKey);
-        }
-      }
-      const { data } = await supabase
-        .from("form_run")
-        .select("id, status, header_json, footer_json")
-        .eq("id", runIdParam)
-        .maybeSingle();
-      if (!alive) return;
-      if (!data) {
-        setError("No se encontró el registro a editar para esta ficha/modo.");
-        return;
-      }
-      setRunId(data.id);
-      setRunStatus(data.status);
+
+    const applyServerRun = (row: any) => {
+      setRunId(row.id);
+      setRunStatus(row.status);
       setHeader((s) => {
-        const next = { ...s, ...(data.header_json ?? {}) };
+        const next = { ...s, ...(row.header_json ?? {}) };
         return {
           ...next,
           monitor:
@@ -904,18 +842,93 @@ export function FichaDinamicaPage() {
           custom_values: normalizeCustomHeaderValues(customHeaderFields, next.custom_values),
         };
       });
-      setFooter((s) => ({ ...s, ...(data.footer_json ?? {}) }));
-      const { data: ansRows } = await supabase
+      setFooter((s) => ({ ...s, ...(row.footer_json ?? {}) }));
+    };
+
+    // Bloquea el guardado: el formulario no refleja lo que hay en servidor y
+    // guardar ahora podría pisar respuestas o duplicar el borrador.
+    const blockSaving = (msg: string) => {
+      setAnswersLoadFailed(true);
+      setError(msg);
+      showToast(msg, "err");
+    };
+
+    (async () => {
+      setRunHydrating(true);
+      userEditedRef.current = false;
+      serverVersionRef.current = null;
+      setAnswersLoadFailed(false);
+      const localDraft = readLocalDraft<HeaderState, FooterState>(localStorage, localDraftKey);
+      const dropLocalDraft = () => {
+        try {
+          localStorage.removeItem(localDraftKey);
+        } catch {
+          // ignore
+        }
+      };
+
+      const runQuery = supabase
+        .from("form_run")
+        .select("id, status, header_json, footer_json, updated_at, created_at");
+      const { data: row, error: runErr } = runIdParam
+        ? await runQuery.eq("id", runIdParam).maybeSingle()
+        : await runQuery
+            .eq("template_id", template.id)
+            .eq("created_by", user.id)
+            .eq("status", "borrador")
+            .eq("is_test", isTestMode)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+      // Corrida obsoleta (cambió template/usuario/modo): no tocar el estado.
+      if (!alive) return;
+
+      if (runErr) {
+        blockSaving(`No se pudo cargar el registro guardado (${runErr.message}). Recarga la página antes de guardar.`);
+        return;
+      }
+
+      if (!row) {
+        if (runIdParam) {
+          setAnswersLoadFailed(true);
+          setError("No se encontró el registro a editar para esta ficha/modo.");
+          return;
+        }
+        if (localDraft && isLocalDraftUsable(localDraft, null)) {
+          applyLocalDraft(localDraft);
+        } else {
+          resetFormState();
+        }
+        return;
+      }
+
+      const serverVersion: string | null = (row as any).updated_at ?? (row as any).created_at ?? null;
+      serverVersionRef.current = serverVersion;
+      applyServerRun(row);
+
+      const { data: ansRows, error: ansErr } = await supabase
         .from("form_answer")
         .select("question_id, value_json")
-        .eq("run_id", data.id);
+        .eq("run_id", row.id);
       if (!alive) return;
+      if (ansErr) {
+        blockSaving("No se pudieron cargar las respuestas guardadas. Recarga la página antes de guardar.");
+        return;
+      }
       const next: Record<string, any> = {};
       (ansRows ?? []).forEach((r: any) => {
         next[r.question_id] = r.value_json;
       });
       setAnswers(next);
-      if (parsedLocalDraft) applyLocalDraft(parsedLocalDraft);
+
+      if (localDraft) {
+        if (isLocalDraftUsable(localDraft, { id: row.id, version: serverVersion })) {
+          applyLocalDraft(localDraft);
+        } else {
+          // El servidor tiene una versión más nueva (u otro registro): gana el servidor.
+          dropLocalDraft();
+        }
+      }
     })().finally(() => {
       if (alive) setRunHydrating(false);
     });
@@ -932,47 +945,22 @@ export function FichaDinamicaPage() {
 
   useEffect(() => {
     if (!template?.id) return;
-    if (runHydrating) return;
-    if (localDraftPromptOpenRef.current) return;
+    if (runHydrating || answersLoadFailed) return;
+    if (!userEditedRef.current) return;
     const snapshot: LocalDraftSnapshot = {
       runId: runIdRef.current,
-      runStatus: runStatusRef.current,
+      serverUpdatedAt: serverVersionRef.current,
       header,
       footer,
       answers,
       updatedAt: new Date().toISOString(),
     };
-    localStorage.setItem(localDraftKey, JSON.stringify(snapshot));
-  }, [template?.id, localDraftKey, header, footer, answers, runHydrating]);
-
-  useEffect(() => {
-    if (!localDraftPromptOpen || !localDraftPending) return;
-    const timeText = (() => {
-      try {
-        return new Intl.DateTimeFormat("es-PE", {
-          dateStyle: "short",
-          timeStyle: "short",
-          timeZone: "America/Lima",
-        }).format(new Date(localDraftPending.updatedAt));
-      } catch {
-        return localDraftPending.updatedAt;
-      }
-    })();
-    showToast(`Tienes un borrador local (${timeText}).`, "ok");
-  }, [localDraftPromptOpen, localDraftPending]);
-
-  const recoverLocalDraft = () => {
-    if (!localDraftPending) return;
-    applyLocalDraft(localDraftPending);
-    setLocalDraftPromptOpen(false);
-    setLocalDraftPending(null);
-    showToast("Borrador local recuperado.", "ok");
-  };
-
-  const discardLocalDraft = () => {
-    clearLocalDraft();
-    showToast("Se descartó el borrador local.", "ok");
-  };
+    try {
+      localStorage.setItem(localDraftKey, JSON.stringify(snapshot));
+    } catch {
+      // cuota llena / almacenamiento bloqueado: el borrador local es opcional
+    }
+  }, [template?.id, localDraftKey, header, footer, answers, runHydrating, answersLoadFailed]);
 
   useEffect(() => {
     if (!profileMonitorName && !profileMonitorDocNumero && !profileMonitorDocTipo) return;
@@ -1051,36 +1039,53 @@ export function FichaDinamicaPage() {
     if (!solicitudId) {
       setIePool([]);
       setIeOptions([]);
-      setScopeAll(false);
+      setIeServerScope(null);
       return;
     }
     let alive = true;
     (async () => {
       setIeLoading(true);
-      setScopeAll(false);
-      const { data } = await supabase
-        .from("monitoreo_solicitud_ie")
-        .select(
-          "institucion_id, institucion_educativa!inner(id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre), distrito:cat_distrito(nombre))"
-        )
-        .eq("solicitud_id", solicitudId)
-        .limit(10000);
-      if (!alive) return;
-      const focalizadas = (data ?? [])
-        .map((r: any) => r.institucion_educativa)
-        .filter(Boolean)
-        .map(normalizeInstitucionRow);
+      setIeServerScope(null);
+      setIePool([]);
+
+      // (a) IE focalizadas: lista acotada en memoria, paginada con .range()
+      // para no quedar truncada por el max-rows del servidor.
+      const focalizadas: InstitucionLite[] = [];
+      for (let from = 0; ; from += IE_POOL_PAGE) {
+        const { data, error } = await supabase
+          .from("monitoreo_solicitud_ie")
+          .select(`institucion_id, institucion_educativa!inner(${IE_SELECT})`)
+          .eq("solicitud_id", solicitudId)
+          .order("institucion_id", { ascending: true })
+          .range(from, from + IE_POOL_PAGE - 1);
+        if (!alive) return;
+        if (error) {
+          // Sin poder leer las focalizadas no se puede asumir "aplica a todas".
+          setIeLoading(false);
+          return;
+        }
+        const rows = (data ?? []) as any[];
+        rows
+          .map((r) => r.institucion_educativa)
+          .filter(Boolean)
+          .forEach((ie) => focalizadas.push(normalizeInstitucionRow(ie)));
+        if (rows.length < IE_POOL_PAGE) break;
+      }
       if (focalizadas.length > 0) {
         setIePool(focalizadas);
         setIeLoading(false);
         return;
       }
 
-      const { data: filtroRows } = await supabase
+      const { data: filtroRows, error: filtroErr } = await supabase
         .from("monitoreo_solicitud_filtro")
         .select("gestion, modalidad, tipo, nivel")
         .eq("solicitud_id", solicitudId);
       if (!alive) return;
+      if (filtroErr) {
+        setIeLoading(false);
+        return;
+      }
 
       const realFiltroRows = (filtroRows ?? []).filter((r: any) => r.tipo !== DUP_RULE_MARKER);
       const filters: SolicitudFilters = {
@@ -1089,19 +1094,18 @@ export function FichaDinamicaPage() {
         niveles: Array.from(new Set(realFiltroRows.map((r: any) => r.nivel).filter(Boolean))) as string[],
       };
 
-      // Sin filtros de alcance => el monitoreo aplica a TODAS las instituciones
-      // (así lo dice el constructor: "deja vacío para aplicar a todas"). Con
-      // 2400+ instituciones, precargar todo el catálogo en el cliente y
-      // ordenarlo por nombre dejaba fuera (por corte de fila/orden alfabético)
-      // instituciones sin prefijo numérico que caen al final del abecedario.
-      // En vez de precargar, se busca directo en el servidor por lo que se
-      // escribe (ver efecto de abajo), sin depender de una lista completa.
+      // (c) Sin filtros de alcance => el monitoreo aplica a TODAS las
+      // instituciones (así lo dice el constructor: "deja vacío para aplicar a
+      // todas"): búsqueda en servidor sin restricciones.
       if (!filters.gestiones.length && !filters.modalidades.length && !filters.niveles.length) {
-        setScopeAll(true);
-        setIePool([]);
+        setIeServerScope({});
         setIeLoading(false);
         return;
       }
+
+      // (b) Con filtros: también se busca en servidor (ver efecto de abajo),
+      // con las mismas restricciones. Precargar la lista filtrada ('Pública' +
+      // 'EBR' supera las 1000 filas) la dejaba truncada alfabéticamente.
       const [{ data: modalidadCatalog }, { data: nivelCatalog }] = await Promise.all([
         supabase.from("cat_modalidad").select("id, nombre"),
         supabase.from("cat_nivel").select("id, nombre"),
@@ -1115,40 +1119,17 @@ export function FichaDinamicaPage() {
         .filter((n) => filters.niveles.some((f) => sameCatalogFilter(n.nombre, f)))
         .map((n) => n.id);
 
-      let ieQuery = supabase
-        .from("institucion_educativa")
-        .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre), distrito:cat_distrito(nombre)")
-        .order("nombre", { ascending: true })
-        .limit(10000);
-
-      if (filters.modalidades.length) {
-        if (!modalidadIds.length) {
-          setIePool([]);
-          setIeLoading(false);
-          return;
-        }
-        ieQuery = ieQuery.in("modalidad_id", modalidadIds);
-      }
-      if (filters.niveles.length) {
-        if (!nivelIds.length) {
-          setIePool([]);
-          setIeLoading(false);
-          return;
-        }
-        ieQuery = ieQuery.in("nivel_id", nivelIds);
-      }
-      if (filters.gestiones.length) {
-        ieQuery = ieQuery.in("gestion", filters.gestiones);
-      }
-
-      const { data: filteredIe, error: filteredErr } = await ieQuery;
-      if (!alive) return;
-      if (filteredErr) {
-        setIePool([]);
+      // Un filtro que no resuelve a ningún id del catálogo no admite ninguna IE.
+      if ((filters.modalidades.length && !modalidadIds.length) || (filters.niveles.length && !nivelIds.length)) {
         setIeLoading(false);
         return;
       }
-      setIePool(((filteredIe ?? []) as any[]).map(normalizeInstitucionRow));
+
+      setIeServerScope({
+        modalidadIds: filters.modalidades.length ? modalidadIds : undefined,
+        nivelIds: filters.niveles.length ? nivelIds : undefined,
+        gestiones: filters.gestiones.length ? filters.gestiones : undefined,
+      });
       setIeLoading(false);
     })();
     return () => {
@@ -1158,43 +1139,51 @@ export function FichaDinamicaPage() {
 
   useEffect(() => {
     const term = ieQuery.trim().toLowerCase();
+    // Invalida cualquier búsqueda en vuelo: solo cuenta la última.
+    const seq = ++ieSearchSeqRef.current;
     if (term.length < 2) {
       setIeOptions([]);
       return;
     }
+    const byPrefix = (a: InstitucionLite, b: InstitucionLite) => {
+      const aStarts = (a.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+      const bStarts = (b.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
+      return aStarts - bStarts;
+    };
     setIeLoading(true);
     const handle = setTimeout(() => {
       (async () => {
-        if (scopeAll) {
-          // Monitoreo sin focalizadas/filtros (aplica a todas, 2400+ IE):
-          // buscar directo en el servidor por lo escrito, en vez de precargar
-          // y ordenar todo el catálogo en el cliente -- eso era lo que dejaba
-          // fuera instituciones sin prefijo numérico (ej. "VICTOR RAUL..."),
-          // sin importar el rol de quien buscaba.
-          const esc = term.replace(/[%,]/g, "");
-          const { data, error } = await supabase
+        if (ieServerScope) {
+          const esc = sanitizeOrTerm(term);
+          if (esc.length < 2) {
+            if (seq === ieSearchSeqRef.current) {
+              setIeOptions([]);
+              setIeLoading(false);
+            }
+            return;
+          }
+          let query = supabase
             .from("institucion_educativa")
-            .select("id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre), distrito:cat_distrito(nombre)")
-            .or(`nombre.ilike.%${esc}%,codigo_modular.ilike.%${esc}%,codigo_local.ilike.%${esc}%`)
-            .order("nombre", { ascending: true })
-            .limit(30);
+            .select(IE_SELECT)
+            .or(`nombre.ilike.%${esc}%,codigo_modular.ilike.%${esc}%,codigo_local.ilike.%${esc}%`);
+          if (ieServerScope.modalidadIds) query = query.in("modalidad_id", ieServerScope.modalidadIds);
+          if (ieServerScope.nivelIds) query = query.in("nivel_id", ieServerScope.nivelIds);
+          if (ieServerScope.gestiones) query = query.in("gestion", ieServerScope.gestiones);
+          const { data, error } = await query.order("nombre", { ascending: true }).limit(30);
+          if (seq !== ieSearchSeqRef.current) return;
           if (error) {
             setIeOptions([]);
             setIeLoading(false);
             return;
           }
           const results = ((data ?? []) as any[]).map(normalizeInstitucionRow);
-          results.sort((a, b) => {
-            const aStarts = (a.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
-            const bStarts = (b.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
-            return aStarts - bStarts;
-          });
+          results.sort(byPrefix);
           setIeOptions(results);
           setIeLoading(false);
           return;
         }
-        // Monitoreo con focalizadas o filtros: el pool ya es una lista acotada
-        // cargada en memoria, se filtra ahí mismo.
+        // Monitoreo con focalizadas: el pool es una lista acotada cargada en
+        // memoria, se filtra ahí mismo.
         const next = iePool
           .filter((ie) => {
             const name = (ie.nombre || "").toLowerCase();
@@ -1202,18 +1191,15 @@ export function FichaDinamicaPage() {
             const loc = (ie.codigo_local || "").toLowerCase();
             return name.includes(term) || mod.includes(term) || loc.includes(term);
           })
-          .sort((a, b) => {
-            const aStarts = (a.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
-            const bStarts = (b.nombre || "").toLowerCase().startsWith(term) ? 0 : 1;
-            return aStarts - bStarts;
-          })
+          .sort(byPrefix)
           .slice(0, 30);
+        if (seq !== ieSearchSeqRef.current) return;
         setIeOptions(next);
         setIeLoading(false);
       })();
     }, 120);
     return () => clearTimeout(handle);
-  }, [ieQuery, iePool, scopeAll]);
+  }, [ieQuery, iePool, ieServerScope]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -1397,6 +1383,18 @@ export function FichaDinamicaPage() {
       showToast("Sesion invalida. Vuelve a iniciar sesion.", "err");
       return;
     }
+    if (answersLoadFailed) {
+      showToast("No se cargó correctamente lo guardado en servidor. Recarga la página antes de guardar.", "err");
+      return;
+    }
+    if (runHydrating) {
+      showToast("Espera a que termine de cargar la ficha.", "err");
+      return;
+    }
+    if (status === "borrador" && runId && runStatus && runStatus !== "borrador") {
+      showToast("Esta ficha ya está guardada en BD; usa \"Guardar en BD\" para actualizarla.", "err");
+      return;
+    }
     if (status !== "borrador") {
       const msg = validate();
       if (msg) {
@@ -1435,7 +1433,11 @@ export function FichaDinamicaPage() {
           ? duplicateRule === DUP_RULE_LOCAL ? "codigo_local" : "codigo_modular"
           : null,
       });
-      if (status === "borrador") setRunId(currentRunId);
+      // El registro ya quedó confirmado en BD (con cualquier estado): fijar el
+      // id ANTES de subir evidencias, para que si la subida falla un segundo
+      // clic actualice este registro en vez de crear un duplicado.
+      setRunId(currentRunId);
+      setRunStatus(status);
       for (const [questionId, file] of Object.entries(pendingEvidenceFiles)) {
         await uploadPdfEvidence(currentRunId, questionId, file);
       }
@@ -1461,7 +1463,13 @@ export function FichaDinamicaPage() {
     if (status === "draft") {
       resetFormState();
     } else {
-      setRunStatus(status);
+      // Nueva versión base para el borrador local de las siguientes ediciones.
+      const { data: saved } = await supabase
+        .from("form_run")
+        .select("updated_at, created_at")
+        .eq("id", currentRunId)
+        .maybeSingle();
+      if (saved) serverVersionRef.current = (saved as any).updated_at ?? (saved as any).created_at ?? null;
     }
   };
 
@@ -1497,30 +1505,6 @@ export function FichaDinamicaPage() {
       {error && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
           {error}
-        </div>
-      )}
-      {localDraftPromptOpen && localDraftPending && (
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
-          <div className="text-sm font-semibold text-amber-100">Borrador local detectado</div>
-          <div className="mt-1 text-xs text-amber-50/90">
-            Tienes un borrador guardado en este navegador. ¿Deseas recuperarlo?
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={recoverLocalDraft}
-              className="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-3 py-1.5 text-xs text-emerald-100"
-            >
-              Recuperar borrador
-            </button>
-            <button
-              type="button"
-              onClick={discardLocalDraft}
-              className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white/85"
-            >
-              Descartar
-            </button>
-          </div>
         </div>
       )}
       <div className="dynamic-form-hero rounded-2xl border p-4 sm:p-5">
@@ -1611,7 +1595,7 @@ export function FichaDinamicaPage() {
                 value={header.institucion}
                 onChange={(e) => {
                   const value = toUpper(e.target.value);
-                  setHeader((s) => ({ ...s, institucion: value }));
+                  editHeader((s) => ({ ...s, institucion: value }));
                   setIeQuery(value);
                   setIeOpen(true);
                 }}
@@ -1631,7 +1615,7 @@ export function FichaDinamicaPage() {
                           const distritoNombre = Array.isArray(opt.distrito)
                             ? opt.distrito[0]?.nombre ?? ""
                             : opt.distrito?.nombre ?? "";
-                          setHeader((s) => ({
+                          editHeader((s) => ({
                             ...s,
                             institucion: opt.nombre ?? "",
                             codigo_modular: opt.codigo_modular ?? "",
@@ -1704,7 +1688,7 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.rei}
-                onChange={(e) => setHeader((s) => ({ ...s, rei: toUpper(e.target.value) }))}
+                onChange={(e) => editHeader((s) => ({ ...s, rei: toUpper(e.target.value) }))}
               />
             </label>
           )}
@@ -1715,7 +1699,7 @@ export function FichaDinamicaPage() {
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={shouldAutoFillMonitor ? effectiveProfileMonitorName || header.monitor : header.monitor}
                 readOnly={monitorReadOnly}
-                onChange={(e) => setHeader((s) => ({ ...s, monitor: toUpper(e.target.value) }))}
+                onChange={(e) => editHeader((s) => ({ ...s, monitor: toUpper(e.target.value) }))}
               />
             </label>
           )}
@@ -1745,7 +1729,7 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.monitoreado}
-                onChange={(e) => setHeader((s) => ({ ...s, monitoreado: toUpper(e.target.value) }))}
+                onChange={(e) => editHeader((s) => ({ ...s, monitoreado: toUpper(e.target.value) }))}
               />
             </label>
           )}
@@ -1756,7 +1740,7 @@ export function FichaDinamicaPage() {
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.monitoreado_doc_tipo}
                 onChange={(e) =>
-                  setHeader((s) => ({
+                  editHeader((s) => ({
                     ...s,
                     monitoreado_doc_tipo: (e.target.value as "DNI" | "CE") || "DNI",
                     monitoreado_numero_doc: "",
@@ -1776,7 +1760,7 @@ export function FichaDinamicaPage() {
                 maxLength={header.monitoreado_doc_tipo === "CE" ? 9 : 8}
                 value={header.monitoreado_numero_doc}
                 onChange={(e) =>
-                  setHeader((s) => ({
+                  editHeader((s) => ({
                     ...s,
                     monitoreado_numero_doc: onlyDigits(e.target.value, s.monitoreado_doc_tipo === "CE" ? 9 : 8),
                   }))
@@ -1790,7 +1774,7 @@ export function FichaDinamicaPage() {
               <select
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.monitoreado_cargo}
-                onChange={(e) => setHeader((s) => ({ ...s, monitoreado_cargo: e.target.value }))}
+                onChange={(e) => editHeader((s) => ({ ...s, monitoreado_cargo: e.target.value }))}
               >
                 <option value="">Seleccione</option>
                 <option value="DIRECTOR">Director</option>
@@ -1806,7 +1790,7 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.monitoreado_telefono}
-                onChange={(e) => setHeader((s) => ({ ...s, monitoreado_telefono: onlyDigits(e.target.value, 15) }))}
+                onChange={(e) => editHeader((s) => ({ ...s, monitoreado_telefono: onlyDigits(e.target.value, 15) }))}
               />
             </label>
           )}
@@ -1817,7 +1801,7 @@ export function FichaDinamicaPage() {
                 type="email"
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.monitoreado_correo}
-                onChange={(e) => setHeader((s) => ({ ...s, monitoreado_correo: e.target.value.trim() }))}
+                onChange={(e) => editHeader((s) => ({ ...s, monitoreado_correo: e.target.value.trim() }))}
               />
             </label>
           )}
@@ -1827,7 +1811,7 @@ export function FichaDinamicaPage() {
               <select
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.condicion}
-                onChange={(e) => setHeader((s) => ({ ...s, condicion: e.target.value }))}
+                onChange={(e) => editHeader((s) => ({ ...s, condicion: e.target.value }))}
               >
                 <option value="">Seleccionar</option>
                 <option value="DESIGNADO">Designado</option>
@@ -1842,7 +1826,7 @@ export function FichaDinamicaPage() {
                 <select
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                   value={header.area}
-                  onChange={(e) => setHeader((s) => ({ ...s, area: e.target.value }))}
+                  onChange={(e) => editHeader((s) => ({ ...s, area: e.target.value }))}
                 >
                   <option value="">Seleccione</option>
                   {areaOptions.map((opt: string) => (
@@ -1855,7 +1839,7 @@ export function FichaDinamicaPage() {
                 <input
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                   value={header.area}
-                  onChange={(e) => setHeader((s) => ({ ...s, area: toUpper(e.target.value) }))}
+                  onChange={(e) => editHeader((s) => ({ ...s, area: toUpper(e.target.value) }))}
                 />
               )}
             </label>
@@ -1866,7 +1850,7 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.numero_visitas}
-                onChange={(e) => setHeader((s) => ({ ...s, numero_visitas: onlyDigits(e.target.value, 3) }))}
+                onChange={(e) => editHeader((s) => ({ ...s, numero_visitas: onlyDigits(e.target.value, 3) }))}
               />
             </label>
           )}
@@ -1878,7 +1862,7 @@ export function FichaDinamicaPage() {
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={header.fecha_aplicacion}
                 max={monitoreoFechaFin || undefined}
-                onChange={(e) => setHeader((s) => ({ ...s, fecha_aplicacion: e.target.value }))}
+                onChange={(e) => editHeader((s) => ({ ...s, fecha_aplicacion: e.target.value }))}
               />
             </label>
           )}
@@ -1889,7 +1873,7 @@ export function FichaDinamicaPage() {
                 ariaLabel="Hora de inicio"
                 className="mt-1"
                 value={header.hora_inicio}
-                onChange={(value) => setHeader((s) => ({ ...s, hora_inicio: value }))}
+                onChange={(value) => editHeader((s) => ({ ...s, hora_inicio: value }))}
               />
             </div>
           )}
@@ -1900,7 +1884,7 @@ export function FichaDinamicaPage() {
                 ariaLabel="Hora de fin"
                 className="mt-1"
                 value={header.hora_fin}
-                onChange={(value) => setHeader((s) => ({ ...s, hora_fin: value }))}
+                onChange={(value) => editHeader((s) => ({ ...s, hora_fin: value }))}
               />
             </div>
           )}
@@ -1918,7 +1902,7 @@ export function FichaDinamicaPage() {
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                   value={header.custom_values?.[field.key] ?? ""}
                   onChange={(e) =>
-                    setHeader((s) => ({
+                    editHeader((s) => ({
                       ...s,
                       custom_values: {
                         ...s.custom_values,
@@ -1940,7 +1924,7 @@ export function FichaDinamicaPage() {
                   inputMode={field.type === "number" ? "numeric" : undefined}
                   value={header.custom_values?.[field.key] ?? ""}
                   onChange={(e) =>
-                    setHeader((s) => ({
+                    editHeader((s) => ({
                       ...s,
                       custom_values: {
                         ...s.custom_values,
@@ -2012,7 +1996,7 @@ export function FichaDinamicaPage() {
                               type="radio"
                               checked={value.yn === "SI"}
                               onChange={() =>
-                                setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "SI" } }))
+                                editAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "SI" } }))
                               }
                             />
                             Sí
@@ -2022,7 +2006,7 @@ export function FichaDinamicaPage() {
                               type="radio"
                               checked={value.yn === "NO"}
                               onChange={() =>
-                                setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "NO", nivel: undefined } }))
+                                editAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "NO", nivel: undefined } }))
                               }
                             />
                             No
@@ -2039,7 +2023,7 @@ export function FichaDinamicaPage() {
                                 name={`yn-${q.id}`}
                                 checked={value.yn === "SI"}
                                 onChange={() =>
-                                  setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "SI" } }))
+                                  editAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "SI" } }))
                                 }
                               />
                               Sí
@@ -2050,7 +2034,7 @@ export function FichaDinamicaPage() {
                                 name={`yn-${q.id}`}
                                 checked={value.yn === "NO"}
                                 onChange={() =>
-                                  setAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "NO", nivel: undefined } }))
+                                  editAnswers((s) => ({ ...s, [q.id]: { ...value, yn: "NO", nivel: undefined } }))
                                 }
                               />
                               No
@@ -2069,7 +2053,7 @@ export function FichaDinamicaPage() {
                                       name={`nivel-${q.id}`}
                                       checked={value.nivel === opt}
                                       onChange={() =>
-                                        setAnswers((s) => ({ ...s, [q.id]: { ...value, nivel: opt } }))
+                                        editAnswers((s) => ({ ...s, [q.id]: { ...value, nivel: opt } }))
                                       }
                                     />
                                     {opt}
@@ -2097,12 +2081,12 @@ export function FichaDinamicaPage() {
                                     const current = new Set(value.options ?? []);
                                     if (e.target.checked) current.add(opt);
                                     else current.delete(opt);
-                                    setAnswers((s) => ({
+                                    editAnswers((s) => ({
                                       ...s,
                                       [q.id]: { ...value, options: Array.from(current) },
                                     }));
                                   } else {
-                                    setAnswers((s) => ({ ...s, [q.id]: { ...value, option: opt } }));
+                                    editAnswers((s) => ({ ...s, [q.id]: { ...value, option: opt } }));
                                   }
                                 }}
                               />
@@ -2118,7 +2102,7 @@ export function FichaDinamicaPage() {
                           rows={3}
                           value={value.text ?? ""}
                           onChange={(e) =>
-                            setAnswers((s) => ({ ...s, [q.id]: { ...value, text: e.target.value } }))
+                            editAnswers((s) => ({ ...s, [q.id]: { ...value, text: e.target.value } }))
                           }
                         />
                       )}
@@ -2128,7 +2112,7 @@ export function FichaDinamicaPage() {
                           className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
                           value={value.number ?? ""}
                           onChange={(e) =>
-                            setAnswers((s) => ({ ...s, [q.id]: { ...value, number: e.target.value } }))
+                            editAnswers((s) => ({ ...s, [q.id]: { ...value, number: e.target.value } }))
                           }
                         />
                       )}
@@ -2150,7 +2134,7 @@ export function FichaDinamicaPage() {
                                 return;
                               }
                               setPendingEvidenceFiles((current) => ({ ...current, [q.id]: file }));
-                              setAnswers((s) => ({
+                              editAnswers((s) => ({
                                 ...s,
                                 [q.id]: { ...value, fileName: file.name },
                               }));
@@ -2250,7 +2234,7 @@ export function FichaDinamicaPage() {
                                                 );
                                                 next[i][j] = e.target.value;
                                                 next[i] = computeMatrixAutoTotals(groups, next[i]).next;
-                                                setAnswers((s) => ({ ...s, [q.id]: { ...value, matrix: next } }));
+                                                editAnswers((s) => ({ ...s, [q.id]: { ...value, matrix: next } }));
                                               }}
                                             />
                                           </td>
@@ -2272,7 +2256,7 @@ export function FichaDinamicaPage() {
                           placeholder="Observaciones"
                           value={value.obs ?? ""}
                           onChange={(e) =>
-                            setAnswers((s) => ({ ...s, [q.id]: { ...value, obs: e.target.value } }))
+                            editAnswers((s) => ({ ...s, [q.id]: { ...value, obs: e.target.value } }))
                           }
                         />
                       )}
@@ -2302,7 +2286,7 @@ export function FichaDinamicaPage() {
                               rows={2}
                               value={current ?? ""}
                               onChange={(e) =>
-                                setAnswers((s) => ({
+                                editAnswers((s) => ({
                                   ...s,
                                   [q.id]: {
                                     ...value,
@@ -2334,7 +2318,7 @@ export function FichaDinamicaPage() {
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 rows={3}
                 value={footer.observacion}
-                onChange={(e) => setFooter((s) => ({ ...s, observacion: e.target.value }))}
+                onChange={(e) => editFooter((s) => ({ ...s, observacion: e.target.value }))}
               />
             </label>
           )}
@@ -2345,7 +2329,7 @@ export function FichaDinamicaPage() {
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 rows={3}
                 value={footer.compromiso}
-                onChange={(e) => setFooter((s) => ({ ...s, compromiso: e.target.value }))}
+                onChange={(e) => editFooter((s) => ({ ...s, compromiso: e.target.value }))}
               />
             </label>
           )}
@@ -2355,7 +2339,7 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={footer.lugar}
-                onChange={(e) => setFooter((s) => ({ ...s, lugar: toUpper(e.target.value) }))}
+                onChange={(e) => editFooter((s) => ({ ...s, lugar: toUpper(e.target.value) }))}
               />
             </label>
           )}
@@ -2367,7 +2351,7 @@ export function FichaDinamicaPage() {
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={footer.fecha}
                 max={monitoreoFechaFin || undefined}
-                onChange={(e) => setFooter((s) => ({ ...s, fecha: e.target.value }))}
+                onChange={(e) => editFooter((s) => ({ ...s, fecha: e.target.value }))}
               />
             </label>
           )}
@@ -2377,7 +2361,7 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={footer.docente_nombre}
-                onChange={(e) => setFooter((s) => ({ ...s, docente_nombre: toUpper(e.target.value) }))}
+                onChange={(e) => editFooter((s) => ({ ...s, docente_nombre: toUpper(e.target.value) }))}
               />
             </label>
           )}
@@ -2389,7 +2373,7 @@ export function FichaDinamicaPage() {
                   className="rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-sm text-white"
                   value={footer.docente_doc_tipo}
                   onChange={(e) =>
-                    setFooter((s) => ({
+                    editFooter((s) => ({
                       ...s,
                       docente_doc_tipo: (e.target.value as "DNI" | "CE") || "DNI",
                       docente_dni: "",
@@ -2407,7 +2391,7 @@ export function FichaDinamicaPage() {
                   placeholder={footer.docente_doc_tipo === "CE" ? "9 digitos" : "8 digitos"}
                   value={footer.docente_dni}
                   onChange={(e) =>
-                    setFooter((s) => ({
+                    editFooter((s) => ({
                       ...s,
                       docente_dni: onlyDigits(e.target.value, s.docente_doc_tipo === "CE" ? 9 : 8),
                     }))
@@ -2422,7 +2406,7 @@ export function FichaDinamicaPage() {
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                 value={footer.monitor_nombre}
-                onChange={(e) => setFooter((s) => ({ ...s, monitor_nombre: toUpper(e.target.value) }))}
+                onChange={(e) => editFooter((s) => ({ ...s, monitor_nombre: toUpper(e.target.value) }))}
               />
             </label>
           )}
@@ -2434,7 +2418,7 @@ export function FichaDinamicaPage() {
                   className="rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-sm text-white"
                   value={footer.monitor_doc_tipo}
                   onChange={(e) =>
-                    setFooter((s) => ({
+                    editFooter((s) => ({
                       ...s,
                       monitor_doc_tipo: (e.target.value as "DNI" | "CE") || "DNI",
                       monitor_dni: "",
@@ -2452,7 +2436,7 @@ export function FichaDinamicaPage() {
                   placeholder={footer.monitor_doc_tipo === "CE" ? "9 digitos" : "8 digitos"}
                   value={footer.monitor_dni}
                   onChange={(e) =>
-                    setFooter((s) => ({
+                    editFooter((s) => ({
                       ...s,
                       monitor_dni: onlyDigits(e.target.value, s.monitor_doc_tipo === "CE" ? 9 : 8),
                     }))
