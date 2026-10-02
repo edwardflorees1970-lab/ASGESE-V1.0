@@ -3099,3 +3099,23 @@ button:hover .agebre-action-icon {
   .tracking-institutions-panel > div:nth-child(2) > label:first-child,
   .tracking-monitors-panel > div:nth-child(2) > label:first-child { grid-column: 1 / -1; }
 }
+
+/* Tabla matriz de la ficha: al pasar el cursor o enfocar una celda se resaltan
+   su fila y su columna (encabezados + celdas) para ubicarse en tablas grandes. */
+.matrix-table td[data-cross="on"] {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+.matrix-table th[data-axis="on"],
+.matrix-table td[data-axis="on"] {
+  background: color-mix(in srgb, var(--app-accent) 26%, transparent);
+  color: var(--app-text);
+  font-weight: 650;
+}
+.matrix-table td[data-cross="on"] input:not(:focus):not([readonly]) {
+  background-color: color-mix(in srgb, var(--app-accent) 7%, white);
+}
+.matrix-table td input:focus {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+.matrix-table th, .matrix-table td { transition: background-color 120ms ease; }
