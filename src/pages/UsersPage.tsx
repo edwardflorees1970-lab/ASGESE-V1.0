@@ -11,6 +11,7 @@ import {
 import { useAuth } from "../app/AuthProvider";
 import { canSeeAllRole, isAdminRole, roleLabel } from "../lib/roles";
 import { supabase } from "../lib/supabaseClient";
+import { sanitizeOrTerm } from "../lib/postgrestSearch";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { IconButton as UiIconButton } from "../components/ui/IconButton";
 import { SkeletonCards, SkeletonTableRows } from "../components/Skeleton";
@@ -328,8 +329,9 @@ export function UsersPage() {
         if (area.trim()) qx = qx.ilike("area", `%${area.trim()}%`);
         if (ugel.trim()) qx = qx.ilike("ugel", `%${ugel.trim()}%`);
         if (rei.trim()) qx = qx.eq("rei", rei.trim());
-        if (q.trim()) {
-          const term = q.trim().replaceAll("%", "");
+        // Comas/paréntesis/puntos rompen la sintaxis de .or(): se neutralizan.
+        const term = sanitizeOrTerm(q);
+        if (term) {
           qx = qx.or(
             [
               `apellido_paterno.ilike.%${term}%`,

@@ -42,7 +42,9 @@ export function ProtectedRoute({ requireAdmin = false, allowedRoles, requireModu
       );
     }
 
-    if (profileError) {
+    // Solo sin perfil: si ya hay uno cargado, un error posterior no debe
+    // desmontar la página que el usuario está usando.
+    if (profileError && !profile) {
       return (
         <div className="agebre-app-shell grid min-h-screen place-items-center px-4">
           <div className="max-w-md rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
