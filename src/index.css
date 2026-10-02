@@ -3109,7 +3109,6 @@ button:hover .agebre-action-icon {
 .matrix-table td[data-axis="on"] {
   background: color-mix(in srgb, var(--app-accent) 14%, transparent);
   color: var(--app-text);
-  font-weight: 650;
 }
 .matrix-table td[data-cell="on"] {
   background: color-mix(in srgb, var(--app-accent) 34%, transparent);
