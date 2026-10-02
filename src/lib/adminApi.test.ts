@@ -202,7 +202,7 @@ describe("adminApi", () => {
 
     it("adminProcessUserImport sends action=process with job_id and rows", async () => {
       fetchMock.mockResolvedValue(jsonResponse({ ok: true, items: [] }));
-      const rows = [{ correo: "a@a.com" } as any];
+      const rows = [{ correo: "a@a.com" } as unknown as Parameters<typeof adminProcessUserImport>[1][number]];
 
       await adminProcessUserImport("job-1", rows);
 

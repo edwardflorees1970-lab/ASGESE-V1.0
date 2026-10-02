@@ -32,3 +32,6 @@ coverage
 *.sw?
 .vercel
 .env*.local
+
+# Worktrees y estado local de Claude Code (copias del repo que ensucian lint/tests)
+.claude
