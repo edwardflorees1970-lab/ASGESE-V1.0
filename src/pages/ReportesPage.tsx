@@ -849,7 +849,8 @@ export function ReportesPage() {
             .from("form_question")
             .select("id, template_id, section_id, tipo, texto, subtitulo, orden, orden_in_section, config_json")
             .eq("template_id", run.template_id)
-            .order("orden", { ascending: true }),
+          .order("orden_in_section", { ascending: true })
+          .order("orden", { ascending: true }),
           supabase
             .from("form_run")
             .select("id, header_json, footer_json, docente_firma_path, monitor_firma_path")

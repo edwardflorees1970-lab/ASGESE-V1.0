@@ -707,7 +707,8 @@ export function FichaDinamicaPage() {
             .from("form_question")
             .select("id, template_id, section_id, tipo, texto, subtitulo, orden, orden_in_section, required, config_json")
             .eq("template_id", tpl.id)
-            .order("orden", { ascending: true });
+          .order("orden_in_section", { ascending: true })
+          .order("orden", { ascending: true });
           if (qErr) throw new Error(qErr.message);
 
           const { data: fichaRef } = await supabase
@@ -796,6 +797,7 @@ export function FichaDinamicaPage() {
           .from("form_question")
           .select("id, template_id, section_id, tipo, texto, subtitulo, orden, orden_in_section, required, config_json")
           .eq("template_id", tpl.id)
+          .order("orden_in_section", { ascending: true })
           .order("orden", { ascending: true });
         if (qErr) throw new Error(qErr.message);
 
