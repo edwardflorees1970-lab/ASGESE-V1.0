@@ -56,6 +56,15 @@ type MonitoreoRow = {
   is_active: boolean;
 };
 
+type MetaRow = {
+  monitoreo_id: string;
+  user_id: string;
+  meta_fichas: number;
+  subidas: number;
+  finalizadas: number;
+  excedentes: number;
+};
+
 const MONTHS = [
   { value: "ALL", label: "Todo el año", short: "Año" },
   { value: "1", label: "Enero", short: "Ene" },
@@ -134,6 +143,9 @@ export function HomePage() {
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
   const [fichasByTemplate, setFichasByTemplate] = useState<Record<string, FichaRow>>({});
   const [monById, setMonById] = useState<Record<string, MonitoreoRow>>({});
+  const [metaRows, setMetaRows] = useState<MetaRow[]>([]);
+  const [metaNames, setMetaNames] = useState<Record<string, string>>({});
+  const [excedeIds, setExcedeIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -251,6 +263,68 @@ export function HomePage() {
     })();
     return () => { alive = false; };
   }, [year, month, monitoreo, monitoreos, isTestMode, user?.id, canSeeAll]);
+
+  // Avance contra meta por especialista (vista monitoreo_meta_avance; cada rol ve lo que le corresponde).
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const selected = monitoreo === "ALL" ? null : monitoreos.find((item) => item.codigo === monitoreo);
+      const ids = selected ? [selected.id] : monitoreos.map((item) => item.id);
+      if (!ids.length) {
+        setMetaRows([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("monitoreo_meta_avance")
+        .select("monitoreo_id, user_id, meta_fichas, subidas, finalizadas, excedentes")
+        .in("monitoreo_id", ids);
+      if (!alive || error) return;
+      const rows = ((data ?? []) as MetaRow[]).map((row) => ({
+        ...row,
+        meta_fichas: Number(row.meta_fichas),
+        subidas: Number(row.subidas),
+        finalizadas: Number(row.finalizadas),
+        excedentes: Number(row.excedentes),
+      }));
+      setMetaRows(rows);
+      const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
+      if (!userIds.length) return;
+      const { data: people } = await supabase
+        .from("profiles")
+        .select("id, role, nombres, apellido_paterno, apellido_materno, correo, email")
+        .in("id", userIds);
+      if (!alive) return;
+      setMetaNames(Object.fromEntries(((people ?? []) as ProfileRow[]).map((person) => [person.id, userName(person)])));
+    })();
+    return () => { alive = false; };
+  }, [monitoreos, monitoreo]);
+
+  // Etiqueta "Excedente" en las fichas recientes que superan la meta de su autor.
+  useEffect(() => {
+    let alive = true;
+    const ids = runs.slice(0, 5).map((run) => run.id);
+    if (!ids.length) {
+      setExcedeIds(new Set());
+      return;
+    }
+    void (async () => {
+      const { data, error } = await supabase.from("form_run_meta").select("run_id").eq("excede_meta", true).in("run_id", ids);
+      if (!alive || error) return;
+      setExcedeIds(new Set((data ?? []).map((row: { run_id: string }) => row.run_id)));
+    })();
+    return () => { alive = false; };
+  }, [runs]);
+
+  const metaSummary = useMemo(() => {
+    if (!metaRows.length) return null;
+    const meta = metaRows.reduce((sum, row) => sum + row.meta_fichas, 0);
+    const subidas = metaRows.reduce((sum, row) => sum + row.subidas, 0);
+    const finalizadas = metaRows.reduce((sum, row) => sum + row.finalizadas, 0);
+    const excedentes = metaRows.reduce((sum, row) => sum + row.excedentes, 0);
+    const pct = meta ? Math.round((Math.min(finalizadas, meta) / meta) * 100) : 0;
+    const people = [...metaRows].sort((a, b) => (b.meta_fichas ? b.finalizadas / b.meta_fichas : 0) - (a.meta_fichas ? a.finalizadas / a.meta_fichas : 0));
+    return { meta, subidas, finalizadas, excedentes, pct, faltan: Math.max(0, meta - finalizadas), people };
+  }, [metaRows]);
 
   const analytics = useMemo(() => {
     const statusMap = new Map<string, number>();
@@ -402,10 +476,14 @@ export function HomePage() {
           <div className={`dashboard-kpi-accent absolute inset-x-0 top-0 h-1 ${analytics.completionRate >= 80 ? "dashboard-tone-green" : "dashboard-tone-amber"}`} />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-xs font-medium text-white/55">Tasa de cierre</div>
-              <div className="mt-2 text-4xl font-bold tracking-[-0.03em] text-white sm:text-5xl">{analytics.completionRate}%</div>
-              <div className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${analytics.completionRate >= 80 ? "dashboard-tone-green" : "dashboard-tone-amber"}`}>
-                {analytics.completionRate >= 80 ? "Nivel de cumplimiento alto" : "Oportunidad de seguimiento"}
+              <div className="text-xs font-medium text-white/55">{metaSummary ? "Avance contra la meta" : "Tasa de cierre"}</div>
+              <div className="mt-2 text-4xl font-bold tracking-[-0.03em] text-white sm:text-5xl">{metaSummary ? metaSummary.pct : analytics.completionRate}%</div>
+              <div className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${(metaSummary ? metaSummary.pct : analytics.completionRate) >= 80 ? "dashboard-tone-green" : "dashboard-tone-amber"}`}>
+                {metaSummary
+                  ? metaSummary.faltan === 0
+                    ? "Meta cumplida"
+                    : `Faltan ${formatter.format(metaSummary.faltan)} fichas para la meta`
+                  : analytics.completionRate >= 80 ? "Nivel de cumplimiento alto" : "Oportunidad de seguimiento"}
               </div>
             </div>
             <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${analytics.completionRate >= 80 ? "dashboard-tone-green" : "dashboard-tone-amber"}`}>
@@ -413,18 +491,35 @@ export function HomePage() {
             </div>
           </div>
           <div className="dashboard-progress-track mt-4 h-1.5 overflow-hidden rounded-full">
-            <div className="dashboard-progress-value h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(0, Math.min(100, analytics.completionRate))}%` }} />
+            <div className="dashboard-progress-value h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(0, Math.min(100, metaSummary ? metaSummary.pct : analytics.completionRate))}%` }} />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
-            <div>
-              <div className="text-[11px] text-white/45">Finalizadas</div>
-              <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(analytics.finalizadas)}</div>
+          {metaSummary ? (
+            <div className="mt-4 grid grid-cols-3 gap-4 border-t border-white/10 pt-4">
+              <div>
+                <div className="text-[11px] text-white/45">Meta total</div>
+                <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(metaSummary.meta)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-white/45">Finalizadas</div>
+                <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(metaSummary.finalizadas)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-white/45">Subidas{metaSummary.excedentes ? ` (+${formatter.format(metaSummary.excedentes)} excedente)` : ""}</div>
+                <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(metaSummary.subidas)}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[11px] text-white/45">En proceso</div>
-              <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(analytics.proceso)}</div>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
+              <div>
+                <div className="text-[11px] text-white/45">Finalizadas</div>
+                <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(analytics.finalizadas)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-white/45">En proceso</div>
+                <div className="mt-0.5 text-lg font-semibold text-white">{formatter.format(analytics.proceso)}</div>
+              </div>
             </div>
-          </div>
+          )}
         </article>
 
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
@@ -433,6 +528,36 @@ export function HomePage() {
           <KpiCard label="Usuarios activos" value={formatter.format(analytics.userCount)} detail="Registradores únicos del periodo" icon="people" tone="cyan" className="col-span-2 xl:col-span-1" />
         </div>
       </section>
+
+      {metaSummary && (
+        <DashboardPanel title="Avance por especialista" eyebrow="Metas de fichas" description="Finalizadas sobre la meta de cada especialista. Lo que pasa de la meta se marca como excedente." className="mt-5">
+          <ul className="mt-4 space-y-3">
+            {metaSummary.people.map((row) => {
+              const pct = row.meta_fichas ? Math.round((Math.min(row.finalizadas, row.meta_fichas) / row.meta_fichas) * 100) : 0;
+              return (
+                <li key={`${row.monitoreo_id}-${row.user_id}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 truncate text-sm font-semibold text-white">{metaNames[row.user_id] ?? "Especialista"}</div>
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <span><strong className="text-white">{formatter.format(row.finalizadas)}</strong> de {formatter.format(row.meta_fichas)} finalizadas</span>
+                      {row.excedentes > 0 && (
+                        <span className="dashboard-tone-violet rounded-full border px-2 py-0.5 text-[10px] font-semibold">+{formatter.format(row.excedentes)} excedente</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="dashboard-progress-track mt-2 h-1.5 overflow-hidden rounded-full">
+                    <div className="dashboard-progress-value h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="mt-1.5 flex justify-between text-[11px] text-white/45">
+                    <span>{formatter.format(row.subidas)} subidas en total</span>
+                    <span>{row.meta_fichas > row.finalizadas ? `Faltan ${formatter.format(row.meta_fichas - row.finalizadas)}` : "Meta cumplida"}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </DashboardPanel>
+      )}
 
       <DashboardPanel title="Resumen ejecutivo" eyebrow="Lectura rápida" className="mt-5" action={<span className="hidden rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-white/45 sm:block">{selectedMonitoreoLabel}</span>}>
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-center">
@@ -538,7 +663,7 @@ export function HomePage() {
           <table className="w-full table-fixed text-left text-xs">
             <thead className="bg-white/5 text-[10px] uppercase tracking-[0.1em] text-white/40"><tr><th className="w-[42%] px-4 py-3 font-semibold">Monitoreo / ficha</th><th className="w-[25%] px-4 py-3 font-semibold">Registrador</th><th className="w-[18%] px-4 py-3 font-semibold">Fecha</th><th className="w-[15%] px-4 py-3 text-right font-semibold">Estado</th></tr></thead>
             <tbody className="divide-y divide-white/8">
-              {runs.slice(0, 5).map((run) => <RecentRow key={run.id} run={run} profile={profiles[run.created_by]} ficha={run.template_id ? fichasByTemplate[run.template_id] : undefined} monitoreo={run.template_id && fichasByTemplate[run.template_id] ? monById[fichasByTemplate[run.template_id].monitoreo_id] : undefined} />)}
+              {runs.slice(0, 5).map((run) => <RecentRow key={run.id} run={run} excede={excedeIds.has(run.id)} profile={profiles[run.created_by]} ficha={run.template_id ? fichasByTemplate[run.template_id] : undefined} monitoreo={run.template_id && fichasByTemplate[run.template_id] ? monById[fichasByTemplate[run.template_id].monitoreo_id] : undefined} />)}
             </tbody>
           </table>
         </div>
@@ -546,7 +671,7 @@ export function HomePage() {
           {runs.slice(0, 5).map((run) => {
             const ficha = run.template_id ? fichasByTemplate[run.template_id] : undefined;
             const mon = ficha ? monById[ficha.monitoreo_id] : undefined;
-            return <article key={run.id} className="rounded-xl border border-white/10 bg-black/10 p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="truncate text-sm font-medium text-white/80">{mon?.nombre ?? "Monitoreo"}</div><div className="mt-0.5 text-xs text-white/40">{ficha?.codigo ?? "Ficha"} · {userName(profiles[run.created_by])}</div></div><StatusPill status={run.status} /></div><div className="mt-2 text-[10px] text-white/35">{fmtDateShort(run.created_at)}</div></article>;
+            return <article key={run.id} className="rounded-xl border border-white/10 bg-black/10 p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="truncate text-sm font-medium text-white/80">{mon?.nombre ?? "Monitoreo"}</div><div className="mt-0.5 text-xs text-white/40">{ficha?.codigo ?? "Ficha"} · {userName(profiles[run.created_by])}</div></div><StatusPill status={run.status} excede={excedeIds.has(run.id)} /></div><div className="mt-2 text-[10px] text-white/35">{fmtDateShort(run.created_at)}</div></article>;
           })}
         </div>
         {!runs.length && <div className="mt-4"><EmptyChart message="No hay actividad reciente para los filtros seleccionados." /></div>}
@@ -563,18 +688,23 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   return <span className="inline-flex min-w-0 items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} /><span className="truncate">{label}</span></span>;
 }
 
-function StatusPill({ status }: { status: string }) {
+function StatusPill({ status, excede }: { status: string; excede?: boolean }) {
   const final = isFinalStatus(status);
-  return <span className={`inline-flex shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${final ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>{statusLabel(status)}</span>;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5">
+      {excede && <span className="dashboard-tone-violet inline-flex shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold" title="Esta ficha supera la meta asignada a su autor">Excedente</span>}
+      <span className={`inline-flex shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${final ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>{statusLabel(status)}</span>
+    </span>
+  );
 }
 
-function RecentRow({ run, profile, ficha, monitoreo }: { run: RunRow; profile?: ProfileRow; ficha?: FichaRow; monitoreo?: MonitoreoRow }) {
+function RecentRow({ run, profile, ficha, monitoreo, excede }: { run: RunRow; profile?: ProfileRow; ficha?: FichaRow; monitoreo?: MonitoreoRow; excede?: boolean }) {
   return (
     <tr className="bg-black/5 transition-colors hover:bg-white/[0.035]">
       <td className="px-4 py-3"><div className="truncate font-medium text-white/80" title={monitoreo?.nombre}>{monitoreo?.nombre ?? "Monitoreo"}</div><div className="mt-0.5 text-[10px] text-white/35">{ficha?.codigo ?? "Ficha"}</div></td>
       <td className="truncate px-4 py-3 text-white/55" title={userName(profile)}>{userName(profile)}</td>
       <td className="px-4 py-3 text-white/45">{fmtDateShort(run.created_at)}</td>
-      <td className="px-4 py-3 text-right"><StatusPill status={run.status} /></td>
+      <td className="px-4 py-3 text-right"><StatusPill status={run.status} excede={excede} /></td>
     </tr>
   );
 }
