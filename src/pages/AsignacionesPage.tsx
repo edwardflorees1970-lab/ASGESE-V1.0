@@ -55,6 +55,9 @@ export function AsignacionesPage() {
 
   const [users, setUsers] = useState<ProfileRow[]>([]);
   const [assignments, setAssignments] = useState<Record<string, boolean>>({});
+  // Meta de fichas por usuario (vacio = sin meta). Con alguna meta definida, solo suben quienes tengan meta.
+  const [metas, setMetas] = useState<Record<string, number>>({});
+  const [metaDrafts, setMetaDrafts] = useState<Record<string, string>>({});
   const [roles, setRoles] = useState<Array<{ code: string; name: string }>>([]);
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [roleAssignments, setRoleAssignments] = useState<Record<string, boolean>>({});
@@ -135,7 +138,7 @@ export function AsignacionesPage() {
       setLoading(true);
       const [{ data, error }, roleResult] = await Promise.all([supabase
         .from("monitoreo_asignacion")
-        .select("id, monitoreo_id, user_id")
+        .select("id, monitoreo_id, user_id, meta_fichas")
         .eq("monitoreo_id", monitoreoId), supabase.from("monitoreo_role_asignacion").select("role_code").eq("monitoreo_id", monitoreoId)]);
       if (!alive) return;
       if (error) {
@@ -144,8 +147,14 @@ export function AsignacionesPage() {
         return;
       }
       const map: Record<string, boolean> = {};
-      (data ?? []).forEach((r: any) => (map[r.user_id] = true));
+      const metaMap: Record<string, number> = {};
+      (data ?? []).forEach((r: any) => {
+        map[r.user_id] = true;
+        if (r.meta_fichas != null) metaMap[r.user_id] = r.meta_fichas;
+      });
       setAssignments(map);
+      setMetas(metaMap);
+      setMetaDrafts({});
       setRoleAssignments(Object.fromEntries((roleResult.data ?? []).map((row: any) => [row.role_code, true])));
       setLoading(false);
     })();
@@ -187,9 +196,52 @@ export function AsignacionesPage() {
     if (error) setToast({ type: "err", msg: error.message });
     else {
       setRoleAssignments((value) => ({ ...value, [roleCode]: assigned }));
-      const { data } = await supabase.from("monitoreo_asignacion").select("user_id").eq("monitoreo_id", monitoreoId);
+      const { data } = await supabase.from("monitoreo_asignacion").select("user_id, meta_fichas").eq("monitoreo_id", monitoreoId);
       setAssignments(Object.fromEntries((data ?? []).map((row: any) => [row.user_id, true])));
+      setMetas(Object.fromEntries((data ?? []).filter((row: any) => row.meta_fichas != null).map((row: any) => [row.user_id, row.meta_fichas])));
       setToast({ type: "ok", msg: assigned ? "Rol asignado al monitoreo." : "Asignacion por rol retirada." });
+    }
+    setSaving(null);
+  };
+
+  const saveMeta = async (u: ProfileRow) => {
+    if (!canManageAssignments || !monitoreoId) return;
+    const raw = (metaDrafts[u.id] ?? "").trim();
+    const current = metas[u.id];
+    if (raw === "" && current == null) return;
+    const value = raw === "" ? null : Number(raw);
+    if (value !== null && (!Number.isInteger(value) || value < 0 || value > 100000)) {
+      setToast({ type: "err", msg: "La meta debe ser un número entero de 0 en adelante." });
+      return;
+    }
+    if (value === (current ?? null)) {
+      setMetaDrafts((prev) => {
+        const next = { ...prev };
+        delete next[u.id];
+        return next;
+      });
+      return;
+    }
+    setSaving(`meta:${u.id}`);
+    const { error } = await supabase
+      .from("monitoreo_asignacion")
+      .update({ meta_fichas: value })
+      .eq("monitoreo_id", monitoreoId)
+      .eq("user_id", u.id);
+    if (error) setToast({ type: "err", msg: error.message });
+    else {
+      setMetas((prev) => {
+        const next = { ...prev };
+        if (value === null) delete next[u.id];
+        else next[u.id] = value;
+        return next;
+      });
+      setMetaDrafts((prev) => {
+        const next = { ...prev };
+        delete next[u.id];
+        return next;
+      });
+      setToast({ type: "ok", msg: value === null ? "Meta retirada." : "Meta guardada." });
     }
     setSaving(null);
   };
@@ -211,6 +263,11 @@ export function AsignacionesPage() {
           delete next[u.id];
           return next;
         });
+        setMetas((prev) => {
+          const next = { ...prev };
+          delete next[u.id];
+          return next;
+        });
       } else {
         const { error } = await supabase.from("monitoreo_asignacion").insert({
           monitoreo_id: monitoreoId,
@@ -226,6 +283,9 @@ export function AsignacionesPage() {
     }
   };
 
+  const metaEntries = Object.values(metas);
+  const metaTotal = metaEntries.reduce((sum, n) => sum + n, 0);
+  const hasMetas = metaEntries.length > 0;
   const selected = monitoreos.find((m) => m.id === monitoreoId);
   const yearOptions = useMemo(
     () => (years.length ? years : [year]).map((item) => ({ value: item, label: item })),
@@ -256,10 +316,11 @@ export function AsignacionesPage() {
       <header className="assignments-hero rounded-2xl border p-4 sm:p-5">
         <div className="assignments-hero-layout grid items-center gap-4">
           <div className="flex min-w-0 items-center gap-3"><div className="assignments-hero-icon"><AssignmentIcon /></div><div><div className="assignments-eyebrow">Gestión de acceso</div><h1 className="text-2xl font-bold tracking-tight sm:text-[1.7rem]">Asignaciones</h1><p className="mt-1 text-sm text-[var(--app-muted)]">Asigna usuarios a monitoreos activos por periodo de vigencia.</p></div></div>
-          <div className="assignments-kpis grid grid-cols-3 gap-2">
+          <div className="assignments-kpis grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="assignments-kpi"><span>Usuarios</span><strong>{filtered.length}</strong></div>
             <div className="assignments-kpi is-success"><span>Asignados</span><strong>{filtered.filter((user) => assignments[user.id]).length}</strong></div>
             <div className="assignments-kpi is-pending"><span>Disponibles</span><strong>{filtered.filter((user) => !assignments[user.id]).length}</strong></div>
+            <div className="assignments-kpi"><span>Meta total</span><strong>{hasMetas ? metaTotal : "—"}</strong></div>
           </div>
         </div>
       </header>
@@ -289,6 +350,13 @@ export function AsignacionesPage() {
       )}
       </section>
 
+      {hasMetas && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-[var(--app-text)]">
+          Este monitoreo tiene metas por especialista: solo pueden subir fichas los usuarios con meta asignada. Quien sube más que su meta
+          lo puede hacer; esas fichas se marcan como excedente.
+        </div>
+      )}
+
       <section className="assignments-panel rounded-2xl border p-4 sm:p-5">
         <div className="assignments-eyebrow">Asignacion masiva</div>
         <div className="mt-1 text-sm font-bold text-[var(--app-text)]">Asignar un rol completo</div>
@@ -298,7 +366,7 @@ export function AsignacionesPage() {
 
       <section className="assignments-panel rounded-2xl border p-4 sm:p-5">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5"><div className="assignments-section-icon"><AssignmentIcon type="users" /></div><div><div className="assignments-eyebrow">Directorio</div><div className="text-sm font-bold">Usuarios</div><p className="mt-0.5 text-xs text-[var(--app-muted)]">Asigna usuarios uno por uno a este monitoreo.</p></div></div>
+          <div className="flex items-center gap-2.5"><div className="assignments-section-icon"><AssignmentIcon type="users" /></div><div><div className="assignments-eyebrow">Directorio</div><div className="text-sm font-bold">Usuarios</div><p className="mt-0.5 text-xs text-[var(--app-muted)]">Asigna usuarios uno por uno a este monitoreo y define cuántas fichas debe subir cada uno.</p></div></div>
           <div className="flex w-full gap-2 sm:max-w-xl"><select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="dashboard-control rounded-xl border px-3 py-2 text-sm"><option value="ALL">Todos los roles</option>{roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</select><input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -333,6 +401,25 @@ export function AsignacionesPage() {
                     <div className="text-xs text-[var(--app-muted)]">{u.correo || u.email}</div>
                     <div className="mt-1 text-[10px] uppercase tracking-wide text-[var(--app-muted-2)]">{roles.find((role) => role.code === u.role)?.name || roleLabel(u.role)}</div>
                   </div>
+                  {assigned && (
+                    <label className="ml-auto flex flex-col items-end text-[10px] uppercase tracking-wide text-[var(--app-muted-2)]">
+                      Meta de fichas
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        disabled={!canManageAssignments || saving === `meta:${u.id}`}
+                        placeholder="Sin meta"
+                        value={metaDrafts[u.id] ?? (metas[u.id] != null ? String(metas[u.id]) : "")}
+                        onChange={(e) => setMetaDrafts((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                        onBlur={() => saveMeta(u)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        }}
+                        className="dashboard-control mt-1 w-24 rounded-lg border px-2 py-1 text-right text-sm normal-case tracking-normal"
+                      />
+                    </label>
+                  )}
                   <button
                     type="button"
                     onClick={() => toggleAssign(u)}
