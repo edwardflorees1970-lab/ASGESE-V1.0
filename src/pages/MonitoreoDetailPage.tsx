@@ -274,7 +274,10 @@ export function MonitoreoDetailPage() {
                   </span>
                 </div>
 
-                <h2 className="agebre-card-title h-12 shrink-0 text-base font-bold leading-[1.35] tracking-tight text-[var(--app-text)]">
+                <h2
+                  className="agebre-card-title agebre-card-title--full shrink-0 text-[15px] font-bold leading-[1.4] tracking-tight text-[var(--app-text)]"
+                  title={f.title}
+                >
                   {f.title}
                 </h2>
 

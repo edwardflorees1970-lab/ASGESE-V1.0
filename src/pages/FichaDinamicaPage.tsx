@@ -597,6 +597,10 @@ export function FichaDinamicaPage() {
       go("/app/reportes");
       return;
     }
+    if (returnTo === "seguimiento") {
+      go("/app/seguimiento");
+      return;
+    }
     if (monitoreoCodigo) {
       go(`/app/monitoreo/${monitoreoCodigo}`);
       return;
