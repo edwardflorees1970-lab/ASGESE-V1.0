@@ -254,6 +254,14 @@ export function AppShell() {
           reloadOnClick={inFichaRoute}
           collapsed={collapsed}
         />}
+        {canViewModule("tablero_powerbi") && <Item
+          to="/app/tablero-powerbi"
+          label="Tablero Power BI"
+          icon={<ChartIcon />}
+          onClick={onItemClick}
+          reloadOnClick={inFichaRoute}
+          collapsed={collapsed}
+        />}
         {canViewModule("indicadores_cdd") && (
           <Item
             to="/app/indicadores-cdd"
