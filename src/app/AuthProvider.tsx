@@ -56,12 +56,12 @@ async function fetchProfile(userId: string) {
 }
 
 const legacyModulesByRole: Record<string, string[]> = {
-  admin: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios", "roles_permisos", "catalogos", "operaciones"],
-  jefe_area: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios"],
+  admin: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "tablero_powerbi", "indicadores_cdd", "instituciones", "usuarios", "roles_permisos", "catalogos", "operaciones"],
+  jefe_area: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "tablero_powerbi", "indicadores_cdd", "instituciones", "usuarios"],
   // Fallback solo-lectura si falla get_my_module_permissions (refleja
   // role_module_permission del rol coordinador en BD).
-  coordinador: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "reportes", "reportes_analiticos", "operaciones"],
-  director: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones", "usuarios"],
+  coordinador: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "reportes", "reportes_analiticos", "tablero_powerbi", "operaciones"],
+  director: ["inicio", "monitoreo", "seguimiento", "gestion_monitoreos", "asignaciones", "reportes", "reportes_analiticos", "tablero_powerbi", "indicadores_cdd", "instituciones", "usuarios"],
   responsable_cdd: ["inicio", "monitoreo", "reportes", "reportes_analiticos", "indicadores_cdd", "instituciones"],
   director_iiee: ["inicio", "monitoreo", "reportes", "instituciones"],
   user: ["inicio", "monitoreo", "reportes", "reportes_analiticos", "instituciones"],

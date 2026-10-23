@@ -25,6 +25,9 @@ const ReportesPage = lazy(() =>
 const AnalyticsReportsPage = lazy(() =>
   import("./pages/AnalyticsReportsPage").then((m) => ({ default: m.AnalyticsReportsPage }))
 );
+const TableroPowerBiPage = lazy(() =>
+  import("./pages/TableroPowerBiPage").then((m) => ({ default: m.TableroPowerBiPage }))
+);
 const SeguimientoPage = lazy(() =>
   import("./pages/SeguimientoPage").then((m) => ({ default: m.SeguimientoPage }))
 );
@@ -93,6 +96,9 @@ export default function App() {
             <Route element={<ProtectedRoute requireModule="reportes" />}><Route path="reportes" element={<ReportesPage />} /></Route>
             <Route element={<ProtectedRoute requireModule="reportes_analiticos" />}>
               <Route path="reportes-analiticos" element={<AnalyticsReportsPage />} />
+            </Route>
+            <Route element={<ProtectedRoute requireModule="tablero_powerbi" />}>
+              <Route path="tablero-powerbi" element={<TableroPowerBiPage />} />
             </Route>
             <Route element={<ProtectedRoute requireModule="seguimiento" />}>
               <Route path="seguimiento" element={<SeguimientoPage />} />
