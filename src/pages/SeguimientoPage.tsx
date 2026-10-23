@@ -1,663 +1,309 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
-import { canSeeAllRole } from "../lib/roles";
-import { daysFromToday, isMonitoreoExpired } from "../lib/monitoreoVigencia";
+import { daysFromToday, isMonitoreoExpired, todayDateOnly } from "../lib/monitoreoVigencia";
 import { SkeletonCards, SkeletonLine } from "../components/Skeleton";
+import "./SeguimientoPage.css";
 
 type MonitoreoRow = {
   id: string;
   codigo: string;
   nombre: string;
-  solicitud_id?: string | null;
-  fecha_fin?: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  is_active: boolean;
 };
 
-type ProfileRow = {
-  id: string;
-  role: string;
-  nombres: string | null;
-  apellido_paterno: string | null;
-  apellido_materno: string | null;
-  correo: string | null;
-  email: string | null;
-  rei: string | null;
-};
+type Especialista = { user_id: string; nombre: string; rei: string | null; meta: number | null };
 
-type IeRow = {
+type Ficha = {
   id: string;
-  nombre: string;
+  status: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  institucion_id: string | null;
+  ie_nombre: string | null;
   codigo_modular: string | null;
-  codigo_local: string | null;
   rei: string | null;
-  nivel?: { nombre: string } | null;
+  nivel: string | null;
+  distrito: string | null;
+  fecha_aplicacion: string | null;
+  template_codigo: string | null;
+  firmado: boolean;
 };
 
-type AsigRow = {
+type CoberturaRei = { rei: string; total: number; visitadas: number };
+
+type SeguimientoData = {
+  monitoreo: { id: string; codigo: string; nombre: string; fecha_inicio: string | null; fecha_fin: string | null } | null;
+  especialistas: Especialista[];
+  fichas: Ficha[];
+  cobertura: CoberturaRei[];
+};
+
+type Compromiso = {
   id: string;
-  institucion_id: string;
-  user_id: string;
+  monitoreo_id: string;
+  institucion_id: string | null;
+  form_run_id: string | null;
+  descripcion: string;
+  responsable: string | null;
+  fecha_limite: string | null;
+  estado: "pendiente" | "cumplido" | "anulado";
+  nota_cierre: string | null;
+  created_by: string;
+  created_at: string;
+  cerrado_at: string | null;
 };
 
-type ActividadRow = {
-  id: string;
-  titulo: string;
-  obligatorio: boolean;
+type IePadron = { id: string; nombre: string; codigo_modular: string | null; director: string | null; telefono: string | null; nivel: { nombre: string } | null };
+
+type Tab = "ritmo" | "pendientes" | "cobertura" | "compromisos";
+
+type EstadoRitmo = "cumplida" | "en_ruta" | "en_riesgo" | "atrasado" | "sin_meta";
+
+const ESTADO_LABEL: Record<EstadoRitmo, string> = {
+  cumplida: "Meta cumplida",
+  en_ruta: "En ruta",
+  en_riesgo: "En riesgo",
+  atrasado: "Atrasado",
+  sin_meta: "Sin meta",
 };
 
-type ExtraActividadRow = {
-  id: string;
-  titulo: string;
+const DIAS_INACTIVO = 5;
+const DIAS_BORRADOR = 2;
+
+const fmtDate = (iso?: string | null) => {
+  if (!iso) return "—";
+  const d = new Date(iso.length <= 10 ? `${iso}T12:00:00` : iso);
+  return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-type AvanceRow = {
-  id: string;
-  institucion_id: string;
-  user_id: string;
-  actividad_id: string;
-  tipo_actividad: "global" | "extra";
-  realizado: boolean;
-  evidencia_url: string | null;
+const dateOnlyLima = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Lima" });
+
+const daysSince = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = daysFromToday(dateOnlyLima(iso));
+  return d == null ? null : -d;
 };
 
-type ValidacionRow = {
-  id: string;
-  institucion_id: string;
-  user_id: string;
-  porcentaje: number;
-  comentario: string | null;
-  validado_at: string;
-};
-
-function displayName(p?: ProfileRow | null) {
-  if (!p) return "Usuario";
-  return (
-    [p.apellido_paterno, p.apellido_materno, p.nombres].filter(Boolean).join(" ").trim() ||
-    p.correo ||
-    p.email ||
-    "Usuario"
-  );
-}
+const fmtNum = (n: number, digits = 1) =>
+  n.toLocaleString("es-PE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 export function SeguimientoPage() {
-  const { profile } = useAuth();
+  const { profile, canManageModule } = useAuth();
   const { isTestMode } = useAppConfig();
-  const role = profile?.role;
-  const canManage = canSeeAllRole(role);
+  const canWrite = canManageModule("seguimiento");
 
   const [loading, setLoading] = useState(true);
   const [monitoreos, setMonitoreos] = useState<MonitoreoRow[]>([]);
-  const [monitoreoId, setMonitoreoId] = useState<string>("");
-
-  const [monitores, setMonitores] = useState<ProfileRow[]>([]);
-  const [ies, setIes] = useState<IeRow[]>([]);
-  const [assignedIes, setAssignedIes] = useState<IeRow[]>([]);
-  const [asignaciones, setAsignaciones] = useState<AsigRow[]>([]);
-
-  const [actividades, setActividades] = useState<ActividadRow[]>([]);
-  const [actividadTitle, setActividadTitle] = useState("");
-  const [actividadOblig, setActividadOblig] = useState(true);
-  const [cddFlag, setCddFlag] = useState(false);
-  const [extras, setExtras] = useState<ExtraActividadRow[]>([]);
-  const [avances, setAvances] = useState<AvanceRow[]>([]);
-  const [validaciones, setValidaciones] = useState<ValidacionRow[]>([]);
-  const [loadingDetails, setLoadingDetails] = useState(false);
-
-  const [selectedIe, setSelectedIe] = useState<string>("");
-  const [selectedMonitor, setSelectedMonitor] = useState<string>("");
-  const [iePickerSearch, setIePickerSearch] = useState("");
-  const [extraTitle, setExtraTitle] = useState("");
+  const [monitoreoId, setMonitoreoId] = useState("");
+  const [data, setData] = useState<SeguimientoData | null>(null);
+  const [loadedId, setLoadedId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("ritmo");
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
-  const [busyAssign, setBusyAssign] = useState(false);
-  const [busyAuto, setBusyAuto] = useState(false);
-  const [validateOpen, setValidateOpen] = useState(false);
-  const [validateIe, setValidateIe] = useState<IeRow | null>(null);
-  const [validateMonitor, setValidateMonitor] = useState<ProfileRow | null>(null);
-  const [validatePct, setValidatePct] = useState(0);
-  const [validateComment, setValidateComment] = useState("");
-  const [ieSearch, setIeSearch] = useState("");
-  const [iePage, setIePage] = useState(1);
-  const [iePageSize, setIePageSize] = useState(20);
-  const [monitorSearch, setMonitorSearch] = useState("");
-  const [monitorOnlyZeroValidated, setMonitorOnlyZeroValidated] = useState(false);
-  const [monitorPage, setMonitorPage] = useState(1);
-  const [monitorPageSize, setMonitorPageSize] = useState(10);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!canManage && !profile?.id) return;
-
-      if (canManage) {
-        const { data } = await supabase
-          .from("monitoreo_catalog")
-          .select("id, codigo, nombre, solicitud_id, fecha_fin")
-          .eq("is_active", true)
-          .eq("is_test", isTestMode)
-          .order("nombre", { ascending: true });
-        if (!alive) return;
-        const list = (data ?? []) as MonitoreoRow[];
-        setMonitoreos(list);
-        setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
-        if (!list.length) setLoading(false);
-        return;
-      }
-
-      const { data: asigRows } = await supabase
-        .from("monitoreo_asignacion")
-        .select("monitoreo_id")
-        .eq("user_id", profile?.id);
-      const ids = (asigRows ?? []).map((r: any) => r.monitoreo_id);
-      if (!alive) return;
-      if (!ids.length) {
-        setMonitoreos([]);
-        setMonitoreoId("");
-        setLoading(false);
-        return;
-      }
-      const { data } = await supabase
-        .from("monitoreo_catalog")
-        .select("id, codigo, nombre, solicitud_id, fecha_fin")
-        .in("id", ids)
-        .eq("is_active", true)
-        .eq("is_test", isTestMode)
-        .order("nombre", { ascending: true });
-      if (!alive) return;
-      const list = (data ?? []) as MonitoreoRow[];
-      setMonitoreos(list);
-      setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
-      if (!list.length) setLoading(false);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [canManage, profile?.id, isTestMode]);
+  const [compromisos, setCompromisos] = useState<Compromiso[]>([]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2800);
-    return () => clearTimeout(t);
+    const t = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(t);
   }, [toast]);
 
   useEffect(() => {
-    if (!monitoreoId) return;
     let alive = true;
     (async () => {
-      try {
-        setLoading(true);
-        setSelectedIe("");
-        setSelectedMonitor("");
-        setIePickerSearch("");
-        setIeSearch("");
-        setIePage(1);
-        setMonitorSearch("");
-        setMonitorOnlyZeroValidated(false);
-        setMonitorPage(1);
-        const { data: monData } = await supabase
-          .from("monitoreo_catalog")
-          .select("id, codigo, nombre, solicitud_id")
-          .eq("id", monitoreoId)
-          .maybeSingle();
-        const solicitudId = (monData as any)?.solicitud_id as string | undefined;
-        let cddLocal = false;
-        if (solicitudId) {
-          const { data: solRow } = await supabase
-            .from("monitoreo_solicitud")
-            .select("cdd")
-            .eq("id", solicitudId)
-            .maybeSingle();
-          cddLocal = !!(solRow as any)?.cdd;
-          setCddFlag(cddLocal);
-        } else {
-          cddLocal = false;
-          setCddFlag(false);
-        }
-
-        // Monitores asignados al monitoreo
-        const { data: asigUsers } = await supabase
-          .from("monitoreo_asignacion")
-          .select("user_id")
-          .eq("monitoreo_id", monitoreoId);
-        const userIds = (asigUsers ?? []).map((r: any) => r.user_id);
-        if (userIds.length) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, role, nombres, apellido_paterno, apellido_materno, correo, email, rei")
-            .in("id", userIds);
-          const filtered = (profiles ?? []).filter((p: any) => p.role !== "admin");
-          setMonitores(filtered as ProfileRow[]);
-        } else {
-          setMonitores([]);
-        }
-
-        // IE disponibles
-        if (canManage && solicitudId) {
-          const { data: ieRows } = await supabase
-            .from("monitoreo_solicitud_ie")
-            .select(
-              "institucion_id, institucion_educativa!inner(id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre))"
-            )
-            .eq("solicitud_id", solicitudId);
-          const list = (ieRows ?? []).map((r: any) => r.institucion_educativa);
-          setIes((list ?? []) as IeRow[]);
-        } else if (!canManage && profile?.id) {
-          const { data: ieRows } = await supabase
-            .from("monitoreo_ie_asignacion")
-            .select(
-              "institucion_id, institucion_educativa!inner(id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre))"
-            )
-            .eq("monitoreo_id", monitoreoId)
-            .eq("user_id", profile.id);
-          const list = (ieRows ?? []).map((r: any) => r.institucion_educativa);
-          setIes((list ?? []) as IeRow[]);
-        } else {
-          setIes([]);
-        }
-
-        const { data: asigIe } = await supabase
-          .from("monitoreo_ie_asignacion")
-          .select("id, institucion_id, user_id")
-          .eq("monitoreo_id", monitoreoId);
-        setAsignaciones((asigIe ?? []) as AsigRow[]);
-        const { data: asigIeDetail } = await supabase
-          .from("monitoreo_ie_asignacion")
-          .select(
-            "institucion_id, institucion_educativa!inner(id, nombre, codigo_modular, codigo_local, rei, nivel:cat_nivel(nombre))"
-          )
-          .eq("monitoreo_id", monitoreoId);
-        const assignedList = (asigIeDetail ?? []).map((r: any) => r.institucion_educativa);
-        setAssignedIes((assignedList ?? []) as IeRow[]);
-
-        const { data: actRows } = await supabase
-          .from("monitoreo_actividad")
-          .select("id, titulo, obligatorio")
-          .eq("monitoreo_id", monitoreoId)
-          .eq("is_active", true)
-          .order("orden", { ascending: true });
-        setActividades((actRows ?? []) as ActividadRow[]);
-
-        if (solicitudId && cddLocal) {
-          const already = (actRows ?? []).some(
-            (a: any) => (a.titulo || "").toLowerCase() === "subido a la plataforma simon"
-          );
-          if (!already) {
-            const { data: simonRow } = await supabase
-              .from("monitoreo_actividad")
-              .insert({
-                monitoreo_id: monitoreoId,
-                titulo: "Subido a la plataforma SIMON",
-                obligatorio: true,
-                orden: (actRows?.length ?? 0) + 1,
-              })
-              .select("id, titulo, obligatorio")
-              .single();
-            if (simonRow) {
-              setActividades((prev) => [...prev, simonRow as ActividadRow]);
-            }
-          }
-        }
-
-        if (profile?.id) {
-          const { data: extraRows } = await supabase
-            .from("monitoreo_actividad_extra")
-            .select("id, titulo")
-            .eq("monitoreo_id", monitoreoId)
-            .eq("created_by", profile.id)
-            .eq("is_active", true);
-          setExtras((extraRows ?? []) as ExtraActividadRow[]);
-        }
-
-        // detalles pesados se cargan luego
-      } finally {
-        if (alive) setLoading(false);
-      }
+      setLoading(true);
+      const { data: rows, error: err } = await supabase
+        .from("monitoreo_catalog")
+        .select("id, codigo, nombre, fecha_inicio, fecha_fin, is_active")
+        .eq("is_test", isTestMode)
+        .order("is_active", { ascending: false })
+        .order("fecha_inicio", { ascending: false, nullsFirst: false });
+      if (!alive) return;
+      if (err) setError(err.message);
+      const list = (rows ?? []) as MonitoreoRow[];
+      setMonitoreos(list);
+      setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
+      setLoading(false);
     })();
     return () => {
       alive = false;
     };
-  }, [monitoreoId, profile?.id]);
+  }, [isTestMode]);
+
+  const loadCompromisos = useCallback(async (mid: string) => {
+    const { data: rows, error: err } = await supabase
+      .from("monitoreo_compromiso")
+      .select("id, monitoreo_id, institucion_id, form_run_id, descripcion, responsable, fecha_limite, estado, nota_cierre, created_by, created_at, cerrado_at")
+      .eq("monitoreo_id", mid)
+      .order("created_at", { ascending: false });
+    if (err) {
+      setToast({ type: "err", msg: err.message });
+      return;
+    }
+    setCompromisos((rows ?? []) as Compromiso[]);
+  }, []);
 
   useEffect(() => {
     if (!monitoreoId) return;
     let alive = true;
     (async () => {
-      try {
-        setLoadingDetails(true);
-        const { data: advRows } = await supabase
-          .from("monitoreo_ie_avance")
-          .select("id, institucion_id, user_id, actividad_id, tipo_actividad, realizado, evidencia_url")
-          .eq("monitoreo_id", monitoreoId);
-        if (!alive) return;
-        setAvances((advRows ?? []) as AvanceRow[]);
-
-        const { data: valRows } = await supabase
-          .from("monitoreo_ie_validacion")
-          .select("id, institucion_id, user_id, porcentaje, comentario, validado_at")
-          .eq("monitoreo_id", monitoreoId);
-        if (!alive) return;
-        setValidaciones((valRows ?? []) as ValidacionRow[]);
-      } finally {
-        if (alive) setLoadingDetails(false);
-      }
+      const [{ data: payload, error: err }] = await Promise.all([
+        supabase.rpc("seguimiento_monitoreo", { p_monitoreo_id: monitoreoId }),
+        loadCompromisos(monitoreoId),
+      ]);
+      if (!alive) return;
+      setError(err ? err.message : null);
+      setData(err ? null : (payload as SeguimientoData));
+      setLoadedId(monitoreoId);
     })();
     return () => {
       alive = false;
     };
-  }, [monitoreoId]);
+  }, [monitoreoId, loadCompromisos]);
 
-  const asigByIe = useMemo(() => {
-    const map: Record<string, AsigRow> = {};
-    asignaciones.forEach((a) => (map[a.institucion_id] = a));
-    return map;
-  }, [asignaciones]);
+  const loadingData = loadedId !== monitoreoId;
+  const selected = monitoreos.find((m) => m.id === monitoreoId) ?? null;
+  const fichas = useMemo(() => data?.fichas ?? [], [data]);
+  const especialistas = useMemo(() => data?.especialistas ?? [], [data]);
+  const nameById = useMemo(() => new Map(especialistas.map((e) => [e.user_id, e.nombre])), [especialistas]);
 
-  const monitoresById = useMemo(() => {
-    const map: Record<string, ProfileRow> = {};
-    monitores.forEach((m) => (map[m.id] = m));
-    return map;
-  }, [monitores]);
-
-  const selectedMonitoreo = useMemo(
-    () => monitoreos.find((m) => m.id === monitoreoId) ?? null,
-    [monitoreos, monitoreoId]
-  );
-  const selectedExpired = useMemo(
-    () => isMonitoreoExpired(selectedMonitoreo?.fecha_fin ?? null),
-    [selectedMonitoreo]
-  );
-  const monitorBlockedByExpiry = !canManage && selectedExpired;
-
-  const requiredActIds = useMemo(
-    () => new Set(actividades.filter((a) => a.obligatorio).map((a) => a.id)),
-    [actividades]
+  const fichaUrl = useCallback(
+    (f: Ficha) =>
+      selected && f.template_codigo
+        ? `/app/monitoreo/${selected.codigo}/ficha/${f.template_codigo}?runId=${f.id}&mid=${encodeURIComponent(selected.id)}&returnTo=seguimiento`
+        : null,
+    [selected],
   );
 
-  const progressByIe = useMemo(() => {
-    const total = requiredActIds.size || 1;
-    const map: Record<string, number> = {};
-    asignaciones.forEach((asig) => {
-      const done = avances.filter(
-        (a) =>
-          a.institucion_id === asig.institucion_id &&
-          a.user_id === asig.user_id &&
-          a.tipo_actividad === "global" &&
-          a.realizado &&
-          requiredActIds.has(a.actividad_id)
-      ).length;
-      map[asig.institucion_id] = Math.round((done / total) * 100);
-    });
-    return map;
-  }, [asignaciones, avances, requiredActIds]);
+  // ---------- Ritmo ----------
+  const today = todayDateOnly();
+  const inicio = selected?.fecha_inicio ?? null;
+  const fin = selected?.fecha_fin ?? null;
+  const diasTranscurridos = useMemo(() => {
+    if (!inicio) return 1;
+    const hasta = fin && fin < today ? fin : today;
+    const d = (daysFromToday(hasta, inicio) ?? 0) + 1;
+    return Math.max(1, d);
+  }, [inicio, fin, today]);
+  const diasRestantes = Math.max(0, daysFromToday(fin) ?? 0);
 
-  const latestValidByIe = useMemo(() => {
-    const map: Record<string, ValidacionRow> = {};
-    validaciones.forEach((v) => {
-      const prev = map[v.institucion_id];
-      if (!prev || new Date(v.validado_at).getTime() > new Date(prev.validado_at).getTime()) {
-        map[v.institucion_id] = v;
-      }
-    });
-    return map;
-  }, [validaciones]);
-
-  const myAssignedIes = useMemo(() => {
-    if (!profile?.id) return [];
-    return ies.filter((ie) => asigByIe[ie.id]?.user_id === profile.id);
-  }, [ies, asigByIe, profile?.id]);
-
-  const filteredIes = useMemo(() => {
-    const term = ieSearch.trim().toLowerCase();
-    if (!term) return assignedIes;
-    return assignedIes.filter((ie) => {
-      const name = ie.nombre?.toLowerCase() || "";
-      const cod = ie.codigo_modular?.toLowerCase() || "";
-      return name.includes(term) || cod.includes(term);
-    });
-  }, [assignedIes, ieSearch]);
-
-  const iePickerOptions = useMemo(() => {
-    const term = iePickerSearch.trim().toLowerCase();
-    if (!term) return ies;
-    return ies.filter((ie) => {
-      const name = ie.nombre?.toLowerCase() || "";
-      const cod = ie.codigo_modular?.toLowerCase() || "";
-      return name.includes(term) || cod.includes(term);
-    });
-  }, [ies, iePickerSearch]);
-
-  const iePickerLabel = (ie: IeRow) => {
-    const nivel = ie.nivel?.nombre ? ` • ${ie.nivel.nombre}` : "";
-    const rei = ie.rei ? ` • REI ${ie.rei}` : " • REI SIN";
-    return `${ie.nombre} (${ie.codigo_modular || "-"})${nivel}${rei}`;
-  };
-
-  const totalPages = Math.max(1, Math.ceil(filteredIes.length / iePageSize));
-  const pageIes = filteredIes.slice((iePage - 1) * iePageSize, iePage * iePageSize);
-
-  const monitorSummaryRows = useMemo(() => {
-    return monitores.map((m) => {
-      const iesMonitor = ies.filter((ie) => asigByIe[ie.id]?.user_id === m.id);
-      const latestValByIe: Record<string, ValidacionRow> = {};
-      validaciones.forEach((v) => {
-        if (v.user_id !== m.id) return;
-        const prev = latestValByIe[v.institucion_id];
-        if (!prev || new Date(v.validado_at).getTime() > new Date(prev.validado_at).getTime()) {
-          latestValByIe[v.institucion_id] = v;
+  const ritmo = useMemo(() => {
+    return especialistas
+      .map((e) => {
+        const mias = fichas.filter((f) => f.created_by === e.user_id);
+        const finalizadas = mias.filter((f) => f.status === "final").length;
+        const borradores = mias.length - finalizadas;
+        const ultima = mias.reduce<string | null>((acc, f) => (!acc || f.created_at > acc ? f.created_at : acc), null);
+        const actual = finalizadas / diasTranscurridos;
+        const meta = e.meta;
+        const faltan = meta != null ? Math.max(0, meta - finalizadas) : null;
+        const requerido = faltan != null ? (diasRestantes > 0 ? faltan / diasRestantes : faltan > 0 ? Infinity : 0) : null;
+        const proyeccion = Math.round(finalizadas + actual * diasRestantes);
+        let estado: EstadoRitmo = "sin_meta";
+        if (meta != null && meta > 0) {
+          if (finalizadas >= meta) estado = "cumplida";
+          else if (proyeccion >= meta) estado = "en_ruta";
+          else if (proyeccion >= meta * 0.8) estado = "en_riesgo";
+          else estado = "atrasado";
         }
-      });
-      const validatedIes = iesMonitor.filter((ie) => Boolean(latestValByIe[ie.id]));
-      const pendingIes = iesMonitor.filter((ie) => !latestValByIe[ie.id]);
-      const avgValidated =
-        validatedIes.length === 0
-          ? 0
-          : Math.round(
-              validatedIes.reduce(
-                (acc, ie) => acc + (latestValByIe[ie.id]?.porcentaje ?? 0),
-                0
-              ) / validatedIes.length
-            );
-      const avgPendingValidation =
-        pendingIes.length === 0
-          ? 0
-          : Math.round(
-              pendingIes.reduce((acc, ie) => acc + (progressByIe[ie.id] ?? 0), 0) /
-                pendingIes.length
-            );
-      return {
-        monitor: m,
-        assignedCount: iesMonitor.length,
-        validatedCount: validatedIes.length,
-        pendingCount: pendingIes.length,
-        avgValidated,
-        avgPendingValidation,
-      };
-    });
-  }, [monitores, ies, asigByIe, validaciones, progressByIe]);
-
-  const filteredMonitorRows = useMemo(() => {
-    const term = monitorSearch.trim().toLowerCase();
-    return monitorSummaryRows.filter((row) => {
-      if (monitorOnlyZeroValidated && row.avgValidated !== 0) return false;
-      if (!term) return true;
-      const name = displayName(row.monitor).toLowerCase();
-      const rei = (row.monitor.rei || "").toLowerCase();
-      return name.includes(term) || rei.includes(term);
-    });
-  }, [monitorSummaryRows, monitorSearch, monitorOnlyZeroValidated]);
-
-  const monitorTotalPages = Math.max(1, Math.ceil(filteredMonitorRows.length / monitorPageSize));
-  const pageMonitorRows = filteredMonitorRows.slice(
-    (monitorPage - 1) * monitorPageSize,
-    monitorPage * monitorPageSize
-  );
-
-  const toggleAvance = async (ieId: string, actId: string, tipo: "global" | "extra") => {
-    if (!profile?.id) return;
-    if (monitorBlockedByExpiry) {
-      setToast({ type: "err", msg: "Monitoreo vencido: actividades bloqueadas para monitor." });
-      return;
-    }
-    const existing = avances.find(
-      (a) =>
-        a.institucion_id === ieId &&
-        a.user_id === profile.id &&
-        a.actividad_id === actId &&
-        a.tipo_actividad === tipo
-    );
-    if (existing) {
-      const next = !existing.realizado;
-      const { error } = await supabase
-        .from("monitoreo_ie_avance")
-        .update({ realizado: next, updated_at: new Date().toISOString() })
-        .eq("id", existing.id);
-      if (error) {
-        setToast({ type: "err", msg: error.message });
-        return;
-      }
-      setAvances((prev) =>
-        prev.map((a) => (a.id === existing.id ? { ...a, realizado: next } : a))
-      );
-      return;
-    }
-    const { data, error } = await supabase
-      .from("monitoreo_ie_avance")
-      .insert({
-        monitoreo_id: monitoreoId,
-        institucion_id: ieId,
-        user_id: profile.id,
-        actividad_id: actId,
-        tipo_actividad: tipo,
-        realizado: true,
+        const inactivo = daysSince(ultima);
+        return { ...e, subidas: mias.length, finalizadas, borradores, ultima, actual, faltan, requerido, proyeccion, estado, inactivo };
       })
-      .select("id, institucion_id, user_id, actividad_id, tipo_actividad, realizado, evidencia_url")
-      .single();
-    if (error) {
-      setToast({ type: "err", msg: error.message });
-      return;
-    }
-    setAvances((prev) => [...prev, data as AvanceRow]);
-  };
+      .sort((a, b) => (b.meta ?? -1) - (a.meta ?? -1) || b.finalizadas - a.finalizadas);
+  }, [especialistas, fichas, diasTranscurridos, diasRestantes]);
 
-  const handleAssign = async () => {
-    if (!selectedIe || !selectedMonitor) return;
-    setBusyAssign(true);
-    const existing = asignaciones.find((a) => a.institucion_id === selectedIe);
-    const { error } = existing
-      ? await supabase
-          .from("monitoreo_ie_asignacion")
-          .update({ user_id: selectedMonitor, asignado_by: profile?.id ?? null })
-          .eq("id", existing.id)
-      : await supabase.from("monitoreo_ie_asignacion").insert({
-          monitoreo_id: monitoreoId,
-          institucion_id: selectedIe,
-          user_id: selectedMonitor,
-          asignado_by: profile?.id ?? null,
+  const totales = useMemo(() => {
+    const meta = ritmo.reduce((s, r) => s + (r.meta ?? 0), 0);
+    const finalizadas = fichas.filter((f) => f.status === "final").length;
+    const ies = new Set(fichas.map((f) => f.institucion_id).filter(Boolean)).size;
+    return { meta, finalizadas, borradores: fichas.length - finalizadas, ies };
+  }, [ritmo, fichas]);
+
+  const porDia = useMemo(() => {
+    const days: { fecha: string; n: number }[] = [];
+    for (let i = 13; i >= 0; i -= 1) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push({ fecha: d.toLocaleDateString("en-CA", { timeZone: "America/Lima" }), n: 0 });
+    }
+    const idx = new Map(days.map((d, i) => [d.fecha, i]));
+    fichas.forEach((f) => {
+      const i = idx.get(dateOnlyLima(f.created_at));
+      if (i != null) days[i].n += 1;
+    });
+    return days;
+  }, [fichas]);
+
+  // ---------- Pendientes ----------
+  const [verSinFirma, setVerSinFirma] = useState(false);
+  const [filtroEsp, setFiltroEsp] = useState("");
+
+  const alertas = useMemo(() => {
+    type Alerta = { key: string; tipo: string; nivel: "alta" | "media" | "info"; detalle: string; ficha?: Ficha; userId?: string };
+    const out: Alerta[] = [];
+    fichas
+      .filter((f) => f.status !== "final")
+      .forEach((f) => {
+        const d = daysSince(f.updated_at) ?? 0;
+        out.push({
+          key: `b-${f.id}`,
+          tipo: "Borrador sin cerrar",
+          nivel: d >= DIAS_BORRADOR ? "alta" : "media",
+          detalle: d === 0 ? "Editado hoy" : `Sin cambios hace ${d} día${d === 1 ? "" : "s"}`,
+          ficha: f,
+          userId: f.created_by,
         });
-    if (error) {
-      setToast({ type: "err", msg: error.message });
-      setBusyAssign(false);
-      return;
-    }
-    const { data: asigIe } = await supabase
-      .from("monitoreo_ie_asignacion")
-      .select("id, institucion_id, user_id")
-      .eq("monitoreo_id", monitoreoId);
-    setAsignaciones((asigIe ?? []) as AsigRow[]);
-    const { data: asigIeDetail } = await supabase
-      .from("monitoreo_ie_asignacion")
-      .select("institucion_id, institucion_educativa!inner(id, nombre, codigo_modular, codigo_local, rei)")
-      .eq("monitoreo_id", monitoreoId);
-    const assignedList = (asigIeDetail ?? []).map((r: any) => r.institucion_educativa);
-    setAssignedIes((assignedList ?? []) as IeRow[]);
-    setSelectedIe("");
-    setSelectedMonitor("");
-    setIePickerSearch("");
-    setBusyAssign(false);
-  };
-
-  const handleUnassign = async (ieId: string) => {
-    const { error } = await supabase
-      .from("monitoreo_ie_asignacion")
-      .delete()
-      .eq("monitoreo_id", monitoreoId)
-      .eq("institucion_id", ieId);
-    if (error) {
-      setToast({ type: "err", msg: error.message });
-      return;
-    }
-    setAsignaciones((prev) => prev.filter((a) => a.institucion_id !== ieId));
-    setAssignedIes((prev) => prev.filter((ie) => ie.id !== ieId));
-    if (selectedIe === ieId) {
-      setSelectedIe("");
-      setIePickerSearch("");
-    }
-  };
-
-  const handleAutoAssign = async () => {
-    setBusyAuto(true);
-    const { error } = await supabase.rpc("asignar_ie_automatico_rei", {
-      p_monitoreo_id: monitoreoId,
+      });
+    const porIe = new Map<string, Ficha[]>();
+    fichas.forEach((f) => {
+      if (!f.institucion_id) return;
+      porIe.set(f.institucion_id, [...(porIe.get(f.institucion_id) ?? []), f]);
     });
-    if (error) {
-      setToast({ type: "err", msg: error.message });
-      setBusyAuto(false);
-      return;
-    }
-    const { data: asigIe } = await supabase
-      .from("monitoreo_ie_asignacion")
-      .select("id, institucion_id, user_id")
-      .eq("monitoreo_id", monitoreoId);
-    setAsignaciones((asigIe ?? []) as AsigRow[]);
-    setBusyAuto(false);
-  };
+    porIe.forEach((list) => {
+      if (list.length < 2) return;
+      list.forEach((f) =>
+        out.push({ key: `r-${f.id}`, tipo: "IE repetida", nivel: "media", detalle: `${list.length} fichas para la misma IE`, ficha: f, userId: f.created_by }),
+      );
+    });
+    fichas
+      .filter((f) => !f.institucion_id)
+      .forEach((f) =>
+        out.push({ key: `s-${f.id}`, tipo: "Ficha sin IE vinculada", nivel: "media", detalle: f.ie_nombre ? `Escrita como "${f.ie_nombre}"` : "Sin institución", ficha: f, userId: f.created_by }),
+      );
+    ritmo.forEach((r) => {
+      if (r.estado === "cumplida" || r.meta == null) return;
+      if (r.inactivo == null || r.inactivo >= DIAS_INACTIVO)
+        out.push({
+          key: `i-${r.user_id}`,
+          tipo: "Especialista sin registrar",
+          nivel: "alta",
+          detalle: r.inactivo == null ? "Aún no registra fichas" : `Última ficha hace ${r.inactivo} días`,
+          userId: r.user_id,
+        });
+    });
+    if (verSinFirma)
+      fichas
+        .filter((f) => f.status === "final" && !f.firmado)
+        .forEach((f) => out.push({ key: `f-${f.id}`, tipo: "Finalizada sin firma", nivel: "info", detalle: "Sin firma digital registrada", ficha: f, userId: f.created_by }));
+    const rank = { alta: 0, media: 1, info: 2 };
+    return out
+      .filter((a) => !filtroEsp || a.userId === filtroEsp)
+      .sort((a, b) => rank[a.nivel] - rank[b.nivel]);
+  }, [fichas, ritmo, verSinFirma, filtroEsp]);
 
-  const addExtra = async () => {
-    if (monitorBlockedByExpiry) {
-      setToast({ type: "err", msg: "Monitoreo vencido: no puedes agregar actividades." });
-      return;
-    }
-    const title = extraTitle.trim();
-    if (!title) return;
-    const { data, error } = await supabase
-      .from("monitoreo_actividad_extra")
-      .insert({
-        monitoreo_id: monitoreoId,
-        created_by: profile?.id,
-        titulo: title,
-        orden: extras.length + 1,
-      })
-      .select("id, titulo")
-      .single();
-    if (error) {
-      setToast({ type: "err", msg: error.message });
-      return;
-    }
-    setExtras((prev) => [...prev, data as ExtraActividadRow]);
-    setExtraTitle("");
-  };
+  const sinFirma = fichas.filter((f) => f.status === "final" && !f.firmado).length;
+  const alertasActivas = alertas.filter((a) => a.nivel !== "info").length;
 
-  const addActividad = async () => {
-    const title = actividadTitle.trim();
-    if (!title) return;
-    const { data, error } = await supabase
-      .from("monitoreo_actividad")
-      .insert({
-        monitoreo_id: monitoreoId,
-        titulo: title,
-        obligatorio: actividadOblig,
-        orden: actividades.length + 1,
-      })
-      .select("id, titulo, obligatorio")
-      .single();
-    if (error) {
-      setToast({ type: "err", msg: error.message });
-      return;
-    }
-    setActividades((prev) => [...prev, data as ActividadRow]);
-    setActividadTitle("");
-    setActividadOblig(true);
-  };
+  // ---------- Compromisos ----------
+  const compromisosAbiertos = compromisos.filter((c) => c.estado === "pendiente").length;
 
   if (loading) {
     return (
@@ -670,15 +316,22 @@ export function SeguimientoPage() {
     );
   }
 
+  const tabs: { id: Tab; label: string; badge?: number }[] = [
+    { id: "ritmo", label: "Ritmo por especialista" },
+    { id: "pendientes", label: "Pendientes y alertas", badge: alertasActivas },
+    { id: "cobertura", label: "Cobertura de IE" },
+    { id: "compromisos", label: "Compromisos", badge: compromisosAbiertos },
+  ];
+
   return (
-    <div className="tracking-page max-w-full space-y-5 overflow-x-hidden text-white">
+    <div className="tracking-page seg-page max-w-full space-y-5 overflow-x-hidden">
       {toast && (
-        <div className="fixed right-4 top-4 z-50 rounded-xl border border-white/10 bg-black/70 px-4 py-2 text-xs text-white">
+        <div role="status" className={`seg-toast ${toast.type === "err" ? "is-err" : "is-ok"}`}>
           {toast.msg}
         </div>
       )}
 
-      <div className="tracking-hero">
+      <section className="tracking-hero">
         <div className="tracking-hero__main">
           <div className="tracking-hero__identity">
             <div className="tracking-hero__icon" aria-hidden="true">
@@ -689,549 +342,686 @@ export function SeguimientoPage() {
             <div>
               <div className="tracking-eyebrow">CONTROL OPERATIVO</div>
               <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Seguimiento</h1>
-              <p className="mt-1 text-sm text-white/60">
-                Asignación de instituciones y avance por actividades.
-              </p>
+              <p className="mt-1 text-sm">Ritmo del equipo, pendientes, cobertura y compromisos del monitoreo elegido.</p>
             </div>
           </div>
-          <div className="tracking-metrics" aria-label="Resumen de seguimiento">
-            <div className="tracking-metric"><span>IE asignadas</span><strong>{filteredIes.length}</strong></div>
-            <div className="tracking-metric"><span>Actividades</span><strong>{actividades.length}</strong></div>
-            <div className="tracking-metric"><span>Monitores</span><strong>{filteredMonitorRows.length}</strong></div>
-          </div>
+          {data && (
+            <div className="seg-kpis" aria-label="Resumen del monitoreo">
+              <div className="tracking-metric"><span>Finalizadas</span><strong>{totales.finalizadas}{totales.meta ? ` / ${totales.meta}` : ""}</strong></div>
+              <div className="tracking-metric"><span>Avance</span><strong>{totales.meta ? `${fmtNum((totales.finalizadas / totales.meta) * 100)}%` : "—"}</strong></div>
+              <div className="tracking-metric"><span>Borradores</span><strong>{totales.borradores}</strong></div>
+              <div className="tracking-metric"><span>IE visitadas</span><strong>{totales.ies}</strong></div>
+            </div>
+          )}
         </div>
         <div className="tracking-hero__monitor w-full min-w-0 sm:min-w-[220px] sm:max-w-[420px]">
-          <div className="tracking-control-label mb-2 text-xs text-white/60">Monitoreo seleccionado</div>
+          <label htmlFor="seg-monitoreo" className="tracking-control-label mb-2 block">Monitoreo</label>
           <select
-            className="tracking-control w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            id="seg-monitoreo"
+            className="w-full rounded-xl border px-3 py-2 text-sm"
             value={monitoreoId}
             onChange={(e) => setMonitoreoId(e.target.value)}
           >
             {monitoreos.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.nombre}
-                {isMonitoreoExpired(m.fecha_fin) ? " (Vencido)" : ""}
+                {isMonitoreoExpired(m.fecha_fin) ? " (vencido)" : !m.is_active ? " (inactivo)" : ""}
               </option>
             ))}
           </select>
-          {selectedMonitoreo && (
-            <div className="tracking-monitor-status mt-2 text-xs text-white/70">
-              {selectedExpired ? (
-                <span className="tracking-status-badge is-expired rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-red-100">
-                  Vencido 🔒
-                </span>
-              ) : (
-                <span className="tracking-status-badge is-available rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
-                  Disponible
-                </span>
-              )}
-              <span className="ml-2">
+          {selected && (
+            <div className="tracking-monitor-status mt-2 text-xs">
+              <span>{fmtDate(selected.fecha_inicio)} – {fmtDate(selected.fecha_fin)}</span>
+              <span>
                 {(() => {
-                  const days = daysFromToday(selectedMonitoreo.fecha_fin);
-                  if (days == null) return "Sin fecha fin";
-                  if (days < 0) return `Vencido hace ${Math.abs(days)} dias`;
-                  if (days === 0) return "Vence hoy";
-                  return `Faltan ${days} dias para vencer`;
+                  const d = daysFromToday(selected.fecha_fin);
+                  if (d == null) return "Sin fecha fin";
+                  if (d < 0) return `Venció hace ${Math.abs(d)} días`;
+                  if (d === 0) return "Vence hoy";
+                  return `Quedan ${d} días`;
                 })()}
               </span>
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {!monitoreos.length && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
-          No hay monitoreos activos en modo {isTestMode ? "Prueba" : "Producción"} por ahora.
-        </div>
+        <div className="tracking-panel seg-empty">No hay monitoreos en modo {isTestMode ? "Prueba" : "Producción"}.</div>
       )}
 
-      {canManage && (
-        <div className="tracking-panel tracking-assignment-panel rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="tracking-section-header flex flex-wrap items-center gap-3">
-            <div className="tracking-section-title text-sm font-semibold">Asignación de IE</div>
-            <button
-              type="button"
-              onClick={handleAutoAssign}
-              disabled={busyAuto || !monitoreoId}
-              className="tracking-secondary-action rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
-            >
-              {busyAuto ? "Asignando..." : "Asignar automáticamente por REI"}
-            </button>
-          </div>
-          <p className="mt-1 text-xs text-white/50">
-            Elige qué monitor va a visitar cada institución educativa de este monitoreo.
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_auto]">
-            <div className="space-y-2">
-              <input
-                className="tracking-control w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-                placeholder="Buscar IE por nombre o código"
-                list="ie-picker-list"
-                value={iePickerSearch}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setIePickerSearch(next);
-                  const matched = iePickerOptions.find((ie) => iePickerLabel(ie) === next);
-                  if (matched) setSelectedIe(matched.id);
-                }}
-              />
-              <datalist id="ie-picker-list">
-                {iePickerOptions.map((ie) => (
-                  <option key={ie.id} value={iePickerLabel(ie)} />
-                ))}
-              </datalist>
-            </div>
-            <select
-              className="tracking-control w-full min-w-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-              value={selectedMonitor}
-              onChange={(e) => setSelectedMonitor(e.target.value)}
-            >
-              <option value="">Selecciona monitor</option>
-              {monitores.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {displayName(m)} {m.rei ? `(REI ${m.rei})` : ""}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleAssign}
-              disabled={busyAssign || !selectedIe || !selectedMonitor}
-              className="tracking-primary-action w-full rounded-lg border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 md:w-auto"
-            >
-              {busyAssign ? "Guardando..." : "Asignar"}
-            </button>
-          </div>
-        </div>
-      )}
+      {error && <div className="tracking-panel seg-error">No se pudo cargar el seguimiento: {error}</div>}
 
-      {canManage && (
-        <div className="tracking-panel tracking-institutions-panel rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="tracking-section-title text-sm font-semibold">Instituciones asignadas</div>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-            <label className="text-xs text-white/60">
-              Buscar IE
-              <input
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-                placeholder="Nombre o código modular"
-                value={ieSearch}
-                onChange={(e) => {
-                  setIeSearch(e.target.value);
-                  setIePage(1);
-                }}
-              />
-            </label>
-            <label className="text-xs text-white/60">
-              Ver
-              <select
-                className="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-                value={iePageSize}
-                onChange={(e) => {
-                  setIePageSize(Number(e.target.value));
-                  setIePage(1);
-                }}
+      {monitoreoId && !error && (
+        <>
+          <nav className="seg-tabs" role="tablist" aria-label="Secciones del seguimiento">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={`seg-tab ${tab === t.id ? "is-active" : ""}`}
+                onClick={() => setTab(t.id)}
               >
-                {[10, 20, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
+                {t.label}
+                {t.badge ? <span className="seg-tab__badge">{t.badge}</span> : null}
+              </button>
+            ))}
+          </nav>
+
+          {loadingData || !data ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <SkeletonCards count={4} />
+            </div>
+          ) : (
+            <>
+              {tab === "ritmo" && (
+                <RitmoPanel
+                  ritmo={ritmo}
+                  porDia={porDia}
+                  diasTranscurridos={diasTranscurridos}
+                  diasRestantes={diasRestantes}
+                />
+              )}
+              {tab === "pendientes" && (
+                <section className="tracking-panel seg-panel">
+                  <header className="seg-panel__head">
+                    <div>
+                      <h2 className="seg-title">Pendientes y alertas</h2>
+                      <p className="seg-sub">Lo que hay que resolver para cerrar bien el monitoreo. Ordenado por urgencia.</p>
+                    </div>
+                    <div className="seg-filters">
+                      <select value={filtroEsp} onChange={(e) => setFiltroEsp(e.target.value)} className="rounded-lg border px-3 py-1.5 text-xs" aria-label="Filtrar por especialista">
+                        <option value="">Todos los especialistas</option>
+                        {especialistas.map((e) => (
+                          <option key={e.user_id} value={e.user_id}>{e.nombre}</option>
+                        ))}
+                      </select>
+                      <label className="seg-check">
+                        <input type="checkbox" checked={verSinFirma} onChange={(e) => setVerSinFirma(e.target.checked)} />
+                        Incluir sin firma ({sinFirma})
+                      </label>
+                    </div>
+                  </header>
+                  {alertas.length === 0 ? (
+                    <p className="seg-empty-inline">Sin pendientes. Todo al día.</p>
+                  ) : (
+                    <div className="seg-table-wrap">
+                      <table className="seg-table">
+                        <thead>
+                          <tr><th>Tipo</th><th>Institución</th><th>Especialista</th><th>Detalle</th><th aria-label="Acción" /></tr>
+                        </thead>
+                        <tbody>
+                          {alertas.map((a) => {
+                            const url = a.ficha ? fichaUrl(a.ficha) : null;
+                            return (
+                              <tr key={a.key}>
+                                <td><span className={`seg-pill is-${a.nivel}`}>{a.tipo}</span></td>
+                                <td>
+                                  {a.ficha ? (
+                                    <>
+                                      <div className="seg-strong">{a.ficha.ie_nombre ?? "—"}</div>
+                                      <div className="seg-muted">{[a.ficha.codigo_modular, a.ficha.rei ? `REI ${a.ficha.rei}` : null].filter(Boolean).join(" · ")}</div>
+                                    </>
+                                  ) : "—"}
+                                </td>
+                                <td>{(a.userId && nameById.get(a.userId)) ?? "—"}</td>
+                                <td className="seg-muted">{a.detalle}</td>
+                                <td className="text-right">{url ? <Link className="seg-link" to={url}>Abrir ficha</Link> : null}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              )}
+              {tab === "cobertura" && <CoberturaPanel cobertura={data.cobertura} fichas={fichas} nameById={nameById} fichaUrl={fichaUrl} />}
+              {tab === "compromisos" && selected && (
+                <CompromisosPanel
+                  monitoreoId={selected.id}
+                  compromisos={compromisos}
+                  fichas={fichas}
+                  canWrite={canWrite}
+                  isAdmin={profile?.role === "admin"}
+                  userId={profile?.id ?? ""}
+                  onChanged={() => loadCompromisos(selected.id)}
+                  onToast={setToast}
+                />
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ======================= Ritmo =======================
+
+type RitmoRow = Especialista & {
+  subidas: number;
+  finalizadas: number;
+  borradores: number;
+  ultima: string | null;
+  actual: number;
+  faltan: number | null;
+  requerido: number | null;
+  proyeccion: number;
+  estado: EstadoRitmo;
+  inactivo: number | null;
+};
+
+function RitmoPanel({
+  ritmo,
+  porDia,
+  diasTranscurridos,
+  diasRestantes,
+}: {
+  ritmo: RitmoRow[];
+  porDia: { fecha: string; n: number }[];
+  diasTranscurridos: number;
+  diasRestantes: number;
+}) {
+  const maxDia = Math.max(1, ...porDia.map((d) => d.n));
+  return (
+    <div className="space-y-5">
+      <section className="tracking-panel seg-panel">
+        <header className="seg-panel__head">
+          <div>
+            <h2 className="seg-title">Ritmo por especialista</h2>
+            <p className="seg-sub">
+              Fichas finalizadas por día desde el inicio ({diasTranscurridos} días) y lo que necesita cada uno en los {diasRestantes} días que quedan.
+            </p>
+          </div>
+        </header>
+        {ritmo.length === 0 ? (
+          <p className="seg-empty-inline">No hay especialistas asignados ni fichas en este monitoreo.</p>
+        ) : (
+          <div className="seg-table-wrap">
+            <table className="seg-table">
+              <thead>
+                <tr>
+                  <th>Especialista</th>
+                  <th>Estado</th>
+                  <th className="text-right">Meta</th>
+                  <th>Avance</th>
+                  <th className="text-right">Borradores</th>
+                  <th className="text-right" title="Fichas finalizadas por día, en promedio">Ritmo actual</th>
+                  <th className="text-right" title="Fichas por día necesarias para llegar a la meta">Ritmo requerido</th>
+                  <th className="text-right" title="Finalizadas estimadas al cierre si sigue al ritmo actual">Proyección</th>
+                  <th>Última ficha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ritmo.map((r) => {
+                  const pct = r.meta ? Math.min(100, (r.finalizadas / r.meta) * 100) : 0;
+                  const exceso = r.meta != null && r.subidas > r.meta ? r.subidas - r.meta : 0;
+                  return (
+                    <tr key={r.user_id}>
+                      <td>
+                        <div className="seg-strong">{r.nombre}</div>
+                        <div className="seg-muted">{r.rei && r.rei !== "SIN REI" ? `REI ${r.rei}` : "Sin REI"}</div>
+                      </td>
+                      <td><span className={`seg-status is-${r.estado}`}>{ESTADO_LABEL[r.estado]}</span></td>
+                      <td className="text-right seg-num">{r.meta ?? "—"}</td>
+                      <td className="seg-progress-cell">
+                        <div className="seg-progress" aria-hidden="true"><span style={{ width: `${pct}%` }} /></div>
+                        <div className="seg-muted">
+                          {r.finalizadas} finalizadas{r.meta ? ` · ${fmtNum(pct)}%` : ""}
+                          {exceso ? <span className="seg-tag">+{exceso} excedente</span> : null}
+                        </div>
+                      </td>
+                      <td className="text-right seg-num">{r.borradores}</td>
+                      <td className="text-right seg-num">{fmtNum(r.actual)}/día</td>
+                      <td className="text-right seg-num">
+                        {r.requerido == null ? "—" : r.requerido === 0 ? "Listo" : Number.isFinite(r.requerido) ? `${fmtNum(r.requerido)}/día` : "Fuera de plazo"}
+                      </td>
+                      <td className="text-right seg-num">{r.meta ? `${r.proyeccion} / ${r.meta}` : r.proyeccion}</td>
+                      <td>
+                        <div>{r.ultima ? fmtDate(r.ultima) : "—"}</div>
+                        {r.inactivo != null && r.inactivo >= DIAS_INACTIVO && r.estado !== "cumplida" ? (
+                          <div className="seg-warn">Hace {r.inactivo} días</div>
+                        ) : r.inactivo != null ? (
+                          <div className="seg-muted">{r.inactivo === 0 ? "Hoy" : `Hace ${r.inactivo} día${r.inactivo === 1 ? "" : "s"}`}</div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="seg-foot">
+          Proyección = finalizadas + ritmo actual × días restantes. «En riesgo» si la proyección llega al 80 % de la meta; «Atrasado» si queda por debajo.
+        </p>
+      </section>
+
+      <section className="tracking-panel seg-panel">
+        <header className="seg-panel__head">
+          <div>
+            <h2 className="seg-title">Fichas registradas en los últimos 14 días</h2>
+            <p className="seg-sub">Todas las fichas (borradores y finalizadas), por día de registro en el sistema.</p>
+          </div>
+        </header>
+        <div className="seg-bars" role="img" aria-label="Fichas registradas por día en los últimos 14 días">
+          {porDia.map((d) => (
+            <div key={d.fecha} className="seg-bar" title={`${fmtDate(d.fecha)}: ${d.n} ficha${d.n === 1 ? "" : "s"}`}>
+              <span className="seg-bar__n">{d.n || ""}</span>
+              <span className="seg-bar__fill" style={{ height: `${(d.n / maxDia) * 100}%` }} />
+              <span className="seg-bar__day">{d.fecha.slice(8, 10)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ======================= Cobertura =======================
+
+function CoberturaPanel({
+  cobertura,
+  fichas,
+  nameById,
+  fichaUrl,
+}: {
+  cobertura: CoberturaRei[];
+  fichas: Ficha[];
+  nameById: Map<string, string>;
+  fichaUrl: (f: Ficha) => string | null;
+}) {
+  const [rei, setRei] = useState<string>("");
+  const [padron, setPadron] = useState<IePadron[]>([]);
+  const [loadingPadron, setLoadingPadron] = useState(false);
+  const [busca, setBusca] = useState("");
+
+  const visitadasPorIe = useMemo(() => {
+    const m = new Map<string, Ficha[]>();
+    fichas.forEach((f) => {
+      if (f.institucion_id) m.set(f.institucion_id, [...(m.get(f.institucion_id) ?? []), f]);
+    });
+    return m;
+  }, [fichas]);
+
+  useEffect(() => {
+    if (!rei) return;
+    let alive = true;
+    (async () => {
+      setLoadingPadron(true);
+      let q = supabase
+        .from("institucion_educativa")
+        .select("id, nombre, codigo_modular, director, telefono, nivel:cat_nivel(nombre)")
+        .order("nombre", { ascending: true })
+        .limit(1000);
+      q = rei === "Sin REI" ? q.or("rei.is.null,rei.eq.") : q.eq("rei", rei);
+      const { data } = await q;
+      if (!alive) return;
+      setPadron((data ?? []) as unknown as IePadron[]);
+      setLoadingPadron(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [rei]);
+
+  const term = busca.trim().toLowerCase();
+  const match = (ie: IePadron) =>
+    !term || ie.nombre.toLowerCase().includes(term) || (ie.codigo_modular ?? "").includes(term);
+  const padronRei = rei ? padron : [];
+  const visitadas = padronRei.filter((ie) => visitadasPorIe.has(ie.id) && match(ie));
+  const porVisitar = padronRei.filter((ie) => !visitadasPorIe.has(ie.id) && match(ie));
+
+  const totalIe = cobertura.reduce((s, c) => s + c.total, 0);
+  const totalVis = cobertura.reduce((s, c) => s + c.visitadas, 0);
+
+  return (
+    <div className="space-y-5">
+      <section className="tracking-panel seg-panel">
+        <header className="seg-panel__head">
+          <div>
+            <h2 className="seg-title">Cobertura por REI</h2>
+            <p className="seg-sub">
+              IE del padrón de la UGEL con al menos una ficha en este monitoreo: {totalVis} de {totalIe}. Elige una REI para ver qué IE faltan.
+            </p>
+          </div>
+        </header>
+        <div className="seg-rei-grid">
+          {cobertura.map((c) => {
+            const pct = c.total ? (c.visitadas / c.total) * 100 : 0;
+            return (
+              <button
+                key={c.rei}
+                type="button"
+                className={`seg-rei ${rei === c.rei ? "is-active" : ""}`}
+                onClick={() => setRei(rei === c.rei ? "" : c.rei)}
+                aria-pressed={rei === c.rei}
+              >
+                <span className="seg-rei__name">{c.rei === "Sin REI" ? "Sin REI" : `REI ${c.rei}`}</span>
+                <span className="seg-rei__num">{c.visitadas}<small> / {c.total}</small></span>
+                <span className="seg-progress" aria-hidden="true"><span style={{ width: `${pct}%` }} /></span>
+                <span className="seg-muted">{fmtNum(pct)}%</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {rei && (
+        <section className="tracking-panel seg-panel">
+          <header className="seg-panel__head">
+            <div>
+              <h2 className="seg-title">{rei === "Sin REI" ? "IE sin REI" : `REI ${rei}`}</h2>
+              <p className="seg-sub">{visitadas.length} visitadas · {porVisitar.length} por visitar</p>
+            </div>
+            <input
+              className="rounded-lg border px-3 py-1.5 text-sm"
+              placeholder="Buscar IE o código modular"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              aria-label="Buscar IE en la REI"
+            />
+          </header>
+          {loadingPadron ? (
+            <SkeletonLine width="60%" />
+          ) : (
+            <div className="seg-two-col">
+              <div>
+                <h3 className="seg-col-title">Visitadas</h3>
+                {visitadas.length === 0 ? (
+                  <p className="seg-empty-inline">Ninguna todavía.</p>
+                ) : (
+                  <ul className="seg-list">
+                    {visitadas.map((ie) => {
+                      const fs = visitadasPorIe.get(ie.id) ?? [];
+                      return (
+                        <li key={ie.id}>
+                          <div className="seg-strong">{ie.nombre}</div>
+                          <div className="seg-muted">{[ie.codigo_modular, ie.nivel?.nombre].filter(Boolean).join(" · ")}</div>
+                          {fs.map((f) => {
+                            const url = fichaUrl(f);
+                            return (
+                              <div key={f.id} className="seg-list__meta">
+                                <span className={`seg-pill ${f.status === "final" ? "is-ok" : "is-media"}`}>{f.status === "final" ? "Finalizada" : "Borrador"}</span>
+                                <span>{fmtDate(f.created_at)} · {nameById.get(f.created_by) ?? "—"}</span>
+                                {url && <Link className="seg-link" to={url}>Abrir</Link>}
+                              </div>
+                            );
+                          })}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <h3 className="seg-col-title">Por visitar</h3>
+                {porVisitar.length === 0 ? (
+                  <p className="seg-empty-inline">No quedan IE por visitar en esta REI.</p>
+                ) : (
+                  <ul className="seg-list">
+                    {porVisitar.map((ie) => (
+                      <li key={ie.id}>
+                        <div className="seg-strong">{ie.nombre}</div>
+                        <div className="seg-muted">
+                          {[ie.codigo_modular, ie.nivel?.nombre, ie.director ? `Dir. ${ie.director}` : null, ie.telefono].filter(Boolean).join(" · ")}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+// ======================= Compromisos =======================
+
+type FiltroComp = "abiertos" | "vencidos" | "cumplidos" | "todos";
+
+function CompromisosPanel({
+  monitoreoId,
+  compromisos,
+  fichas,
+  canWrite,
+  isAdmin,
+  userId,
+  onChanged,
+  onToast,
+}: {
+  monitoreoId: string;
+  compromisos: Compromiso[];
+  fichas: Ficha[];
+  canWrite: boolean;
+  isAdmin: boolean;
+  userId: string;
+  onChanged: () => Promise<void> | void;
+  onToast: (t: { type: "ok" | "err"; msg: string }) => void;
+}) {
+  const [runId, setRunId] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [responsable, setResponsable] = useState("");
+  const [fechaLimite, setFechaLimite] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [filtro, setFiltro] = useState<FiltroComp>("abiertos");
+  const [cerrando, setCerrando] = useState<string | null>(null);
+  const [nota, setNota] = useState("");
+
+  const today = todayDateOnly();
+  const fichaById = useMemo(() => new Map(fichas.map((f) => [f.id, f])), [fichas]);
+  const opciones = useMemo(
+    () => fichas.filter((f) => f.institucion_id).slice().sort((a, b) => (a.ie_nombre ?? "").localeCompare(b.ie_nombre ?? "")),
+    [fichas],
+  );
+
+  const vencido = (c: Compromiso) => c.estado === "pendiente" && !!c.fecha_limite && c.fecha_limite < today;
+  const lista = compromisos.filter((c) =>
+    filtro === "todos" ? true : filtro === "cumplidos" ? c.estado !== "pendiente" : filtro === "vencidos" ? vencido(c) : c.estado === "pendiente",
+  );
+  const counts = {
+    abiertos: compromisos.filter((c) => c.estado === "pendiente").length,
+    vencidos: compromisos.filter(vencido).length,
+    cumplidos: compromisos.filter((c) => c.estado !== "pendiente").length,
+    todos: compromisos.length,
+  };
+
+  const crear = async (e: FormEvent) => {
+    e.preventDefault();
+    const ficha = fichaById.get(runId);
+    if (!ficha || descripcion.trim().length < 3) return;
+    setSaving(true);
+    const { error } = await supabase.from("monitoreo_compromiso").insert({
+      monitoreo_id: monitoreoId,
+      form_run_id: ficha.id,
+      institucion_id: ficha.institucion_id,
+      descripcion: descripcion.trim(),
+      responsable: responsable.trim() || null,
+      fecha_limite: fechaLimite || null,
+      created_by: userId,
+    });
+    setSaving(false);
+    if (error) {
+      onToast({ type: "err", msg: error.message });
+      return;
+    }
+    setDescripcion("");
+    setResponsable("");
+    setFechaLimite("");
+    setRunId("");
+    onToast({ type: "ok", msg: "Compromiso registrado." });
+    await onChanged();
+  };
+
+  const cambiarEstado = async (c: Compromiso, estado: Compromiso["estado"], notaCierre?: string) => {
+    const { error } = await supabase
+      .from("monitoreo_compromiso")
+      .update({ estado, nota_cierre: estado === "pendiente" ? null : (notaCierre?.trim() || null) })
+      .eq("id", c.id);
+    if (error) {
+      onToast({ type: "err", msg: error.message });
+      return;
+    }
+    setCerrando(null);
+    setNota("");
+    await onChanged();
+  };
+
+  const eliminar = async (c: Compromiso) => {
+    if (!window.confirm("¿Eliminar este compromiso? No se puede deshacer.")) return;
+    const { error } = await supabase.from("monitoreo_compromiso").delete().eq("id", c.id);
+    if (error) {
+      onToast({ type: "err", msg: error.message });
+      return;
+    }
+    await onChanged();
+  };
+
+  return (
+    <div className="space-y-5">
+      {canWrite && (
+        <section className="tracking-panel seg-panel">
+          <header className="seg-panel__head">
+            <div>
+              <h2 className="seg-title">Nuevo compromiso</h2>
+              <p className="seg-sub">Acuerdo con la IE tras la visita, con responsable y fecha para verificarlo.</p>
+            </div>
+          </header>
+          <form className="seg-form" onSubmit={crear}>
+            <label className="seg-field seg-field--wide">
+              <span>Institución visitada</span>
+              <select value={runId} onChange={(e) => setRunId(e.target.value)} required className="rounded-lg border px-3 py-2 text-sm">
+                <option value="">Elige la ficha / IE</option>
+                {opciones.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.ie_nombre} {f.codigo_modular ? `(${f.codigo_modular})` : ""} · {fmtDate(f.created_at)}
                   </option>
                 ))}
               </select>
             </label>
-            <div className="text-xs text-white/50">
-              {filteredIes.length} resultados
+            <label className="seg-field seg-field--wide">
+              <span>Compromiso</span>
+              <textarea
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                required
+                minLength={3}
+                maxLength={1000}
+                rows={2}
+                placeholder="Ej.: El director regulariza el registro de asistencia del personal docente."
+                className="rounded-lg border px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="seg-field">
+              <span>Responsable (opcional)</span>
+              <input value={responsable} onChange={(e) => setResponsable(e.target.value)} maxLength={200} placeholder="Director(a) de la IE" className="rounded-lg border px-3 py-2 text-sm" />
+            </label>
+            <label className="seg-field">
+              <span>Fecha límite (opcional)</span>
+              <input type="date" value={fechaLimite} min={today} onChange={(e) => setFechaLimite(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+            </label>
+            <div className="seg-form__actions">
+              <button type="submit" disabled={saving || !runId || descripcion.trim().length < 3} className="tracking-primary-action rounded-lg border px-4 py-2 text-sm">
+                {saving ? "Guardando…" : "Registrar compromiso"}
+              </button>
             </div>
+          </form>
+        </section>
+      )}
+
+      <section className="tracking-panel seg-panel">
+        <header className="seg-panel__head">
+          <div>
+            <h2 className="seg-title">Compromisos del monitoreo</h2>
+            <p className="seg-sub">{canWrite ? "Marca cada compromiso cuando verifiques que se cumplió." : "Solo lectura para tu rol."}</p>
           </div>
-          <div className="mt-4 space-y-2 text-sm text-white/80">
-            {pageIes.map((ie) => {
-              const asig = asigByIe[ie.id];
-              const monitor = asig ? monitoresById[asig.user_id] : null;
-              const pct = progressByIe[ie.id] ?? 0;
-              const val = latestValidByIe[ie.id];
+          <div className="seg-segmented" role="group" aria-label="Filtrar compromisos">
+            {(["abiertos", "vencidos", "cumplidos", "todos"] as FiltroComp[]).map((f) => (
+              <button key={f} type="button" className={filtro === f ? "is-active" : ""} onClick={() => setFiltro(f)} aria-pressed={filtro === f}>
+                {f[0].toUpperCase() + f.slice(1)} <span>{counts[f]}</span>
+              </button>
+            ))}
+          </div>
+        </header>
+        {lista.length === 0 ? (
+          <p className="seg-empty-inline">
+            {compromisos.length === 0 ? "Aún no hay compromisos registrados en este monitoreo." : "No hay compromisos con este filtro."}
+          </p>
+        ) : (
+          <ul className="seg-comp-list">
+            {lista.map((c) => {
+              const f = c.form_run_id ? fichaById.get(c.form_run_id) : undefined;
+              const esVencido = vencido(c);
               return (
-                <div key={ie.id} className="tracking-ie-card flex flex-wrap items-start justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="break-words font-medium">{ie.nombre}</div>
-                    <div className="text-xs text-white/50">
-                      {ie.codigo_modular || "-"} · REI {ie.rei || "SIN"}
+                <li key={c.id} className={`seg-comp ${esVencido ? "is-late" : ""} ${c.estado !== "pendiente" ? "is-closed" : ""}`}>
+                  <div className="seg-comp__main">
+                    <div className="seg-comp__top">
+                      <span className={`seg-pill ${c.estado === "cumplido" ? "is-ok" : c.estado === "anulado" ? "is-info" : esVencido ? "is-alta" : "is-media"}`}>
+                        {c.estado === "cumplido" ? "Cumplido" : c.estado === "anulado" ? "Anulado" : esVencido ? "Vencido" : "Pendiente"}
+                      </span>
+                      <span className="seg-strong">{f?.ie_nombre ?? "IE"}</span>
+                      {f?.codigo_modular && <span className="seg-muted">{f.codigo_modular}</span>}
                     </div>
-                    <div className="break-words text-xs text-white/50">
-                      Monitor: {monitor ? displayName(monitor) : "Sin asignar"}
+                    <p className="seg-comp__text">{c.descripcion}</p>
+                    <div className="seg-muted">
+                      {[
+                        c.responsable ? `Responsable: ${c.responsable}` : null,
+                        c.fecha_limite ? `Fecha límite: ${fmtDate(c.fecha_limite)}` : "Sin fecha límite",
+                        `Registrado ${fmtDate(c.created_at)}`,
+                        c.cerrado_at ? `Cerrado ${fmtDate(c.cerrado_at)}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </div>
-                    {val && (
-                      <div className="break-words text-xs text-white/50">
-                        Validado: {val.porcentaje}% · {new Date(val.validado_at).toLocaleDateString("es-PE")}
+                    {c.nota_cierre && <div className="seg-comp__note">Verificación: {c.nota_cierre}</div>}
+                    {cerrando === c.id && (
+                      <div className="seg-comp__close">
+                        <input
+                          value={nota}
+                          onChange={(e) => setNota(e.target.value)}
+                          maxLength={1000}
+                          placeholder="Cómo se verificó (opcional)"
+                          className="rounded-lg border px-3 py-1.5 text-sm"
+                          aria-label="Nota de verificación"
+                        />
+                        <button type="button" className="tracking-primary-action rounded-lg border px-3 py-1.5 text-xs" onClick={() => cambiarEstado(c, "cumplido", nota)}>
+                          Confirmar
+                        </button>
+                        <button type="button" className="seg-btn" onClick={() => { setCerrando(null); setNota(""); }}>
+                          Cancelar
+                        </button>
                       </div>
                     )}
                   </div>
-                  <div className="text-xs text-white/60">Avance: {pct}%</div>
-                  {canManage && asig && (
-                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-                      <button
-                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs"
-                        onClick={() => handleUnassign(ie.id)}
-                      >
-                        Quitar
-                      </button>
-                      <button
-                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-100"
-                        onClick={() => {
-                          setValidateIe(ie);
-                          setValidateMonitor(monitor || null);
-                          setValidatePct(pct);
-                          setValidateComment(val?.comentario ?? "");
-                          setValidateOpen(true);
-                        }}
-                      >
-                        Validar
-                      </button>
+                  {canWrite && cerrando !== c.id && (
+                    <div className="seg-comp__actions">
+                      {c.estado === "pendiente" ? (
+                        <>
+                          <button type="button" className="tracking-primary-action rounded-lg border px-3 py-1.5 text-xs" onClick={() => { setCerrando(c.id); setNota(""); }}>
+                            Marcar cumplido
+                          </button>
+                          <button type="button" className="seg-btn" onClick={() => cambiarEstado(c, "anulado")}>Anular</button>
+                        </>
+                      ) : (
+                        <button type="button" className="seg-btn" onClick={() => cambiarEstado(c, "pendiente")}>Reabrir</button>
+                      )}
+                      {(isAdmin || c.created_by === userId) && (
+                        <button type="button" className="seg-btn is-danger" onClick={() => eliminar(c)}>Eliminar</button>
+                      )}
                     </div>
                   )}
-                </div>
+                </li>
               );
             })}
-            {pageIes.length === 0 && (
-              <div className="text-xs text-white/50">Sin instituciones para mostrar.</div>
-            )}
-          </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
-            <div>
-              Página {iePage} de {totalPages}
-            </div>
-            <div className="flex gap-2">
-              <button
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
-                onClick={() => setIePage((p) => Math.max(1, p - 1))}
-                disabled={iePage <= 1}
-              >
-                Anterior
-              </button>
-              <button
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
-                onClick={() => setIePage((p) => Math.min(totalPages, p + 1))}
-                disabled={iePage >= totalPages}
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {canManage && (
-        <div className="tracking-panel tracking-activities-panel rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between">
-            <div className="tracking-section-title text-sm font-semibold">Actividades globales</div>
-            {cddFlag && (
-              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-100">
-                CdD
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-white/50">
-            Lista de tareas que cada monitor debe completar en cada IE asignada, aparte de las preguntas de la ficha.
-          </p>
-          <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-[1.5fr_auto_auto]">
-            <input
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-              placeholder="Nombre de actividad"
-              value={actividadTitle}
-              onChange={(e) => setActividadTitle(e.target.value)}
-            />
-            <label className="flex items-center gap-2 text-xs text-white/70">
-              <input
-                type="checkbox"
-                checked={actividadOblig}
-                onChange={(e) => setActividadOblig(e.target.checked)}
-              />
-              Obligatoria
-            </label>
-            <button
-              type="button"
-              onClick={addActividad}
-              className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs"
-            >
-              Agregar
-            </button>
-          </div>
-          <div className="mt-4 space-y-2 text-sm text-white/80">
-            {actividades.map((a) => (
-              <div key={a.id} className="tracking-activity-card rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                <span className="font-medium">{a.titulo}</span>
-                {a.obligatorio && (
-                  <span className="ml-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100">
-                    Obligatoria
-                  </span>
-                )}
-              </div>
-            ))}
-            {!actividades.length && (
-              <div className="text-xs text-white/50">Sin actividades registradas.</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {canManage && (
-        <div className="tracking-panel tracking-monitors-panel rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="tracking-section-title text-sm font-semibold">Resumen por monitor</div>
-          <p className="mt-1 text-xs text-white/50">
-            Porcentaje de avance validado por cada monitor, según las IE que tiene asignadas.
-          </p>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-            <label className="text-xs text-white/60">
-              Buscar monitor
-              <input
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-                placeholder="Nombre o REI"
-                value={monitorSearch}
-                onChange={(e) => {
-                  setMonitorSearch(e.target.value);
-                  setMonitorPage(1);
-                }}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-white/70">
-              <input
-                type="checkbox"
-                checked={monitorOnlyZeroValidated}
-                onChange={(e) => {
-                  setMonitorOnlyZeroValidated(e.target.checked);
-                  setMonitorPage(1);
-                }}
-              />
-              Solo 0% validado
-            </label>
-            <label className="text-xs text-white/60">
-              Ver
-              <select
-                className="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-                value={monitorPageSize}
-                onChange={(e) => {
-                  setMonitorPageSize(Number(e.target.value));
-                  setMonitorPage(1);
-                }}
-              >
-                {[10, 20, 50].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="text-xs text-white/50">{filteredMonitorRows.length} resultados</div>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {pageMonitorRows.map((row) => {
-              return (
-                <div key={row.monitor.id} className="tracking-monitor-card rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div className="font-medium">{displayName(row.monitor)}</div>
-                  <div className="text-xs text-white/50">REI {row.monitor.rei || "SIN"}</div>
-                  <div className="mt-2 text-xs text-white/60">
-                    IE asignadas: {row.assignedCount}
-                  </div>
-                  <div className="tone-text-green mt-1 text-xs">
-                    Avance validado: {row.avgValidated}% ({row.validatedCount} IE)
-                  </div>
-                  <div className="tone-text-amber mt-1 text-xs">
-                    Avance sin validar: {row.avgPendingValidation}% ({row.pendingCount} IE)
-                  </div>
-                </div>
-              );
-            })}
-            {!pageMonitorRows.length && (
-              <div className="text-xs text-white/50">Sin monitores asignados.</div>
-            )}
-          </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
-            <div>
-              Pagina {monitorPage} de {monitorTotalPages}
-            </div>
-            <div className="flex gap-2">
-              <button
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
-                onClick={() => setMonitorPage((p) => Math.max(1, p - 1))}
-                disabled={monitorPage <= 1}
-              >
-                Anterior
-              </button>
-              <button
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1"
-                onClick={() => setMonitorPage((p) => Math.min(monitorTotalPages, p + 1))}
-                disabled={monitorPage >= monitorTotalPages}
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="tracking-panel tracking-my-panel rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="tracking-section-title text-sm font-semibold">Mis instituciones asignadas</div>
-        <p className="mt-1 text-xs text-white/50">
-          Las instituciones que tú tienes asignadas para visitar, si también eres monitor.
-        </p>
-        {monitorBlockedByExpiry && (
-          <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            Monitoreo vencido: las actividades estan bloqueadas para el monitor.
-          </div>
+          </ul>
         )}
-        {loadingDetails && (
-          <div className="mt-2 text-xs text-white/50">Cargando avances...</div>
-        )}
-        {!myAssignedIes.length ? (
-          <div className="mt-3 text-xs text-white/50">No tienes IE asignadas.</div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {myAssignedIes.map((ie) => (
-              <div key={ie.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="break-words font-medium">{ie.nombre}</div>
-                <div className="text-xs text-white/50">
-                  {ie.codigo_modular || "-"} · REI {ie.rei || "SIN"}
-                </div>
-                <div className="mt-3 space-y-2">
-                  {actividades.map((a) => {
-                    const done = avances.some(
-                      (av) =>
-                        av.institucion_id === ie.id &&
-                        av.user_id === profile?.id &&
-                        av.actividad_id === a.id &&
-                        av.tipo_actividad === "global" &&
-                        av.realizado
-                    );
-                    return (
-                      <label key={a.id} className="flex items-start gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={done}
-                          disabled={monitorBlockedByExpiry}
-                          onChange={() => toggleAvance(ie.id, a.id, "global")}
-                        />
-                        <span className="break-words">{a.titulo}</span>
-                        {a.obligatorio && (
-                          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100">
-                            Obligatoria
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
-                  <div className="text-xs text-white/60">Actividades opcionales</div>
-                  <div className="mt-2 space-y-2">
-                    {extras.map((ex) => {
-                      const done = avances.some(
-                        (av) =>
-                          av.institucion_id === ie.id &&
-                          av.user_id === profile?.id &&
-                          av.actividad_id === ex.id &&
-                          av.tipo_actividad === "extra" &&
-                          av.realizado
-                      );
-                      return (
-                        <label key={ex.id} className="flex items-start gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={done}
-                            disabled={monitorBlockedByExpiry}
-                            onChange={() => toggleAvance(ie.id, ex.id, "extra")}
-                          />
-                          <span className="break-words">{ex.titulo}</span>
-                        </label>
-                      );
-                    })}
-                    <div className="flex gap-2">
-                      <input
-                        className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs"
-                        placeholder="Nueva actividad opcional"
-                        value={extraTitle}
-                        disabled={monitorBlockedByExpiry}
-                        onChange={(e) => setExtraTitle(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={addExtra}
-                        disabled={monitorBlockedByExpiry}
-                        className="rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-xs"
-                      >
-                        Agregar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {validateOpen && validateIe && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-4">
-            <div className="text-sm font-semibold">Validar IE</div>
-            <div className="mt-2 text-xs text-white/60">{validateIe.nombre}</div>
-            <div className="mt-1 text-xs text-white/50">
-              Monitor: {validateMonitor ? displayName(validateMonitor) : "Sin asignar"}
-            </div>
-            <label className="mt-3 block text-xs text-white/70">
-              Porcentaje de avance
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={validatePct}
-                onChange={(e) => setValidatePct(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="mt-3 block text-xs text-white/70">
-              Comentario
-              <textarea
-                value={validateComment}
-                onChange={(e) => setValidateComment(e.target.value)}
-                className="mt-1 min-h-[70px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-              />
-            </label>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                onClick={() => setValidateOpen(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100"
-                onClick={async () => {
-                  if (!validateIe || !validateMonitor) return;
-                  const { data, error } = await supabase
-                    .from("monitoreo_ie_validacion")
-                    .insert({
-                      monitoreo_id: monitoreoId,
-                      institucion_id: validateIe.id,
-                      user_id: validateMonitor.id,
-                      validado_por: profile?.id,
-                      porcentaje: validatePct,
-                      comentario: validateComment || null,
-                    })
-                    .select("id, institucion_id, user_id, porcentaje, comentario, validado_at")
-                    .single();
-                  if (error) {
-                    setToast({ type: "err", msg: error.message });
-                    return;
-                  }
-                  setValidaciones((prev) => [...prev, data as ValidacionRow]);
-                  setValidateOpen(false);
-                  setToast({ type: "ok", msg: "Validación registrada." });
-                }}
-              >
-                Guardar validación
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </section>
     </div>
   );
 }

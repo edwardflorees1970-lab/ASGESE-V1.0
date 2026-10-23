@@ -417,7 +417,7 @@ export function MonitoreoPage() {
 
                 <h2
                   id={`monitoreo-title-${m.id}`}
-                  className="agebre-card-title min-h-11 shrink-0 text-[15px] font-bold leading-[1.4] tracking-[-0.012em] text-white sm:text-base"
+                  className="agebre-card-title agebre-card-title--full min-h-11 shrink-0 text-[15px] font-bold leading-[1.4] tracking-[-0.012em] text-white sm:text-base"
                 >
                   {m.title}
                 </h2>

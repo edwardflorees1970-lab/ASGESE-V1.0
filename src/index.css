@@ -1143,6 +1143,15 @@ select option:checked {
   text-overflow: ellipsis;
 }
 
+/* Titulo completo: sin recorte, con salto de linea natural. */
+.agebre-card-title--full {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
 .agebre-modal-title {
   display: -webkit-box;
   -webkit-line-clamp: 3;
