@@ -78,6 +78,11 @@ function CloseIcon() {
   );
 }
 
+// En la tarjeta se omite la base normativa final "(RM N° ...)"; el titulo completo queda en el tooltip y en la ficha.
+function cardTitle(title: string) {
+  return title.replace(/\s*\([^()]*\)\s*$/, "").trim() || title;
+}
+
 function formatDate(date?: string | null) {
   if (!date) return "Sin fecha fin";
   const [y, m, d] = date.split("-");
@@ -278,7 +283,7 @@ export function MonitoreoDetailPage() {
                   className="agebre-card-title agebre-card-title--full shrink-0 text-[15px] font-bold leading-[1.4] tracking-tight text-[var(--app-text)]"
                   title={f.title}
                 >
-                  {f.title}
+                  {cardTitle(f.title)}
                 </h2>
 
                 <div className="flex flex-1 flex-col pt-4">
