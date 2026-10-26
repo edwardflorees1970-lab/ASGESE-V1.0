@@ -206,9 +206,7 @@ export function AppShell() {
         ? "Crear Monitoreo"
         : location.pathname.includes("indicadores-cdd")
           ? "Indicadores CdD"
-          : location.pathname.includes("operaciones")
-            ? "Auditoría y alertas"
-            : location.pathname.includes("asignaciones")
+          : location.pathname.includes("asignaciones")
               ? "Asignaciones"
               : location.pathname.includes("roles-permisos")
                 ? "Roles y permisos"
@@ -299,16 +297,6 @@ export function AppShell() {
           />
         )}
         {sectionLabel("Análisis")}
-        {canViewModule("operaciones") && (
-          <Item
-            to="/app/operaciones"
-            label="Auditoria y alertas"
-            icon={<TrackIcon />}
-            onClick={onItemClick}
-            reloadOnClick={inFichaRoute}
-            collapsed={collapsed}
-          />
-        )}
         {canViewModule("reportes") && <Item
           to="/app/reportes"
           label="Reportes y resultados"

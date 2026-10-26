@@ -2480,71 +2480,34 @@ button:hover .agebre-action-icon {
 }
 
 /* Asignaciones: directorio operativo y estados de acceso. */
-.assignments-page,
-.operations-page {
+.assignments-page {
   --module-accent: #0b918b;
   --module-accent-strong: #07746f;
   --module-accent-soft: color-mix(in srgb, var(--module-accent) 10%, var(--app-surface));
   color: var(--app-text);
 }
 .assignments-hero,
-.assignments-panel,
-.operations-hero,
-.operations-panel { color: var(--app-text); background: var(--app-surface); border-color: var(--app-border); box-shadow: var(--app-shadow-sm); }
-.assignments-hero,
-.operations-hero { border-top: 3px solid var(--module-accent); }
-.assignments-hero-layout,
-.operations-hero-layout { grid-template-columns: minmax(0, 1fr) auto; }
-.assignments-hero-icon,
-.operations-hero-icon { width: 3rem; height: 3rem; display: grid; place-items: center; flex: 0 0 auto; color: var(--module-accent); background: var(--module-accent-soft); border: 1px solid color-mix(in srgb, var(--module-accent) 30%, var(--app-border)); border-radius: .9rem; }
-.assignments-hero-icon svg,
-.operations-hero-icon svg { width: 1.45rem; height: 1.45rem; }
-.assignments-eyebrow,
-.operations-eyebrow { color: var(--module-accent); font-size: .65rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-.assignments-kpis,
-.operations-kpis { min-width: min(100%, 17rem); }
-.assignments-kpi,
-.operations-kpi { min-width: 5rem; padding: .52rem .65rem; color: var(--app-muted); background: var(--app-surface-2); border: 1px solid var(--app-border); border-radius: .72rem; }
-.assignments-kpi span,
-.operations-kpi span { display: block; font-size: .59rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
-.assignments-kpi strong,
-.operations-kpi strong { display: block; margin-top: .1rem; color: var(--module-accent-strong); font-size: 1rem; line-height: 1.1; }
+.assignments-panel { color: var(--app-text); background: var(--app-surface); border-color: var(--app-border); box-shadow: var(--app-shadow-sm); }
+.assignments-hero { border-top: 3px solid var(--module-accent); }
+.assignments-hero-layout { grid-template-columns: minmax(0, 1fr) auto; }
+.assignments-hero-icon { width: 3rem; height: 3rem; display: grid; place-items: center; flex: 0 0 auto; color: var(--module-accent); background: var(--module-accent-soft); border: 1px solid color-mix(in srgb, var(--module-accent) 30%, var(--app-border)); border-radius: .9rem; }
+.assignments-hero-icon svg { width: 1.45rem; height: 1.45rem; }
+.assignments-eyebrow { color: var(--module-accent); font-size: .65rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.assignments-kpis { min-width: min(100%, 17rem); }
+.assignments-kpi { min-width: 5rem; padding: .52rem .65rem; color: var(--app-muted); background: var(--app-surface-2); border: 1px solid var(--app-border); border-radius: .72rem; }
+.assignments-kpi span { display: block; font-size: .59rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+.assignments-kpi strong { display: block; margin-top: .1rem; color: var(--module-accent-strong); font-size: 1rem; line-height: 1.1; }
 .assignments-kpi.is-success strong { color: var(--app-success); }
-.assignments-kpi.is-pending strong,
-.operations-kpi.is-alert strong { color: var(--app-warning); }
-.operations-kpi.is-info strong { color: var(--app-info); }
+.assignments-kpi.is-pending strong { color: var(--app-warning); }
 .assignments-controls { background: color-mix(in srgb, var(--module-accent) 2%, var(--app-surface)); }
 .assignments-period { color: var(--module-accent-strong); background: var(--module-accent-soft); border-color: color-mix(in srgb, var(--module-accent) 26%, var(--app-border)); }
 .assignments-period svg { width: 1rem; height: 1rem; }
-.assignments-section-icon,
-.operations-section-icon { width: 2.35rem; height: 2.35rem; display: grid; place-items: center; flex: 0 0 auto; color: var(--module-accent); background: var(--module-accent-soft); border: 1px solid color-mix(in srgb, var(--module-accent) 26%, var(--app-border)); border-radius: .75rem; }
-.assignments-section-icon svg,
-.operations-section-icon svg { width: 1.15rem; height: 1.15rem; }
+.assignments-section-icon { width: 2.35rem; height: 2.35rem; display: grid; place-items: center; flex: 0 0 auto; color: var(--module-accent); background: var(--module-accent-soft); border: 1px solid color-mix(in srgb, var(--module-accent) 26%, var(--app-border)); border-radius: .75rem; }
+.assignments-section-icon svg { width: 1.15rem; height: 1.15rem; }
 .assignment-user-card { color: var(--app-text); background: var(--app-surface-2); border-color: var(--app-border); transition: border-color 200ms ease, background-color 200ms ease, transform 200ms ease, box-shadow 200ms ease; }
 .assignment-user-card:hover { background: color-mix(in srgb, var(--module-accent) 4%, var(--app-surface)); border-color: color-mix(in srgb, var(--module-accent) 42%, var(--app-border)); transform: translateY(-1px); box-shadow: var(--app-shadow-xs); }
 .assignment-user-card.is-assigned { background: rgb(22 163 74 / 7%); border-color: rgb(22 163 74 / 30%); }
 .assignments-page .dashboard-control { background: var(--dashboard-control); border-color: var(--app-border); }
-
-/* Auditoría y alertas: trazabilidad, lectura y observabilidad. */
-.operations-hero-layout { grid-template-columns: minmax(0, 1fr) auto auto; }
-.operations-refresh { color: var(--module-accent-strong); background: color-mix(in srgb, var(--module-accent) 6%, var(--app-surface)); border-color: color-mix(in srgb, var(--module-accent) 34%, var(--app-border)); transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease; }
-.operations-refresh svg { width: 1rem; height: 1rem; }
-.operations-refresh:hover:not(:disabled) { background: color-mix(in srgb, var(--module-accent) 14%, var(--app-surface)); border-color: color-mix(in srgb, var(--module-accent) 58%, var(--app-border)); transform: translateY(-1px); }
-.operations-search-label { color: var(--app-muted); }
-.operations-control { color: var(--app-text); background: var(--dashboard-control); border-color: var(--app-border); }
-.operations-control:focus { border-color: var(--module-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--module-accent) 13%, transparent); outline: none; }
-.operations-table thead { color: var(--app-muted); background: color-mix(in srgb, var(--module-accent) 7%, var(--app-surface-2)); }
-.operations-table tbody tr { border-color: var(--app-border); transition: background-color 180ms ease; }
-.operations-table tbody tr:hover { background: color-mix(in srgb, var(--module-accent) 4%, var(--app-surface)); }
-.operations-json-toggle { color: var(--module-accent-strong); }
-.operations-json { color: var(--app-text); background: var(--app-surface-3); border: 1px solid var(--app-border); }
-.operations-section-icon.is-alert { color: var(--app-warning); background: color-mix(in srgb, var(--app-warning) 9%, transparent); border-color: color-mix(in srgb, var(--app-warning) 28%, transparent); }
-.operations-alert-card { color: var(--app-text); background: var(--app-surface-2); border-color: var(--app-border); }
-.operations-alert-card.is-resolved { background: rgb(22 163 74 / 5%); border-color: rgb(22 163 74 / 24%); }
-.operations-resolve { color: var(--app-success); background: color-mix(in srgb, var(--app-success) 8%, transparent); border-color: color-mix(in srgb, var(--app-success) 30%, transparent); transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
-.operations-resolve:hover:not(:disabled) { background: color-mix(in srgb, var(--app-success) 15%, transparent); border-color: color-mix(in srgb, var(--app-success) 48%, transparent); transform: translateY(-1px); box-shadow: var(--app-shadow-xs); }
-.operations-page nav { border-color: var(--app-border); color: var(--app-muted); }
-.operations-page nav button { color: var(--module-accent-strong); background: color-mix(in srgb, var(--module-accent) 5%, var(--app-surface)); border-color: color-mix(in srgb, var(--module-accent) 30%, var(--app-border)); }
 
 /* Reportes Analíticos: acento más vivo y acciones explícitas. */
 .analytics-executive-page { --analytics-accent: #0b918b; --analytics-accent-strong: #07746f; --analytics-accent-soft: color-mix(in srgb, var(--analytics-accent) 10%, var(--app-surface)); color: var(--app-text); }
@@ -2565,32 +2528,17 @@ button:hover .agebre-action-icon {
 .analytics-empty-state > div > svg { color: var(--analytics-accent); }
 
 [data-theme="light"] .assignment-user-card { background: #fff; }
-[data-theme="light"] .assignments-page .dashboard-control,
-[data-theme="light"] .operations-control { background: #fff; border-color: rgb(35 67 82 / 18%); }
-[data-theme="light"] .operations-alert-card { background: #fff; }
-[data-theme="dark"] .assignments-page,
-[data-theme="dark"] .operations-page { --module-accent: #16a49d; --module-accent-strong: #54d0ca; }
-[data-theme="dark"] .operations-resolve { color: #86efac; }
+[data-theme="light"] .assignments-page .dashboard-control { background: #fff; border-color: rgb(35 67 82 / 18%); }
+[data-theme="dark"] .assignments-page { --module-accent: #16a49d; --module-accent-strong: #54d0ca; }
 [data-theme="dark"] .analytics-executive-page { --analytics-accent: #16a49d; --analytics-accent-strong: #54d0ca; }
 [data-theme="dark"] .analytics-export-action.is-excel { color: #86efac; }
 [data-theme="dark"] .analytics-export-action.is-csv { color: #93c5fd; }
 [data-theme="dark"] .analytics-export-action.is-pdf { color: #fca5a5; }
 
-@media (max-width: 1023px) {
-  .operations-hero-layout { grid-template-columns: minmax(0, 1fr) auto; }
-  .operations-refresh { grid-column: 2; }
-}
-
 @media (max-width: 639px) {
-  .assignments-hero-layout,
-  .operations-hero-layout { grid-template-columns: 1fr; }
-  .assignments-kpis,
-  .operations-kpis { width: 100%; min-width: 0; }
-  .assignments-kpi,
-  .operations-kpi { min-width: 0; padding-inline: .5rem; }
-  .operations-refresh { width: 100%; grid-column: auto; }
-  .operations-search-label { display: grid; gap: .35rem; }
-  .operations-control { width: 100%; margin-left: 0; }
+  .assignments-hero-layout { grid-template-columns: 1fr; }
+  .assignments-kpis { width: 100%; min-width: 0; }
+  .assignments-kpi { min-width: 0; padding-inline: .5rem; }
   .analytics-export-action.agebre-icon-button { flex: 1 1 auto; }
 }
 

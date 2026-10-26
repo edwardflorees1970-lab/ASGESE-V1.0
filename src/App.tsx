@@ -46,7 +46,6 @@ const GestionMonitoreosPage = lazy(() =>
 const IndicadoresCdDPage = lazy(() =>
   import("./pages/IndicadoresCdDPage").then((m) => ({ default: m.IndicadoresCdDPage }))
 );
-const OperationsPage = lazy(() => import("./pages/OperationsPage").then((m) => ({ default: m.OperationsPage })));
 const RolesPermisosPage = lazy(() => import("./pages/RolesPermisosPage").then((m) => ({ default: m.RolesPermisosPage })));
 const CatalogosPage = lazy(() => import("./pages/CatalogosPage").then((m) => ({ default: m.CatalogosPage })));
 
@@ -120,7 +119,7 @@ export default function App() {
             {/* Administracion controlada por permisos de modulo */}
             <Route element={<ProtectedRoute requireModule="usuarios" />}><Route path="usuarios" element={<UsersPage />} /></Route>
             <Route element={<ProtectedRoute requireModule="asignaciones" />}><Route path="asignaciones" element={<AsignacionesPage />} /></Route>
-            <Route element={<ProtectedRoute requireModule="operaciones" />}><Route path="operaciones" element={<OperationsPage />} /></Route>
+            <Route path="operaciones" element={<Navigate to="/app" replace />} />
             <Route element={<ProtectedRoute requireModule="roles_permisos" />}><Route path="roles-permisos" element={<RolesPermisosPage />} /></Route>
             <Route element={<ProtectedRoute requireModule="catalogos" />}><Route path="catalogos" element={<CatalogosPage />} /></Route>
           </Route>
