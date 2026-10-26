@@ -98,7 +98,27 @@
 .seg-comp__close input { flex: 1 1 14rem; }
 .seg-comp__actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .4rem; }
 
+/* Seguimiento de IE */
+button.seg-link { background: none; border: 0; padding: 0; cursor: pointer; }
+.seg-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .7rem; }
+.seg-chips button { padding: .32rem .7rem; border: 1px solid var(--app-border); border-radius: 999px; font-size: .74rem; font-weight: 650; color: var(--app-muted); background: var(--app-surface); transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease; }
+.seg-chips button:hover { color: var(--app-text); border-color: color-mix(in srgb, var(--tracking-accent) 40%, var(--app-border)); }
+.seg-chips button.is-active { color: var(--tracking-accent-strong); background: var(--tracking-accent-soft); border-color: color-mix(in srgb, var(--tracking-accent) 45%, var(--app-border)); }
+.seg-filter-grid { display: grid; grid-template-columns: minmax(14rem, 2fr) repeat(4, minmax(9rem, 1fr)); gap: .5rem; margin-bottom: .85rem; }
+.seg-table tr.is-open td { background: color-mix(in srgb, var(--tracking-accent) 5%, transparent); border-bottom-color: transparent; }
+.seg-detail-row td { background: color-mix(in srgb, var(--tracking-accent) 3%, var(--app-surface)); }
+.seg-detail { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 2.4fr); gap: 1rem; padding: .3rem 0 .4rem; font-size: .76rem; }
+.seg-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .75rem; font-size: .74rem; color: var(--app-muted); }
+.seg-pager > div { display: flex; gap: .4rem; }
+.seg-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 1023px) {
+  .seg-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .seg-filter-grid > input { grid-column: 1 / -1; }
+}
+
 @media (max-width: 767px) {
+  .seg-detail { grid-template-columns: minmax(0, 1fr); }
   .seg-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .seg-two-col, .seg-form { grid-template-columns: minmax(0, 1fr); }
   .seg-bars { gap: .2rem; }
