@@ -598,7 +598,11 @@ export function FichaDinamicaPage() {
       return;
     }
     if (returnTo === "seguimiento") {
-      go("/app/seguimiento");
+      go("/app/seguimiento/especialistas");
+      return;
+    }
+    if (returnTo === "seguimiento-ie") {
+      go("/app/seguimiento/instituciones");
       return;
     }
     if (monitoreoCodigo) {

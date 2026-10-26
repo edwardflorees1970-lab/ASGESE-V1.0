@@ -1,67 +1,26 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../app/AuthProvider";
 import { useAppConfig } from "../app/AppConfigProvider";
-import { daysFromToday, isMonitoreoExpired, todayDateOnly } from "../lib/monitoreoVigencia";
+import { daysFromToday, todayDateOnly } from "../lib/monitoreoVigencia";
 import { SkeletonCards, SkeletonLine } from "../components/Skeleton";
+import { SeguimientoHero, SeguimientoToast } from "../components/SeguimientoHero";
+import {
+  daysSince,
+  dateOnlyLima,
+  fichaUrl as buildFichaUrl,
+  fmtDate,
+  fmtNum,
+  useSeguimiento,
+  type Compromiso,
+  type Especialista,
+  type Ficha,
+  type Toast,
+} from "../lib/seguimiento";
 import "./SeguimientoPage.css";
 
-type MonitoreoRow = {
-  id: string;
-  codigo: string;
-  nombre: string;
-  fecha_inicio: string | null;
-  fecha_fin: string | null;
-  is_active: boolean;
-};
-
-type Especialista = { user_id: string; nombre: string; rei: string | null; meta: number | null };
-
-type Ficha = {
-  id: string;
-  status: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  institucion_id: string | null;
-  ie_nombre: string | null;
-  codigo_modular: string | null;
-  rei: string | null;
-  nivel: string | null;
-  distrito: string | null;
-  fecha_aplicacion: string | null;
-  template_codigo: string | null;
-  firmado: boolean;
-};
-
-type CoberturaRei = { rei: string; total: number; visitadas: number };
-
-type SeguimientoData = {
-  monitoreo: { id: string; codigo: string; nombre: string; fecha_inicio: string | null; fecha_fin: string | null } | null;
-  especialistas: Especialista[];
-  fichas: Ficha[];
-  cobertura: CoberturaRei[];
-};
-
-type Compromiso = {
-  id: string;
-  monitoreo_id: string;
-  institucion_id: string | null;
-  form_run_id: string | null;
-  descripcion: string;
-  responsable: string | null;
-  fecha_limite: string | null;
-  estado: "pendiente" | "cumplido" | "anulado";
-  nota_cierre: string | null;
-  created_by: string;
-  created_at: string;
-  cerrado_at: string | null;
-};
-
-type IePadron = { id: string; nombre: string; codigo_modular: string | null; director: string | null; telefono: string | null; nivel: { nombre: string } | null };
-
-type Tab = "ritmo" | "pendientes" | "cobertura" | "compromisos";
+type Tab = "ritmo" | "pendientes" | "compromisos";
 
 type EstadoRitmo = "cumplida" | "en_ruta" | "en_riesgo" | "atrasado" | "sin_meta";
 
@@ -76,112 +35,20 @@ const ESTADO_LABEL: Record<EstadoRitmo, string> = {
 const DIAS_INACTIVO = 5;
 const DIAS_BORRADOR = 2;
 
-const fmtDate = (iso?: string | null) => {
-  if (!iso) return "—";
-  const d = new Date(iso.length <= 10 ? `${iso}T12:00:00` : iso);
-  return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
-};
-
-const dateOnlyLima = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Lima" });
-
-const daysSince = (iso?: string | null) => {
-  if (!iso) return null;
-  const d = daysFromToday(dateOnlyLima(iso));
-  return d == null ? null : -d;
-};
-
-const fmtNum = (n: number, digits = 1) =>
-  n.toLocaleString("es-PE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
-
 export function SeguimientoPage() {
   const { profile, canManageModule } = useAuth();
   const { isTestMode } = useAppConfig();
   const canWrite = canManageModule("seguimiento");
-
-  const [loading, setLoading] = useState(true);
-  const [monitoreos, setMonitoreos] = useState<MonitoreoRow[]>([]);
-  const [monitoreoId, setMonitoreoId] = useState("");
-  const [data, setData] = useState<SeguimientoData | null>(null);
-  const [loadedId, setLoadedId] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const {
+    loading, monitoreos, monitoreoId, setMonitoreoId, selected, data, loadingData, error,
+    compromisos, reloadCompromisos, toast, setToast,
+  } = useSeguimiento(isTestMode);
   const [tab, setTab] = useState<Tab>("ritmo");
-  const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
-  const [compromisos, setCompromisos] = useState<Compromiso[]>([]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 3200);
-    return () => window.clearTimeout(t);
-  }, [toast]);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setLoading(true);
-      const { data: rows, error: err } = await supabase
-        .from("monitoreo_catalog")
-        .select("id, codigo, nombre, fecha_inicio, fecha_fin, is_active")
-        .eq("is_test", isTestMode)
-        .order("is_active", { ascending: false })
-        .order("fecha_inicio", { ascending: false, nullsFirst: false });
-      if (!alive) return;
-      if (err) setError(err.message);
-      const list = (rows ?? []) as MonitoreoRow[];
-      setMonitoreos(list);
-      setMonitoreoId((prev) => (prev && list.some((m) => m.id === prev) ? prev : (list[0]?.id ?? "")));
-      setLoading(false);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [isTestMode]);
-
-  const loadCompromisos = useCallback(async (mid: string) => {
-    const { data: rows, error: err } = await supabase
-      .from("monitoreo_compromiso")
-      .select("id, monitoreo_id, institucion_id, form_run_id, descripcion, responsable, fecha_limite, estado, nota_cierre, created_by, created_at, cerrado_at")
-      .eq("monitoreo_id", mid)
-      .order("created_at", { ascending: false });
-    if (err) {
-      setToast({ type: "err", msg: err.message });
-      return;
-    }
-    setCompromisos((rows ?? []) as Compromiso[]);
-  }, []);
-
-  useEffect(() => {
-    if (!monitoreoId) return;
-    let alive = true;
-    (async () => {
-      const [{ data: payload, error: err }] = await Promise.all([
-        supabase.rpc("seguimiento_monitoreo", { p_monitoreo_id: monitoreoId }),
-        loadCompromisos(monitoreoId),
-      ]);
-      if (!alive) return;
-      setError(err ? err.message : null);
-      setData(err ? null : (payload as SeguimientoData));
-      setLoadedId(monitoreoId);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [monitoreoId, loadCompromisos]);
-
-  const loadingData = loadedId !== monitoreoId;
-  const selected = monitoreos.find((m) => m.id === monitoreoId) ?? null;
   const fichas = useMemo(() => data?.fichas ?? [], [data]);
   const especialistas = useMemo(() => data?.especialistas ?? [], [data]);
   const nameById = useMemo(() => new Map(especialistas.map((e) => [e.user_id, e.nombre])), [especialistas]);
-
-  const fichaUrl = useCallback(
-    (f: Ficha) =>
-      selected && f.template_codigo
-        ? `/app/monitoreo/${selected.codigo}/ficha/${f.template_codigo}?runId=${f.id}&mid=${encodeURIComponent(selected.id)}&returnTo=seguimiento`
-        : null,
-    [selected],
-  );
+  const fichaUrl = (f: Ficha) => buildFichaUrl(selected, f, "seguimiento");
 
   // ---------- Ritmo ----------
   const today = todayDateOnly();
@@ -319,72 +186,27 @@ export function SeguimientoPage() {
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: "ritmo", label: "Ritmo por especialista" },
     { id: "pendientes", label: "Pendientes y alertas", badge: alertasActivas },
-    { id: "cobertura", label: "Cobertura de IE" },
     { id: "compromisos", label: "Compromisos", badge: compromisosAbiertos },
   ];
 
   return (
     <div className="tracking-page seg-page max-w-full space-y-5 overflow-x-hidden">
-      {toast && (
-        <div role="status" className={`seg-toast ${toast.type === "err" ? "is-err" : "is-ok"}`}>
-          {toast.msg}
-        </div>
-      )}
+      <SeguimientoToast toast={toast} />
 
-      <section className="tracking-hero">
-        <div className="tracking-hero__main">
-          <div className="tracking-hero__identity">
-            <div className="tracking-hero__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M4 19V9M10 19V5M16 19v-7M22 19V3M2 21h22" />
-              </svg>
-            </div>
-            <div>
-              <div className="tracking-eyebrow">CONTROL OPERATIVO</div>
-              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Seguimiento</h1>
-              <p className="mt-1 text-sm">Ritmo del equipo, pendientes, cobertura y compromisos del monitoreo elegido.</p>
-            </div>
-          </div>
-          {data && (
-            <div className="seg-kpis" aria-label="Resumen del monitoreo">
-              <div className="tracking-metric"><span>Finalizadas</span><strong>{totales.finalizadas}{totales.meta ? ` / ${totales.meta}` : ""}</strong></div>
-              <div className="tracking-metric"><span>Avance</span><strong>{totales.meta ? `${fmtNum((totales.finalizadas / totales.meta) * 100)}%` : "—"}</strong></div>
-              <div className="tracking-metric"><span>Borradores</span><strong>{totales.borradores}</strong></div>
-              <div className="tracking-metric"><span>IE visitadas</span><strong>{totales.ies}</strong></div>
-            </div>
-          )}
-        </div>
-        <div className="tracking-hero__monitor w-full min-w-0 sm:min-w-[220px] sm:max-w-[420px]">
-          <label htmlFor="seg-monitoreo" className="tracking-control-label mb-2 block">Monitoreo</label>
-          <select
-            id="seg-monitoreo"
-            className="w-full rounded-xl border px-3 py-2 text-sm"
-            value={monitoreoId}
-            onChange={(e) => setMonitoreoId(e.target.value)}
-          >
-            {monitoreos.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nombre}
-                {isMonitoreoExpired(m.fecha_fin) ? " (vencido)" : !m.is_active ? " (inactivo)" : ""}
-              </option>
-            ))}
-          </select>
-          {selected && (
-            <div className="tracking-monitor-status mt-2 text-xs">
-              <span>{fmtDate(selected.fecha_inicio)} – {fmtDate(selected.fecha_fin)}</span>
-              <span>
-                {(() => {
-                  const d = daysFromToday(selected.fecha_fin);
-                  if (d == null) return "Sin fecha fin";
-                  if (d < 0) return `Venció hace ${Math.abs(d)} días`;
-                  if (d === 0) return "Vence hoy";
-                  return `Quedan ${d} días`;
-                })()}
-              </span>
-            </div>
-          )}
-        </div>
-      </section>
+      <SeguimientoHero
+        title="Seguimiento de especialistas"
+        subtitle="Ritmo del equipo, pendientes y compromisos del monitoreo elegido."
+        metrics={data ? [
+          { label: "Finalizadas", value: `${totales.finalizadas}${totales.meta ? ` / ${totales.meta}` : ""}` },
+          { label: "Avance", value: totales.meta ? `${fmtNum((totales.finalizadas / totales.meta) * 100)}%` : "—" },
+          { label: "Borradores", value: totales.borradores },
+          { label: "IE visitadas", value: totales.ies },
+        ] : null}
+        monitoreos={monitoreos}
+        monitoreoId={monitoreoId}
+        onChange={setMonitoreoId}
+        selected={selected}
+      />
 
       {!monitoreos.length && (
         <div className="tracking-panel seg-empty">No hay monitoreos en modo {isTestMode ? "Prueba" : "Producción"}.</div>
@@ -478,7 +300,6 @@ export function SeguimientoPage() {
                   )}
                 </section>
               )}
-              {tab === "cobertura" && <CoberturaPanel cobertura={data.cobertura} fichas={fichas} nameById={nameById} fichaUrl={fichaUrl} />}
               {tab === "compromisos" && selected && (
                 <CompromisosPanel
                   monitoreoId={selected.id}
@@ -487,7 +308,7 @@ export function SeguimientoPage() {
                   canWrite={canWrite}
                   isAdmin={profile?.role === "admin"}
                   userId={profile?.id ?? ""}
-                  onChanged={() => loadCompromisos(selected.id)}
+                  onChanged={() => reloadCompromisos(selected.id)}
                   onToast={setToast}
                 />
               )}
@@ -621,167 +442,6 @@ function RitmoPanel({
   );
 }
 
-// ======================= Cobertura =======================
-
-function CoberturaPanel({
-  cobertura,
-  fichas,
-  nameById,
-  fichaUrl,
-}: {
-  cobertura: CoberturaRei[];
-  fichas: Ficha[];
-  nameById: Map<string, string>;
-  fichaUrl: (f: Ficha) => string | null;
-}) {
-  const [rei, setRei] = useState<string>("");
-  const [padron, setPadron] = useState<IePadron[]>([]);
-  const [loadingPadron, setLoadingPadron] = useState(false);
-  const [busca, setBusca] = useState("");
-
-  const visitadasPorIe = useMemo(() => {
-    const m = new Map<string, Ficha[]>();
-    fichas.forEach((f) => {
-      if (f.institucion_id) m.set(f.institucion_id, [...(m.get(f.institucion_id) ?? []), f]);
-    });
-    return m;
-  }, [fichas]);
-
-  useEffect(() => {
-    if (!rei) return;
-    let alive = true;
-    (async () => {
-      setLoadingPadron(true);
-      let q = supabase
-        .from("institucion_educativa")
-        .select("id, nombre, codigo_modular, director, telefono, nivel:cat_nivel(nombre)")
-        .order("nombre", { ascending: true })
-        .limit(1000);
-      q = rei === "Sin REI" ? q.or("rei.is.null,rei.eq.") : q.eq("rei", rei);
-      const { data } = await q;
-      if (!alive) return;
-      setPadron((data ?? []) as unknown as IePadron[]);
-      setLoadingPadron(false);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [rei]);
-
-  const term = busca.trim().toLowerCase();
-  const match = (ie: IePadron) =>
-    !term || ie.nombre.toLowerCase().includes(term) || (ie.codigo_modular ?? "").includes(term);
-  const padronRei = rei ? padron : [];
-  const visitadas = padronRei.filter((ie) => visitadasPorIe.has(ie.id) && match(ie));
-  const porVisitar = padronRei.filter((ie) => !visitadasPorIe.has(ie.id) && match(ie));
-
-  const totalIe = cobertura.reduce((s, c) => s + c.total, 0);
-  const totalVis = cobertura.reduce((s, c) => s + c.visitadas, 0);
-
-  return (
-    <div className="space-y-5">
-      <section className="tracking-panel seg-panel">
-        <header className="seg-panel__head">
-          <div>
-            <h2 className="seg-title">Cobertura por REI</h2>
-            <p className="seg-sub">
-              IE del padrón de la UGEL con al menos una ficha en este monitoreo: {totalVis} de {totalIe}. Elige una REI para ver qué IE faltan.
-            </p>
-          </div>
-        </header>
-        <div className="seg-rei-grid">
-          {cobertura.map((c) => {
-            const pct = c.total ? (c.visitadas / c.total) * 100 : 0;
-            return (
-              <button
-                key={c.rei}
-                type="button"
-                className={`seg-rei ${rei === c.rei ? "is-active" : ""}`}
-                onClick={() => setRei(rei === c.rei ? "" : c.rei)}
-                aria-pressed={rei === c.rei}
-              >
-                <span className="seg-rei__name">{c.rei === "Sin REI" ? "Sin REI" : `REI ${c.rei}`}</span>
-                <span className="seg-rei__num">{c.visitadas}<small> / {c.total}</small></span>
-                <span className="seg-progress" aria-hidden="true"><span style={{ width: `${pct}%` }} /></span>
-                <span className="seg-muted">{fmtNum(pct)}%</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {rei && (
-        <section className="tracking-panel seg-panel">
-          <header className="seg-panel__head">
-            <div>
-              <h2 className="seg-title">{rei === "Sin REI" ? "IE sin REI" : `REI ${rei}`}</h2>
-              <p className="seg-sub">{visitadas.length} visitadas · {porVisitar.length} por visitar</p>
-            </div>
-            <input
-              className="rounded-lg border px-3 py-1.5 text-sm"
-              placeholder="Buscar IE o código modular"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              aria-label="Buscar IE en la REI"
-            />
-          </header>
-          {loadingPadron ? (
-            <SkeletonLine width="60%" />
-          ) : (
-            <div className="seg-two-col">
-              <div>
-                <h3 className="seg-col-title">Visitadas</h3>
-                {visitadas.length === 0 ? (
-                  <p className="seg-empty-inline">Ninguna todavía.</p>
-                ) : (
-                  <ul className="seg-list">
-                    {visitadas.map((ie) => {
-                      const fs = visitadasPorIe.get(ie.id) ?? [];
-                      return (
-                        <li key={ie.id}>
-                          <div className="seg-strong">{ie.nombre}</div>
-                          <div className="seg-muted">{[ie.codigo_modular, ie.nivel?.nombre].filter(Boolean).join(" · ")}</div>
-                          {fs.map((f) => {
-                            const url = fichaUrl(f);
-                            return (
-                              <div key={f.id} className="seg-list__meta">
-                                <span className={`seg-pill ${f.status === "final" ? "is-ok" : "is-media"}`}>{f.status === "final" ? "Finalizada" : "Borrador"}</span>
-                                <span>{fmtDate(f.created_at)} · {nameById.get(f.created_by) ?? "—"}</span>
-                                {url && <Link className="seg-link" to={url}>Abrir</Link>}
-                              </div>
-                            );
-                          })}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-              <div>
-                <h3 className="seg-col-title">Por visitar</h3>
-                {porVisitar.length === 0 ? (
-                  <p className="seg-empty-inline">No quedan IE por visitar en esta REI.</p>
-                ) : (
-                  <ul className="seg-list">
-                    {porVisitar.map((ie) => (
-                      <li key={ie.id}>
-                        <div className="seg-strong">{ie.nombre}</div>
-                        <div className="seg-muted">
-                          {[ie.codigo_modular, ie.nivel?.nombre, ie.director ? `Dir. ${ie.director}` : null, ie.telefono].filter(Boolean).join(" · ")}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-    </div>
-  );
-}
-
 // ======================= Compromisos =======================
 
 type FiltroComp = "abiertos" | "vencidos" | "cumplidos" | "todos";
@@ -803,7 +463,7 @@ function CompromisosPanel({
   isAdmin: boolean;
   userId: string;
   onChanged: () => Promise<void> | void;
-  onToast: (t: { type: "ok" | "err"; msg: string }) => void;
+  onToast: (t: Toast) => void;
 }) {
   const [runId, setRunId] = useState("");
   const [descripcion, setDescripcion] = useState("");

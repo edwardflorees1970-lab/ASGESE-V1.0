@@ -58,6 +58,71 @@ const Item = ({
   </NavLink>
 );
 
+/** Entrada de menu con submenu: se despliega al hacer clic y queda abierta dentro de su seccion. */
+const NavGroup = ({
+  base,
+  label,
+  icon,
+  items,
+  onClick,
+  reloadOnClick = false,
+  collapsed = false,
+}: {
+  base: string;
+  label: string;
+  icon: ReactNode;
+  items: { to: string; label: string }[];
+  onClick?: () => void;
+  reloadOnClick?: boolean;
+  collapsed?: boolean;
+}) => {
+  const location = useLocation();
+  const inside = location.pathname.startsWith(base);
+  const [open, setOpen] = useState(inside);
+  const expanded = open || inside;
+
+  if (collapsed) return <Item to={items[0].to} label={label} icon={icon} onClick={onClick} reloadOnClick={reloadOnClick} collapsed />;
+
+  return (
+    <div className="agebre-nav-group">
+      <button
+        type="button"
+        className={["agebre-nav-item agebre-nav-group__toggle flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium", inside ? "is-inside" : ""].join(" ")}
+        aria-expanded={expanded}
+        onClick={() => setOpen(!expanded)}
+      >
+        <span className="agebre-nav-icon grid h-7 w-7 shrink-0 place-items-center rounded-lg">{icon}</span>
+        <span className="truncate">{label}</span>
+        <svg className="agebre-nav-chevron ml-auto h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {expanded && (
+        <div className="agebre-nav-sub">
+          {items.map((it) => (
+            <NavLink
+              key={it.to}
+              to={it.to}
+              end
+              onClick={(e) => {
+                onClick?.();
+                if (reloadOnClick) {
+                  e.preventDefault();
+                  window.location.assign(it.to);
+                }
+              }}
+              className="agebre-nav-item agebre-nav-subitem flex h-9 items-center gap-2 rounded-xl pr-3 text-[13px] font-medium"
+            >
+              <span className="agebre-nav-dot" aria-hidden="true" />
+              <span className="truncate">{it.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export function AppShell() {
   const { profile, signOut, canViewModule } = useAuth();
   const { theme, toggleTheme, palette, setPalette } = useTheme();
@@ -133,6 +198,8 @@ export function AppShell() {
     .join("") || "U";
   const pageTitle = location.pathname === "/app"
     ? "Dashboard"
+    : location.pathname.startsWith("/app/seguimiento")
+    ? (location.pathname.includes("instituciones") ? "Seguimiento de IE" : "Seguimiento de especialistas")
     : location.pathname.includes("reportes-analiticos")
       ? "Reportes analíticos"
       : location.pathname.includes("gestion-monitoreos")
@@ -198,10 +265,14 @@ export function AppShell() {
           collapsed={collapsed}
         />}
         {canViewModule("seguimiento") && !isResponsableCdD && (
-          <Item
-            to="/app/seguimiento"
+          <NavGroup
+            base="/app/seguimiento"
             label="Seguimiento"
             icon={<TrackIcon />}
+            items={[
+              { to: "/app/seguimiento/especialistas", label: "Especialistas" },
+              { to: "/app/seguimiento/instituciones", label: "Instituciones educativas" },
+            ]}
             onClick={onItemClick}
             reloadOnClick={inFichaRoute}
             collapsed={collapsed}

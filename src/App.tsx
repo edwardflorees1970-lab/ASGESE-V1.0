@@ -31,6 +31,9 @@ const TableroPowerBiPage = lazy(() =>
 const SeguimientoPage = lazy(() =>
   import("./pages/SeguimientoPage").then((m) => ({ default: m.SeguimientoPage }))
 );
+const SeguimientoIEPage = lazy(() =>
+  import("./pages/SeguimientoIEPage").then((m) => ({ default: m.SeguimientoIEPage }))
+);
 const AsignacionesPage = lazy(() =>
   import("./pages/AsignacionesPage").then((m) => ({ default: m.AsignacionesPage }))
 );
@@ -101,7 +104,9 @@ export default function App() {
               <Route path="tablero-powerbi" element={<TableroPowerBiPage />} />
             </Route>
             <Route element={<ProtectedRoute requireModule="seguimiento" />}>
-              <Route path="seguimiento" element={<SeguimientoPage />} />
+              <Route path="seguimiento" element={<Navigate to="/app/seguimiento/especialistas" replace />} />
+              <Route path="seguimiento/especialistas" element={<SeguimientoPage />} />
+              <Route path="seguimiento/instituciones" element={<SeguimientoIEPage />} />
             </Route>
             <Route element={<ProtectedRoute requireModule="instituciones" />}><Route path="instituciones" element={<InstitucionesPage />} /></Route>
             <Route element={<ProtectedRoute requireModule="gestion_monitoreos" />}>
